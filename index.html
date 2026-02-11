@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ArcOS Admin Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'DM Sans', sans-serif; background: #131313; color: #F5F1EB; min-height: 100vh; }
+
+/* Login */
+.login-wrap { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+.login-box { width: 380px; padding: 40px; background: #1A1A1A; border-radius: 16px; border: 1px solid #2A2A2A; }
+.login-title { text-align: center; margin-bottom: 32px; }
+.login-title .arc { font-size: 28px; font-weight: 700; color: #E7B400; }
+.login-title .os { font-size: 28px; font-weight: 700; color: #F5F1EB; }
+.login-title .sub { font-size: 14px; color: #8E8D8A; margin-top: 8px; }
+.logo-img { height: 32px; }
+.field { margin-bottom: 16px; }
+.field label { font-size: 12px; color: #8E8D8A; display: block; margin-bottom: 4px; }
+.field input { width: 100%; padding: 10px 14px; background: #242424; border: 1px solid #333; border-radius: 8px; color: #F5F1EB; font-size: 14px; outline: none; font-family: inherit; }
+.field input:focus { border-color: #E7B400; }
+.btn-primary { width: 100%; padding: 12px 0; background: #E7B400; color: #000; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; font-family: inherit; }
+.btn-primary:hover { background: #D4A300; }
+.btn-primary:disabled { opacity: 0.7; cursor: not-allowed; }
+.error-box { padding: 8px 12px; background: #FF656520; border: 1px solid #FF656540; border-radius: 8px; color: #FF6565; font-size: 13px; margin-bottom: 16px; }
+
+/* Nav */
+.nav { display: flex; align-items: center; justify-content: space-between; padding: 16px 32px; border-bottom: 1px solid #1F1F1F; background: #161616; }
+.nav-left { display: flex; align-items: center; gap: 16px; }
+.nav-brand .admin { font-size: 14px; color: #666; margin-left: 8px; }
+.nav-logo { height: 22px; }
+.nav-sep { height: 20px; width: 1px; background: #2A2A2A; }
+.nav-tab { background: transparent; color: #8E8D8A; border: none; padding: 6px 14px; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; font-family: inherit; }
+.nav-tab.active { background: #E7B40015; color: #E7B400; }
+.nav-right { display: flex; align-items: center; gap: 12px; }
+.nav-email { font-size: 13px; color: #666; }
+.btn-signout { background: #2A2A2A; color: #8E8D8A; border: none; padding: 6px 14px; border-radius: 6px; font-size: 12px; cursor: pointer; font-family: inherit; }
+
+/* Content */
+.content { padding: 24px 32px; }
+
+/* Stats */
+.stats { display: flex; gap: 16px; margin-bottom: 24px; }
+.stat-card { flex: 1; padding: 20px 24px; background: #1A1A1A; border-radius: 12px; border: 1px solid #222; }
+.stat-label { font-size: 12px; color: #666; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+.stat-value { font-size: 32px; font-weight: 700; }
+
+/* Search */
+.search { margin-bottom: 20px; }
+.search input { width: 100%; max-width: 480px; padding: 10px 16px; background: #1A1A1A; border: 1px solid #2A2A2A; border-radius: 8px; color: #F5F1EB; font-size: 14px; outline: none; font-family: inherit; }
+.search input:focus { border-color: #E7B400; }
+
+/* Table */
+.table-wrap { background: #1A1A1A; border-radius: 12px; border: 1px solid #222; overflow: hidden; }
+table { width: 100%; border-collapse: collapse; }
+th { padding: 12px 16px; text-align: left; font-size: 11px; font-weight: 600; color: #666; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #222; }
+td { padding: 14px 16px; border-bottom: 1px solid #1F1F1F; }
+tbody tr { cursor: pointer; transition: background 0.15s; }
+tbody tr:hover { background: #222; }
+.user-name { font-weight: 600; font-size: 14px; }
+.user-email { font-size: 12px; color: #8E8D8A; }
+.text-muted { color: #8E8D8A; font-size: 13px; }
+.text-dim { color: #444; }
+code { font-size: 12px; padding: 2px 8px; background: #242424; border-radius: 4px; color: #8E8D8A; font-family: monospace; }
+
+/* Tier badge */
+.tier { padding: 2px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; display: inline-block; }
+.tier-free { background: #2A2A2A; color: #8E8D8A; border: 1px solid #3A3A3A; }
+.tier-pro { background: #E7B40020; color: #E7B400; border: 1px solid #E7B40040; }
+.tier-premium { background: #008BDC20; color: #008BDC; border: 1px solid #008BDC40; }
+.tier-enterprise { background: #2ABC5320; color: #2ABC53; border: 1px solid #2ABC5340; }
+
+/* Detail view */
+.back-btn { background: none; border: none; color: #E7B400; font-size: 14px; cursor: pointer; padding: 0; margin-bottom: 20px; font-weight: 500; font-family: inherit; }
+.detail-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; }
+.detail-name { font-size: 28px; font-weight: 700; margin: 0; }
+.detail-email { color: #8E8D8A; font-size: 14px; margin-top: 4px; }
+.cards { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+.card { background: #1A1A1A; border-radius: 12px; border: 1px solid #222; padding: 24px; }
+.card-title { font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 16px; }
+.info-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #1F1F1F; }
+.info-label { font-size: 13px; color: #666; }
+.info-value { font-size: 13px; color: #A8A7A7; font-weight: 500; }
+.info-value.mono { font-family: monospace; }
+.status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+.status-active { background: #2ABC53; }
+.status-inactive { background: #FF6565; }
+
+/* Logs */
+.logs-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.logs-controls { display: flex; gap: 8px; align-items: center; }
+.logs-controls input[type="date"] { padding: 6px 12px; background: #242424; border: 1px solid #333; border-radius: 6px; color: #F5F1EB; font-size: 13px; font-family: inherit; }
+.btn-load { padding: 6px 16px; background: #E7B400; color: #000; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
+.logs-empty { color: #444; font-size: 13px; text-align: center; padding: 32px; }
+.logs-table { overflow-x: auto; }
+.logs-table table { font-size: 12px; }
+.logs-table th { font-size: 10px; white-space: nowrap; padding: 8px 10px; }
+.logs-table td { padding: 8px 10px; white-space: nowrap; }
+.soc-high { color: #2ABC53; font-weight: 600; }
+.soc-mid { color: #E7B400; font-weight: 600; }
+.soc-low { color: #FF6565; font-weight: 600; }
+.solar-val { color: #E7B400; }
+.shore-on { color: #2ABC53; }
+.engine-on { color: #E7B400; }
+.logs-footer { padding: 12px 10px; border-top: 1px solid #222; font-size: 12px; color: #666; }
+
+.hidden { display: none; }
+</style>
+</head>
+<body>
+
+<!-- LOGIN SCREEN -->
+<div id="loginScreen" class="login-wrap">
+  <div class="login-box">
+    <div class="login-title">
+      <div><img class="logo-img" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTY3IiBoZWlnaHQ9IjQ5IiB2aWV3Qm94PSIwIDAgMTY3IDQ5IiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgo8cGF0aCBkPSJNNTIuMzI2MiAyNy41MjgyQzU1LjQ1OTQgMjcuNTI4MiA1Ny45OTk4IDMwLjA2NzkgNTggMzMuMjAxMUM1OCAzNi4zMzQ0IDU1LjQ1OTUgMzguODc0OSA1Mi4zMjYyIDM4Ljg3NDlDNDkuMTkzMSAzOC44NzQ3IDQ2LjY1MzMgMzYuMzM0MiA0Ni42NTMzIDMzLjIwMTFDNDYuNjUzNSAzMC4wNjgxIDQ5LjE5MzIgMjcuNTI4NSA1Mi4zMjYyIDI3LjUyODJaTTMxLjI2ODYgMTEuNTMwMkMzMy4zMTA1IDkuNDk1MiAzNi42MTE1IDkuNDg5MjUgMzguNjYxMSAxMS41MTY1TDQzLjk0NjMgMTYuNzQzMUM0My45MTI0IDE2LjcyNDUgNDEuNzU4OCAxNS41NTkyIDM5LjYzMzggMTcuNjc2N0MzOC41MDAzIDE4LjgwNjEgMzcuNzA4OSAxOS42NDU0IDM2LjA3MTMgMjEuMjc3M0MzNC45MjI1IDIyLjQyMiAyNS45OTU0IDMxLjE3NTIgMjAuNzY3NiAzNi4yOTk3QzE4LjY4MzMgMzguMzQyOCAxNS4zMzc2IDM4LjI4NjEgMTMuMzE2NCAzNi4xODA2TDEwIDMyLjcyNTVMMzEuMjY4NiAxMS41MzAyWk00MS45NjU4IDIyLjI1MDlDNDQuMDA4MSAyMC4xNjg2IDQ3LjM1NjYgMjAuMTUxMyA0OS40MTk5IDIyLjIxMjhMNTAuODYwNCAyMy42NTIzQzUwLjg2MDQgMjMuNjUyMyA1MC40NiAyMy4xMTU3IDQ2Ljk1MTIgMjYuMDk1NkM0NS4yODgzIDI3LjUwNzggNDMuMDE4IDI5LjgyNzcgNDEuMDg5OCAzMS44Nzc5QzM4Ljk4MjYgMzQuMTE4NSAzNS40MDc4IDM0LjE4MTkgMzMuMjg4MSAzMS45NTNMMzIuODc2IDMxLjUxOTVMNDEuOTY1OCAyMi4yNTA5WiIgZmlsbD0id2hpdGUiLz4KPHBhdGggZD0iTTE0OC45MyAzNS40NjE2QzE0Ny41MTEgMzUuNDYxNiAxNDYuMTI2IDM1LjI2NTMgMTQ0Ljc3NyAzNC44NzI3QzE0My40MjggMzQuNDcgMTQyLjI5IDMzLjg5NjEgMTQxLjM2NCAzMy4xNTExTDE0Mi43ODQgMzAuOTMxMkMxNDMuMzA3IDMxLjM2NDEgMTQzLjkwMSAzMS43MzE1IDE0NC41NjYgMzIuMDMzNkMxNDUuMjMgMzIuMzM1NiAxNDUuOTM1IDMyLjU2NzIgMTQ2LjY4IDMyLjcyODNDMTQ3LjQyNSAzMi44ODkzIDE0OC4xOCAzMi45Njk5IDE0OC45NDUgMzIuOTY5OUMxNTAuNDQ1IDMyLjk2OTkgMTUxLjY0OCAzMi42Nzc5IDE1Mi41NTQgMzIuMDk0QzE1My40NzEgMzEuNTEwMSAxNTMuOTI5IDMwLjY1NDMgMTUzLjkyOSAyOS41MjY3QzE1My45MjkgMjguNzAxMiAxNTMuNjIyIDI4LjAwMTQgMTUzLjAwOCAyNy40Mjc2QzE1Mi40MDMgMjYuODUzNyAxNTEuMjcxIDI2LjMzMDIgMTQ5LjYxIDI1Ljg1N0wxNDcuMzE0IDI1LjE3NzRDMTQ1LjM4MSAyNC42MTM2IDE0My45NjcgMjMuODczNyAxNDMuMDcxIDIyLjk1NzVDMTQyLjE3NSAyMi4wNDEzIDE0MS43MjcgMjAuODkzNiAxNDEuNzI3IDE5LjUxNDNDMTQxLjcyNyAxOC41ODgxIDE0MS45MTMgMTcuNzUyNSAxNDIuMjg1IDE3LjAwNzVDMTQyLjY1OCAxNi4yNjI1IDE0My4xODEgMTUuNjIzMSAxNDMuODU2IDE1LjA4OTZDMTQ0LjUzIDE0LjU0NTkgMTQ1LjMyNiAxNC4xMzMxIDE0Ni4yNDIgMTMuODUxMkMxNDcuMTY4IDEzLjU1OTMgMTQ4LjE4IDEzLjQxMzMgMTQ5LjI3NyAxMy40MTMzQzE1MC42MzcgMTMuNDEzMyAxNTEuOSAxMy42MTQ2IDE1My4wNjggMTQuMDE3M0MxNTQuMjQ2IDE0LjQxIDE1NS4yMTcgMTQuOTM4NSAxNTUuOTgzIDE1LjYwM0wxNTQuNTE4IDE3LjczMjNDMTU0LjA2NSAxNy4zNDk4IDE1My41NDYgMTcuMDIyNiAxNTIuOTYyIDE2Ljc1MDdDMTUyLjM3OCAxNi40Njg4IDE1MS43NTQgMTYuMjU3NCAxNTEuMDkgMTYuMTE2NUMxNTAuNDI1IDE1Ljk2NTUgMTQ5Ljc1MSAxNS44ODk5IDE0OS4wNjYgMTUuODg5OUMxNDguMTUgMTUuODg5OSAxNDcuMzM5IDE2LjAyNTkgMTQ2LjYzNSAxNi4yOTc3QzE0NS45NCAxNi41NTk0IDE0NS4zOTYgMTYuOTUyMSAxNDUuMDA0IDE3LjQ3NTZDMTQ0LjYyMSAxNy45ODkxIDE0NC40MyAxOC42MTMzIDE0NC40MyAxOS4zNDgyQzE0NC40MyAxOS44ODE4IDE0NC41NTYgMjAuMzUgMTQ0LjgwNyAyMC43NTI3QzE0NS4wNTkgMjEuMTQ1MyAxNDUuNDk3IDIxLjUwNzcgMTQ2LjEyMSAyMS44NEMxNDYuNzQ1IDIyLjE3MjIgMTQ3LjYwNiAyMi40OTk0IDE0OC43MDQgMjIuODIxNkwxNTEuMTUgMjMuNTQ2NUMxNTMuMDMzIDI0LjEwMDIgMTU0LjQxNyAyNC44MzAxIDE1NS4zMDMgMjUuNzM2MkMxNTYuMTg5IDI2LjYzMjIgMTU2LjYzMiAyNy44MTAyIDE1Ni42MzIgMjkuMjdDMTU2LjYzMiAzMC40OTgyIDE1Ni4zMyAzMS41ODA1IDE1NS43MjYgMzIuNTE2OEMxNTUuMTMyIDMzLjQ0MzEgMTU0LjI2MSAzNC4xNjc5IDE1My4xMTMgMzQuNjkxNUMxNTEuOTY2IDM1LjIwNDkgMTUwLjU3MSAzNS40NjE2IDE0OC45MyAzNS40NjE2WiIgZmlsbD0id2hpdGUiLz4KPHBhdGggZD0iTTEyOC44OTEgMzUuNDYxNkMxMjcuMzEgMzUuNDYxNiAxMjUuODQ1IDM1LjE4NDggMTI0LjQ5NiAzNC42MzExQzEyMy4xNTcgMzQuMDY3MyAxMjEuOTg0IDMzLjI4NyAxMjAuOTc3IDMyLjI5MDNDMTE5Ljk4MSAzMS4yOTM2IDExOS4yMDYgMzAuMTI1NyAxMTguNjUyIDI4Ljc4NjdDMTE4LjA5OCAyNy40NDc3IDExNy44MjEgMjUuOTk4IDExNy44MjEgMjQuNDM3NUMxMTcuODIxIDIyLjg2NjkgMTE4LjA5OCAyMS40MTIxIDExOC42NTIgMjAuMDczMUMxMTkuMjA2IDE4LjczNDEgMTE5Ljk4MSAxNy41NjYyIDEyMC45NzcgMTYuNTY5NUMxMjEuOTg0IDE1LjU3MjggMTIzLjE1NyAxNC43OTc2IDEyNC40OTYgMTQuMjQzOUMxMjUuODQ1IDEzLjY5MDEgMTI3LjMxIDEzLjQxMzMgMTI4Ljg5MSAxMy40MTMzQzEzMC40NjEgMTMuNDEzMyAxMzEuOTE2IDEzLjY5NTIgMTMzLjI1NSAxNC4yNTlDMTM0LjU5NCAxNC44MjI4IDEzNS43NjcgMTUuNjA4IDEzNi43NzQgMTYuNjE0OEMxMzcuNzgxIDE3LjYyMTYgMTM4LjU2MSAxOC43OTQ1IDEzOS4xMTQgMjAuMTMzNUMxMzkuNjc4IDIxLjQ2MjQgMTM5Ljk2IDIyLjg5NzEgMTM5Ljk2IDI0LjQzNzVDMTM5Ljk2IDI1Ljk5OCAxMzkuNjc4IDI3LjQ0NzcgMTM5LjExNCAyOC43ODY3QzEzOC41NjEgMzAuMTI1NyAxMzcuNzgxIDMxLjI5MzYgMTM2Ljc3NCAzMi4yOTAzQzEzNS43NjcgMzMuMjg3IDEzNC41OTQgMzQuMDY3MyAxMzMuMjU1IDM0LjYzMTFDMTMxLjkxNiAzNS4xODQ4IDEzMC40NjEgMzUuNDYxNiAxMjguODkxIDM1LjQ2MTZaTTEyOC44OTEgMzIuNzU4NUMxMzAuMDI4IDMyLjc1ODUgMTMxLjA4NSAzMi41NjIxIDEzMi4wNjIgMzIuMTY5NUMxMzMuMDQ5IDMxLjc3NjkgMTMzLjkwOSAzMS4yMTgxIDEzNC42NDQgMzAuNDkzMkMxMzUuMzc5IDI5Ljc1ODMgMTM1Ljk1MyAyOC44NzczIDEzNi4zNjYgMjcuODUwNEMxMzYuNzg5IDI2LjgyMzUgMTM3IDI1LjY4NTkgMTM3IDI0LjQzNzVDMTM3IDIyLjc1NjEgMTM2LjYzOCAyMS4yOTEzIDEzNS45MTMgMjAuMDQyOUMxMzUuMTk4IDE4Ljc5NDUgMTM0LjIyNyAxNy44MjggMTMyLjk5OCAxNy4xNDM0QzEzMS43NyAxNi40NDg3IDEzMC40MDEgMTYuMTAxNCAxMjguODkxIDE2LjEwMTRDMTI3Ljc1MyAxNi4xMDE0IDEyNi42OTEgMTYuMzAyNyAxMjUuNzA0IDE2LjcwNTRDMTI0LjcyOCAxNy4wOTgxIDEyMy44NjcgMTcuNjYxOSAxMjMuMTIyIDE4LjM5NjhDMTIyLjM4NyAxOS4xMjE3IDEyMS44MTMgMTkuOTk3NiAxMjEuNCAyMS4wMjQ1QzEyMC45ODggMjIuMDQxMyAxMjAuNzgxIDIzLjE3OSAxMjAuNzgxIDI0LjQzNzVDMTIwLjc4MSAyNi4xMDg3IDEyMS4xMzkgMjcuNTY4NSAxMjEuODUzIDI4LjgxNjlDMTIyLjU3OCAzMC4wNjUzIDEyMy41NTUgMzEuMDM2OSAxMjQuNzgzIDMxLjczMTVDMTI2LjAxMSAzMi40MTYyIDEyNy4zODEgMzIuNzU4NSAxMjguODkxIDMyLjc1ODVaIiBmaWxsPSJ3aGl0ZSIvPgo8cGF0aCBkPSJNMTA5LjczMyAzNS40NjE2QzEwOC4xNzMgMzUuNDYxNiAxMDYuNzg4IDM1LjExOTMgMTA1LjU4IDM0LjQzNDdDMTA0LjM3MiAzMy43NTAxIDEwMy40MjYgMzIuODE4OSAxMDIuNzQxIDMxLjY0MDlDMTAyLjA1NiAzMC40NTI5IDEwMS43MTQgMjkuMTA4OSAxMDEuNzE0IDI3LjYwODhDMTAxLjcxNCAyNi40NzExIDEwMS45MTUgMjUuNDI0MSAxMDIuMzE4IDI0LjQ2NzdDMTAyLjczMSAyMy41MTEyIDEwMy4zMSAyMi42ODA2IDEwNC4wNTUgMjEuOTc1OUMxMDQuOCAyMS4yNzEyIDEwNS42NzEgMjAuNzI3NSAxMDYuNjY3IDIwLjM0NDlDMTA3LjY3NCAxOS45NTIzIDEwOC43NzIgMTkuNzU2IDEwOS45NiAxOS43NTZDMTEwLjkyNiAxOS43NTYgMTExLjgxNyAxOS44ODE4IDExMi42MzMgMjAuMTMzNUMxMTMuNDQ4IDIwLjM4NTIgMTE0LjIwMyAyMC43NzI4IDExNC44OTggMjEuMjk2M0wxMTMuNDc4IDIzLjQ0MDdDMTEzLjAyNSAyMy4wNDgxIDExMi40OTcgMjIuNzU2MSAxMTEuODkzIDIyLjU2NDlDMTExLjI4OSAyMi4zNjM1IDExMC42NDkgMjIuMjYyOCAxMDkuOTc1IDIyLjI2MjhDMTA4Ljg2NyAyMi4yNjI4IDEwNy45MDYgMjIuNDc0MiAxMDcuMDkgMjIuODk3MUMxMDYuMjg1IDIzLjMwOTkgMTA1LjY2MSAyMy45MTM5IDEwNS4yMTggMjQuNzA5M0MxMDQuNzc1IDI1LjUwNDYgMTA0LjU1MyAyNi40NjExIDEwNC41NTMgMjcuNTc4NkMxMDQuNTUzIDI5LjI1OTkgMTA1LjAzNyAzMC41Nzg4IDEwNi4wMDMgMzEuNTM1MkMxMDYuOTggMzIuNDgxNiAxMDguMjk4IDMyLjk1NDggMTA5Ljk2IDMyLjk1NDhDMTEwLjcyNSAzMi45NTQ4IDExMS40NCAzMi44MTg5IDExMi4xMDQgMzIuNTQ3QzExMi43NjkgMzIuMjY1MSAxMTMuMzEyIDMxLjkwMjcgMTEzLjczNSAzMS40NTk3TDExNS4xNyAzMy41NzM5QzExNC4zOTQgMzQuMTU3OSAxMTMuNTQ0IDM0LjYyMSAxMTIuNjE4IDM0Ljk2MzNDMTExLjY5MSAzNS4yOTU1IDExMC43MyAzNS40NjE2IDEwOS43MzMgMzUuNDYxNloiIGZpbGw9IndoaXRlIi8+CjxwYXRoIGQ9Ik05MC45Mjc4IDM1LjAwODZWMjAuMjA5SDkzLjcwNjVWMjIuMzUzNEM5NC4zMDA1IDIxLjM4NjkgOTUuMDA1MyAyMC43MTI0IDk1LjgyMDcgMjAuMzI5OEM5Ni42NDYzIDE5LjkzNzIgOTcuNTIyMiAxOS43NDA5IDk4LjQ0ODQgMTkuNzQwOUM5OC43NDA0IDE5Ljc0MDkgOTkuMDIyMyAxOS43NTYgOTkuMjk0MSAxOS43ODYyQzk5LjU2NTkgMTkuODE2NCA5OS44MzI3IDE5Ljg1NjYgMTAwLjA5NCAxOS45MDdMOTkuNjg2OCAyMi43OTE0Qzk5LjQwNDkgMjIuNzEwOCA5OS4xMTc5IDIyLjY1MDQgOTguODI2IDIyLjYxMDJDOTguNTM0IDIyLjU1OTggOTguMjQ3MSAyMi41MzQ3IDk3Ljk2NTIgMjIuNTM0N0M5Ni43MjY4IDIyLjUzNDcgOTUuNzA1IDIyLjkyMjMgOTQuODk5NSAyMy42OTc1Qzk0LjEwNDIgMjQuNDYyNiA5My43MDY1IDI1LjQ4OTUgOTMuNzA2NSAyNi43NzgyVjM1LjAwODZIOTAuOTI3OFoiIGZpbGw9IndoaXRlIi8+CjxwYXRoIGQ9Ik02OCAzNS4wMDg2TDc2LjMyMSAxMy44NjYzSDc5LjI2NThMODcuODQzNSAzNS4wMDg2SDg0LjY0Mkw4Mi41NDI5IDI5LjcwNzlINzMuMTE5NUw3MS4xMTA5IDM1LjAwODZINjhaTTczLjkxOTggMjcuMjMxM0g4MS43MTIzTDc3LjcyNTQgMTcuMzg1TDczLjkxOTggMjcuMjMxM1oiIGZpbGw9IndoaXRlIi8+Cjwvc3ZnPgo=" alt="ArcOS"></div>
+      <div class="sub">Admin Dashboard</div>
+    </div>
+    <div class="field">
+      <label>Email</label>
+      <input type="email" id="loginEmail" placeholder="admin@arcos.app">
+    </div>
+    <div class="field" style="margin-bottom: 24px">
+      <label>Password</label>
+      <input type="password" id="loginPassword">
+    </div>
+    <div id="loginError" class="error-box hidden"></div>
+    <button id="loginBtn" class="btn-primary" onclick="handleLogin()">Sign In</button>
+  </div>
+</div>
+
+<!-- DASHBOARD -->
+<div id="dashboard" class="hidden">
+  <div class="nav">
+    <div class="nav-left">
+      <div class="nav-brand"><img class="nav-logo" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTY3IiBoZWlnaHQ9IjQ5IiB2aWV3Qm94PSIwIDAgMTY3IDQ5IiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgo8cGF0aCBkPSJNNTIuMzI2MiAyNy41MjgyQzU1LjQ1OTQgMjcuNTI4MiA1Ny45OTk4IDMwLjA2NzkgNTggMzMuMjAxMUM1OCAzNi4zMzQ0IDU1LjQ1OTUgMzguODc0OSA1Mi4zMjYyIDM4Ljg3NDlDNDkuMTkzMSAzOC44NzQ3IDQ2LjY1MzMgMzYuMzM0MiA0Ni42NTMzIDMzLjIwMTFDNDYuNjUzNSAzMC4wNjgxIDQ5LjE5MzIgMjcuNTI4NSA1Mi4zMjYyIDI3LjUyODJaTTMxLjI2ODYgMTEuNTMwMkMzMy4zMTA1IDkuNDk1MiAzNi42MTE1IDkuNDg5MjUgMzguNjYxMSAxMS41MTY1TDQzLjk0NjMgMTYuNzQzMUM0My45MTI0IDE2LjcyNDUgNDEuNzU4OCAxNS41NTkyIDM5LjYzMzggMTcuNjc2N0MzOC41MDAzIDE4LjgwNjEgMzcuNzA4OSAxOS42NDU0IDM2LjA3MTMgMjEuMjc3M0MzNC45MjI1IDIyLjQyMiAyNS45OTU0IDMxLjE3NTIgMjAuNzY3NiAzNi4yOTk3QzE4LjY4MzMgMzguMzQyOCAxNS4zMzc2IDM4LjI4NjEgMTMuMzE2NCAzNi4xODA2TDEwIDMyLjcyNTVMMzEuMjY4NiAxMS41MzAyWk00MS45NjU4IDIyLjI1MDlDNDQuMDA4MSAyMC4xNjg2IDQ3LjM1NjYgMjAuMTUxMyA0OS40MTk5IDIyLjIxMjhMNTAuODYwNCAyMy42NTIzQzUwLjg2MDQgMjMuNjUyMyA1MC40NiAyMy4xMTU3IDQ2Ljk1MTIgMjYuMDk1NkM0NS4yODgzIDI3LjUwNzggNDMuMDE4IDI5LjgyNzcgNDEuMDg5OCAzMS44Nzc5QzM4Ljk4MjYgMzQuMTE4NSAzNS40MDc4IDM0LjE4MTkgMzMuMjg4MSAzMS45NTNMMzIuODc2IDMxLjUxOTVMNDEuOTY1OCAyMi4yNTA5WiIgZmlsbD0id2hpdGUiLz4KPHBhdGggZD0iTTE0OC45MyAzNS40NjE2QzE0Ny41MTEgMzUuNDYxNiAxNDYuMTI2IDM1LjI2NTMgMTQ0Ljc3NyAzNC44NzI3QzE0My40MjggMzQuNDcgMTQyLjI5IDMzLjg5NjEgMTQxLjM2NCAzMy4xNTExTDE0Mi43ODQgMzAuOTMxMkMxNDMuMzA3IDMxLjM2NDEgMTQzLjkwMSAzMS43MzE1IDE0NC41NjYgMzIuMDMzNkMxNDUuMjMgMzIuMzM1NiAxNDUuOTM1IDMyLjU2NzIgMTQ2LjY4IDMyLjcyODNDMTQ3LjQyNSAzMi44ODkzIDE0OC4xOCAzMi45Njk5IDE0OC45NDUgMzIuOTY5OUMxNTAuNDQ1IDMyLjk2OTkgMTUxLjY0OCAzMi42Nzc5IDE1Mi41NTQgMzIuMDk0QzE1My40NzEgMzEuNTEwMSAxNTMuOTI5IDMwLjY1NDMgMTUzLjkyOSAyOS41MjY3QzE1My45MjkgMjguNzAxMiAxNTMuNjIyIDI4LjAwMTQgMTUzLjAwOCAyNy40Mjc2QzE1Mi40MDMgMjYuODUzNyAxNTEuMjcxIDI2LjMzMDIgMTQ5LjYxIDI1Ljg1N0wxNDcuMzE0IDI1LjE3NzRDMTQ1LjM4MSAyNC42MTM2IDE0My45NjcgMjMuODczNyAxNDMuMDcxIDIyLjk1NzVDMTQyLjE3NSAyMi4wNDEzIDE0MS43MjcgMjAuODkzNiAxNDEuNzI3IDE5LjUxNDNDMTQxLjcyNyAxOC41ODgxIDE0MS45MTMgMTcuNzUyNSAxNDIuMjg1IDE3LjAwNzVDMTQyLjY1OCAxNi4yNjI1IDE0My4xODEgMTUuNjIzMSAxNDMuODU2IDE1LjA4OTZDMTQ0LjUzIDE0LjU0NTkgMTQ1LjMyNiAxNC4xMzMxIDE0Ni4yNDIgMTMuODUxMkMxNDcuMTY4IDEzLjU1OTMgMTQ4LjE4IDEzLjQxMzMgMTQ5LjI3NyAxMy40MTMzQzE1MC42MzcgMTMuNDEzMyAxNTEuOSAxMy42MTQ2IDE1My4wNjggMTQuMDE3M0MxNTQuMjQ2IDE0LjQxIDE1NS4yMTcgMTQuOTM4NSAxNTUuOTgzIDE1LjYwM0wxNTQuNTE4IDE3LjczMjNDMTU0LjA2NSAxNy4zNDk4IDE1My41NDYgMTcuMDIyNiAxNTIuOTYyIDE2Ljc1MDdDMTUyLjM3OCAxNi40Njg4IDE1MS43NTQgMTYuMjU3NCAxNTEuMDkgMTYuMTE2NUMxNTAuNDI1IDE1Ljk2NTUgMTQ5Ljc1MSAxNS44ODk5IDE0OS4wNjYgMTUuODg5OUMxNDguMTUgMTUuODg5OSAxNDcuMzM5IDE2LjAyNTkgMTQ2LjYzNSAxNi4yOTc3QzE0NS45NCAxNi41NTk0IDE0NS4zOTYgMTYuOTUyMSAxNDUuMDA0IDE3LjQ3NTZDMTQ0LjYyMSAxNy45ODkxIDE0NC40MyAxOC42MTMzIDE0NC40MyAxOS4zNDgyQzE0NC40MyAxOS44ODE4IDE0NC41NTYgMjAuMzUgMTQ0LjgwNyAyMC43NTI3QzE0NS4wNTkgMjEuMTQ1MyAxNDUuNDk3IDIxLjUwNzcgMTQ2LjEyMSAyMS44NEMxNDYuNzQ1IDIyLjE3MjIgMTQ3LjYwNiAyMi40OTk0IDE0OC43MDQgMjIuODIxNkwxNTEuMTUgMjMuNTQ2NUMxNTMuMDMzIDI0LjEwMDIgMTU0LjQxNyAyNC44MzAxIDE1NS4zMDMgMjUuNzM2MkMxNTYuMTg5IDI2LjYzMjIgMTU2LjYzMiAyNy44MTAyIDE1Ni42MzIgMjkuMjdDMTU2LjYzMiAzMC40OTgyIDE1Ni4zMyAzMS41ODA1IDE1NS43MjYgMzIuNTE2OEMxNTUuMTMyIDMzLjQ0MzEgMTU0LjI2MSAzNC4xNjc5IDE1My4xMTMgMzQuNjkxNUMxNTEuOTY2IDM1LjIwNDkgMTUwLjU3MSAzNS40NjE2IDE0OC45MyAzNS40NjE2WiIgZmlsbD0id2hpdGUiLz4KPHBhdGggZD0iTTEyOC44OTEgMzUuNDYxNkMxMjcuMzEgMzUuNDYxNiAxMjUuODQ1IDM1LjE4NDggMTI0LjQ5NiAzNC42MzExQzEyMy4xNTcgMzQuMDY3MyAxMjEuOTg0IDMzLjI4NyAxMjAuOTc3IDMyLjI5MDNDMTE5Ljk4MSAzMS4yOTM2IDExOS4yMDYgMzAuMTI1NyAxMTguNjUyIDI4Ljc4NjdDMTE4LjA5OCAyNy40NDc3IDExNy44MjEgMjUuOTk4IDExNy44MjEgMjQuNDM3NUMxMTcuODIxIDIyLjg2NjkgMTE4LjA5OCAyMS40MTIxIDExOC42NTIgMjAuMDczMUMxMTkuMjA2IDE4LjczNDEgMTE5Ljk4MSAxNy41NjYyIDEyMC45NzcgMTYuNTY5NUMxMjEuOTg0IDE1LjU3MjggMTIzLjE1NyAxNC43OTc2IDEyNC40OTYgMTQuMjQzOUMxMjUuODQ1IDEzLjY5MDEgMTI3LjMxIDEzLjQxMzMgMTI4Ljg5MSAxMy40MTMzQzEzMC40NjEgMTMuNDEzMyAxMzEuOTE2IDEzLjY5NTIgMTMzLjI1NSAxNC4yNTlDMTM0LjU5NCAxNC44MjI4IDEzNS43NjcgMTUuNjA4IDEzNi43NzQgMTYuNjE0OEMxMzcuNzgxIDE3LjYyMTYgMTM4LjU2MSAxOC43OTQ1IDEzOS4xMTQgMjAuMTMzNUMxMzkuNjc4IDIxLjQ2MjQgMTM5Ljk2IDIyLjg5NzEgMTM5Ljk2IDI0LjQzNzVDMTM5Ljk2IDI1Ljk5OCAxMzkuNjc4IDI3LjQ0NzcgMTM5LjExNCAyOC43ODY3QzEzOC41NjEgMzAuMTI1NyAxMzcuNzgxIDMxLjI5MzYgMTM2Ljc3NCAzMi4yOTAzQzEzNS43NjcgMzMuMjg3IDEzNC41OTQgMzQuMDY3MyAxMzMuMjU1IDM0LjYzMTFDMTMxLjkxNiAzNS4xODQ4IDEzMC40NjEgMzUuNDYxNiAxMjguODkxIDM1LjQ2MTZaTTEyOC44OTEgMzIuNzU4NUMxMzAuMDI4IDMyLjc1ODUgMTMxLjA4NSAzMi41NjIxIDEzMi4wNjIgMzIuMTY5NUMxMzMuMDQ5IDMxLjc3NjkgMTMzLjkwOSAzMS4yMTgxIDEzNC42NDQgMzAuNDkzMkMxMzUuMzc5IDI5Ljc1ODMgMTM1Ljk1MyAyOC44NzczIDEzNi4zNjYgMjcuODUwNEMxMzYuNzg5IDI2LjgyMzUgMTM3IDI1LjY4NTkgMTM3IDI0LjQzNzVDMTM3IDIyLjc1NjEgMTM2LjYzOCAyMS4yOTEzIDEzNS45MTMgMjAuMDQyOUMxMzUuMTk4IDE4Ljc5NDUgMTM0LjIyNyAxNy44MjggMTMyLjk5OCAxNy4xNDM0QzEzMS43NyAxNi40NDg3IDEzMC40MDEgMTYuMTAxNCAxMjguODkxIDE2LjEwMTRDMTI3Ljc1MyAxNi4xMDE0IDEyNi42OTEgMTYuMzAyNyAxMjUuNzA0IDE2LjcwNTRDMTI0LjcyOCAxNy4wOTgxIDEyMy44NjcgMTcuNjYxOSAxMjMuMTIyIDE4LjM5NjhDMTIyLjM4NyAxOS4xMjE3IDEyMS44MTMgMTkuOTk3NiAxMjEuNCAyMS4wMjQ1QzEyMC45ODggMjIuMDQxMyAxMjAuNzgxIDIzLjE3OSAxMjAuNzgxIDI0LjQzNzVDMTIwLjc4MSAyNi4xMDg3IDEyMS4xMzkgMjcuNTY4NSAxMjEuODUzIDI4LjgxNjlDMTIyLjU3OCAzMC4wNjUzIDEyMy41NTUgMzEuMDM2OSAxMjQuNzgzIDMxLjczMTVDMTI2LjAxMSAzMi40MTYyIDEyNy4zODEgMzIuNzU4NSAxMjguODkxIDMyLjc1ODVaIiBmaWxsPSJ3aGl0ZSIvPgo8cGF0aCBkPSJNMTA5LjczMyAzNS40NjE2QzEwOC4xNzMgMzUuNDYxNiAxMDYuNzg4IDM1LjExOTMgMTA1LjU4IDM0LjQzNDdDMTA0LjM3MiAzMy43NTAxIDEwMy40MjYgMzIuODE4OSAxMDIuNzQxIDMxLjY0MDlDMTAyLjA1NiAzMC40NTI5IDEwMS43MTQgMjkuMTA4OSAxMDEuNzE0IDI3LjYwODhDMTAxLjcxNCAyNi40NzExIDEwMS45MTUgMjUuNDI0MSAxMDIuMzE4IDI0LjQ2NzdDMTAyLjczMSAyMy41MTEyIDEwMy4zMSAyMi42ODA2IDEwNC4wNTUgMjEuOTc1OUMxMDQuOCAyMS4yNzEyIDEwNS42NzEgMjAuNzI3NSAxMDYuNjY3IDIwLjM0NDlDMTA3LjY3NCAxOS45NTIzIDEwOC43NzIgMTkuNzU2IDEwOS45NiAxOS43NTZDMTEwLjkyNiAxOS43NTYgMTExLjgxNyAxOS44ODE4IDExMi42MzMgMjAuMTMzNUMxMTMuNDQ4IDIwLjM4NTIgMTE0LjIwMyAyMC43NzI4IDExNC44OTggMjEuMjk2M0wxMTMuNDc4IDIzLjQ0MDdDMTEzLjAyNSAyMy4wNDgxIDExMi40OTcgMjIuNzU2MSAxMTEuODkzIDIyLjU2NDlDMTExLjI4OSAyMi4zNjM1IDExMC42NDkgMjIuMjYyOCAxMDkuOTc1IDIyLjI2MjhDMTA4Ljg2NyAyMi4yNjI4IDEwNy45MDYgMjIuNDc0MiAxMDcuMDkgMjIuODk3MUMxMDYuMjg1IDIzLjMwOTkgMTA1LjY2MSAyMy45MTM5IDEwNS4yMTggMjQuNzA5M0MxMDQuNzc1IDI1LjUwNDYgMTA0LjU1MyAyNi40NjExIDEwNC41NTMgMjcuNTc4NkMxMDQuNTUzIDI5LjI1OTkgMTA1LjAzNyAzMC41Nzg4IDEwNi4wMDMgMzEuNTM1MkMxMDYuOTggMzIuNDgxNiAxMDguMjk4IDMyLjk1NDggMTA5Ljk2IDMyLjk1NDhDMTEwLjcyNSAzMi45NTQ4IDExMS40NCAzMi44MTg5IDExMi4xMDQgMzIuNTQ3QzExMi43NjkgMzIuMjY1MSAxMTMuMzEyIDMxLjkwMjcgMTEzLjczNSAzMS40NTk3TDExNS4xNyAzMy41NzM5QzExNC4zOTQgMzQuMTU3OSAxMTMuNTQ0IDM0LjYyMSAxMTIuNjE4IDM0Ljk2MzNDMTExLjY5MSAzNS4yOTU1IDExMC43MyAzNS40NjE2IDEwOS43MzMgMzUuNDYxNloiIGZpbGw9IndoaXRlIi8+CjxwYXRoIGQ9Ik05MC45Mjc4IDM1LjAwODZWMjAuMjA5SDkzLjcwNjVWMjIuMzUzNEM5NC4zMDA1IDIxLjM4NjkgOTUuMDA1MyAyMC43MTI0IDk1LjgyMDcgMjAuMzI5OEM5Ni42NDYzIDE5LjkzNzIgOTcuNTIyMiAxOS43NDA5IDk4LjQ0ODQgMTkuNzQwOUM5OC43NDA0IDE5Ljc0MDkgOTkuMDIyMyAxOS43NTYgOTkuMjk0MSAxOS43ODYyQzk5LjU2NTkgMTkuODE2NCA5OS44MzI3IDE5Ljg1NjYgMTAwLjA5NCAxOS45MDdMOTkuNjg2OCAyMi43OTE0Qzk5LjQwNDkgMjIuNzEwOCA5OS4xMTc5IDIyLjY1MDQgOTguODI2IDIyLjYxMDJDOTguNTM0IDIyLjU1OTggOTguMjQ3MSAyMi41MzQ3IDk3Ljk2NTIgMjIuNTM0N0M5Ni43MjY4IDIyLjUzNDcgOTUuNzA1IDIyLjkyMjMgOTQuODk5NSAyMy42OTc1Qzk0LjEwNDIgMjQuNDYyNiA5My43MDY1IDI1LjQ4OTUgOTMuNzA2NSAyNi43NzgyVjM1LjAwODZIOTAuOTI3OFoiIGZpbGw9IndoaXRlIi8+CjxwYXRoIGQ9Ik02OCAzNS4wMDg2TDc2LjMyMSAxMy44NjYzSDc5LjI2NThMODcuODQzNSAzNS4wMDg2SDg0LjY0Mkw4Mi41NDI5IDI5LjcwNzlINzMuMTE5NUw3MS4xMTA5IDM1LjAwODZINjhaTTczLjkxOTggMjcuMjMxM0g4MS43MTIzTDc3LjcyNTQgMTcuMzg1TDczLjkxOTggMjcuMjMxM1oiIGZpbGw9IndoaXRlIi8+Cjwvc3ZnPgo=" alt="ArcOS"><span class="admin">Admin</span></div>
+      <div class="nav-sep"></div>
+      <button class="nav-tab active" onclick="showUsers()">Users</button>
+    </div>
+    <div class="nav-right">
+      <span class="nav-email" id="navEmail"></span>
+      <button class="btn-signout" onclick="handleSignout()">Sign out</button>
+    </div>
+  </div>
+
+  <div class="content">
+    <!-- USERS LIST -->
+    <div id="usersView">
+      <div class="stats">
+        <div class="stat-card">
+          <div class="stat-label">Total Users</div>
+          <div class="stat-value" id="statTotal" style="color:#F5F1EB">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Paid Users</div>
+          <div class="stat-value" id="statPaid" style="color:#E7B400">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Free Users</div>
+          <div class="stat-value" id="statFree" style="color:#8E8D8A">0</div>
+        </div>
+      </div>
+      <div class="search">
+        <input type="text" id="searchInput" placeholder="Search by name, email, or vehicle nickname..." oninput="filterUsers()">
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>User</th>
+              <th>Vehicle</th>
+              <th>Cerbo IP</th>
+              <th>Tier</th>
+              <th>Joined</th>
+              <th>Last Login</th>
+            </tr>
+          </thead>
+          <tbody id="usersTableBody">
+            <tr><td colspan="6" style="text-align:center;color:#666;padding:32px">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- USER DETAIL -->
+    <div id="detailView" class="hidden">
+      <button class="back-btn" onclick="showUsers()">&#8592; Back to Users</button>
+      <div class="detail-header">
+        <div>
+          <h2 class="detail-name" id="detailName"></h2>
+          <div class="detail-email" id="detailEmail"></div>
+        </div>
+        <div id="detailTier"></div>
+      </div>
+      <div class="cards">
+        <div class="card">
+          <div class="card-title">Account</div>
+          <div id="accountInfo"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Vehicle</div>
+          <div id="vehicleInfo"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Subscription</div>
+          <div id="subInfo"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="logs-header">
+          <div class="card-title" style="margin-bottom:0">System Logs</div>
+          <div class="logs-controls">
+            <input type="date" id="logDateInput">
+            <button class="btn-load" id="loadLogsBtn" onclick="loadLogs()">Load Logs</button>
+          </div>
+        </div>
+        <div id="logsContent">
+          <div class="logs-empty">Select a date and click Load Logs to view system data</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const SUPA_URL = "https://agpsalkaajjivoytcipb.supabase.co";
+const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFncHNhbGthYWpqaXZveXRjaXBiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA4NDUxMDEsImV4cCI6MjA4NjQyMTEwMX0.rm3KLQIC4apB8Oe5zvYIhrsOdh8A_4oQgxMSqPdrUpo";
+
+let token = null;
+let currentUser = null;
+let allUsers = [];
+let selectedUserId = null;
+
+// Auth
+async function handleLogin() {
+  const email = document.getElementById("loginEmail").value;
+  const password = document.getElementById("loginPassword").value;
+  const errEl = document.getElementById("loginError");
+  const btn = document.getElementById("loginBtn");
+  
+  errEl.classList.add("hidden");
+  btn.disabled = true;
+  btn.textContent = "Signing in...";
+  
+  try {
+    const res = await fetch(`${SUPA_URL}/auth/v1/token?grant_type=password`, {
+      method: "POST",
+      headers: { apikey: SUPA_KEY, "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.msg || data.error_description || "Auth failed");
+    
+    token = data.access_token;
+    currentUser = data.user;
+    document.getElementById("navEmail").textContent = email;
+    document.getElementById("loginScreen").classList.add("hidden");
+    document.getElementById("dashboard").classList.remove("hidden");
+    loadUsers();
+  } catch (e) {
+    errEl.textContent = e.message;
+    errEl.classList.remove("hidden");
+  }
+  btn.disabled = false;
+  btn.textContent = "Sign In";
+}
+
+// Enter key support
+document.addEventListener("DOMContentLoaded", () => {
+  document.getElementById("loginEmail").addEventListener("keydown", e => { if (e.key === "Enter") handleLogin(); });
+  document.getElementById("loginPassword").addEventListener("keydown", e => { if (e.key === "Enter") handleLogin(); });
+  document.getElementById("logDateInput").value = new Date().toISOString().split("T")[0];
+});
+
+function handleSignout() {
+  token = null;
+  currentUser = null;
+  document.getElementById("dashboard").classList.add("hidden");
+  document.getElementById("loginScreen").classList.remove("hidden");
+  document.getElementById("loginPassword").value = "";
+}
+
+// Supabase REST fetch
+async function supa(path) {
+  const res = await fetch(`${SUPA_URL}/rest/v1/${path}`, {
+    headers: {
+      apikey: SUPA_KEY,
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+// Load all users
+async function loadUsers() {
+  try {
+    const [profiles, vehicles, subs] = await Promise.all([
+      supa("profiles?select=*&order=created_at.desc"),
+      supa("vehicles?select=*"),
+      supa("subscriptions?select=*"),
+    ]);
+    
+    allUsers = profiles.map(p => ({
+      ...p,
+      vehicle: vehicles.find(v => v.user_id === p.id),
+      subscription: subs.find(s => s.user_id === p.id),
+    }));
+    
+    const paid = subs.filter(s => s.tier !== "free").length;
+    document.getElementById("statTotal").textContent = profiles.length;
+    document.getElementById("statPaid").textContent = paid;
+    document.getElementById("statFree").textContent = profiles.length - paid;
+    
+    renderUsers(allUsers);
+  } catch (e) {
+    console.error("Load users failed:", e);
+    document.getElementById("usersTableBody").innerHTML = 
+      `<tr><td colspan="6" style="text-align:center;color:#FF6565;padding:32px">Failed to load: ${e.message}</td></tr>`;
+  }
+}
+
+function renderUsers(users) {
+  const tbody = document.getElementById("usersTableBody");
+  if (users.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:#666;padding:32px">No users found</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = users.map(u => `
+    <tr onclick="selectUser('${u.id}')">
+      <td>
+        <div class="user-name">${u.first_name || u.last_name ? `${u.first_name || ""} ${u.last_name || ""}`.trim() : "—"}</div>
+        <div class="user-email">${u.email}</div>
+      </td>
+      <td class="text-muted">${u.vehicle ? (u.vehicle.nickname || `${u.vehicle.year || ""} ${u.vehicle.make || ""} ${u.vehicle.model || ""}`.trim() || "—") : "—"}</td>
+      <td>${u.vehicle?.cerbo_ip ? `<code>${u.vehicle.cerbo_ip}</code>` : '<span class="text-dim">—</span>'}</td>
+      <td>${tierBadge(u.subscription?.tier)}</td>
+      <td class="text-muted">${formatDate(u.created_at)}</td>
+      <td class="text-muted">${timeAgo(u.last_login_at)}</td>
+    </tr>
+  `).join("");
+}
+
+function filterUsers() {
+  const q = document.getElementById("searchInput").value.toLowerCase();
+  if (!q) { renderUsers(allUsers); return; }
+  const filtered = allUsers.filter(u =>
+    (u.email || "").toLowerCase().includes(q) ||
+    (u.first_name || "").toLowerCase().includes(q) ||
+    (u.last_name || "").toLowerCase().includes(q) ||
+    (u.vehicle?.nickname || "").toLowerCase().includes(q)
+  );
+  renderUsers(filtered);
+}
+
+// Select user detail
+async function selectUser(id) {
+  selectedUserId = id;
+  const u = allUsers.find(x => x.id === id);
+  if (!u) return;
+  
+  document.getElementById("usersView").classList.add("hidden");
+  document.getElementById("detailView").classList.remove("hidden");
+  
+  const name = u.first_name || u.last_name ? `${u.first_name || ""} ${u.last_name || ""}`.trim() : u.email;
+  document.getElementById("detailName").textContent = name;
+  document.getElementById("detailEmail").textContent = u.email;
+  document.getElementById("detailTier").innerHTML = tierBadge(u.subscription?.tier);
+  
+  // Account card
+  document.getElementById("accountInfo").innerHTML = `
+    ${infoRow("User ID", `<span class="mono">${u.id.slice(0, 8)}...</span>`)}
+    ${infoRow("Joined", formatDate(u.created_at))}
+    ${infoRow("Last Login", timeAgo(u.last_login_at))}
+    ${infoRow("Admin", u.is_admin ? "Yes" : "No")}
+  `;
+  
+  // Vehicle card
+  try {
+    const vehicles = await supa(`vehicles?user_id=eq.${id}`);
+    const v = vehicles[0];
+    document.getElementById("vehicleInfo").innerHTML = v ? `
+      ${infoRow("Nickname", v.nickname || "—")}
+      ${infoRow("Vehicle", `${v.year || ""} ${v.make || ""} ${v.model || ""}`.trim() || "—")}
+      ${infoRow("Cerbo IP", `<span class="mono">${v.cerbo_ip || "—"}</span>`)}
+    ` : '<div style="color:#444;font-size:13px">No vehicle registered</div>';
+  } catch (e) {
+    document.getElementById("vehicleInfo").innerHTML = '<div style="color:#FF6565;font-size:13px">Failed to load</div>';
+  }
+  
+  // Subscription card
+  try {
+    const subs = await supa(`subscriptions?user_id=eq.${id}`);
+    const s = subs[0];
+    document.getElementById("subInfo").innerHTML = s ? `
+      ${infoRow("Tier", s.tier?.toUpperCase())}
+      ${infoRow("Status", `<span class="status-dot ${s.status === 'active' ? 'status-active' : 'status-inactive'}"></span>${s.status}`)}
+      ${infoRow("Platform", s.platform || "—")}
+      ${infoRow("Period End", formatDate(s.current_period_end))}
+    ` : '<div style="color:#444;font-size:13px">No subscription</div>';
+  } catch (e) {
+    document.getElementById("subInfo").innerHTML = '<div style="color:#FF6565;font-size:13px">Failed to load</div>';
+  }
+  
+  // Reset logs
+  document.getElementById("logsContent").innerHTML = '<div class="logs-empty">Select a date and click Load Logs to view system data</div>';
+}
+
+async function loadLogs() {
+  if (!selectedUserId) return;
+  const date = document.getElementById("logDateInput").value;
+  const btn = document.getElementById("loadLogsBtn");
+  btn.textContent = "Loading...";
+  
+  try {
+    const start = `${date}T00:00:00Z`;
+    const end = `${date}T23:59:59Z`;
+    const logs = await supa(`system_logs?user_id=eq.${selectedUserId}&logged_at=gte.${start}&logged_at=lte.${end}&order=logged_at.asc`);
+    
+    if (logs.length === 0) {
+      document.getElementById("logsContent").innerHTML = `<div class="logs-empty">No log entries for ${date}</div>`;
+    } else {
+      document.getElementById("logsContent").innerHTML = `
+        <div class="logs-table">
+          <table>
+            <thead><tr>
+              <th>Time</th><th>Battery</th><th>Voltage</th><th>Solar</th><th>DC Load</th>
+              <th>AC Load</th><th>Shore</th><th>Engine</th><th>Temp</th><th>Location</th>
+            </tr></thead>
+            <tbody>
+              ${logs.map(l => `<tr>
+                <td style="color:#A8A7A7">${formatTime(l.logged_at)}</td>
+                <td><span class="${l.battery_soc > 50 ? 'soc-high' : l.battery_soc > 20 ? 'soc-mid' : 'soc-low'}">${(l.battery_soc||0).toFixed(0)}%</span></td>
+                <td style="color:#A8A7A7">${(l.battery_voltage||0).toFixed(1)}V</td>
+                <td class="solar-val">${(l.solar_power||0).toFixed(0)}W</td>
+                <td style="color:#A8A7A7">${(l.dc_load_power||0).toFixed(0)}W</td>
+                <td style="color:#A8A7A7">${(l.ac_load_power||0).toFixed(0)}W</td>
+                <td>${l.shore_connected ? `<span class="shore-on">● ${(l.shore_power||0).toFixed(0)}W</span>` : '<span class="text-dim">Off</span>'}</td>
+                <td>${l.engine_running ? '<span class="engine-on">Running</span>' : '<span class="text-dim">Off</span>'}</td>
+                <td style="color:#A8A7A7">${l.outside_temp ? l.outside_temp.toFixed(0) + '°F' : '—'}</td>
+                <td style="color:#666;font-size:11px">${l.latitude && l.longitude ? `${l.latitude.toFixed(3)}, ${l.longitude.toFixed(3)}` : '—'}</td>
+              </tr>`).join("")}
+            </tbody>
+          </table>
+        </div>
+        <div class="logs-footer">${logs.length} log entries for ${date}</div>
+      `;
+    }
+  } catch (e) {
+    document.getElementById("logsContent").innerHTML = `<div class="logs-empty" style="color:#FF6565">Failed to load: ${e.message}</div>`;
+  }
+  btn.textContent = "Load Logs";
+}
+
+function showUsers() {
+  document.getElementById("usersView").classList.remove("hidden");
+  document.getElementById("detailView").classList.add("hidden");
+  selectedUserId = null;
+}
+
+// Helpers
+function tierBadge(tier) {
+  const t = tier || "free";
+  return `<span class="tier tier-${t}">${t}</span>`;
+}
+
+function infoRow(label, value) {
+  return `<div class="info-row"><span class="info-label">${label}</span><span class="info-value">${value}</span></div>`;
+}
+
+function timeAgo(dateStr) {
+  if (!dateStr) return "Never";
+  const diff = (Date.now() - new Date(dateStr).getTime()) / 1000;
+  if (diff < 60) return "Just now";
+  if (diff < 3600) return Math.floor(diff / 60) + "m ago";
+  if (diff < 86400) return Math.floor(diff / 3600) + "h ago";
+  return Math.floor(diff / 86400) + "d ago";
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return "—";
+  return new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+function formatTime(dateStr) {
+  if (!dateStr) return "—";
+  return new Date(dateStr).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+</script>
+</body>
+</html>
