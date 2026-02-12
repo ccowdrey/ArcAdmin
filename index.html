@@ -91,7 +91,8 @@ code { font-size: 12px; padding: 2px 8px; background: #242424; border-radius: 4p
 /* Logs */
 .logs-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
 .logs-controls { display: flex; gap: 8px; align-items: center; }
-.logs-controls input[type="date"] { padding: 6px 12px; background: #242424; border: 1px solid #333; border-radius: 6px; color: #F5F1EB; font-size: 13px; font-family: inherit; }
+.logs-controls input[type="date"] { padding: 6px 12px; background: #242424; border: 1px solid #333; border-radius: 6px; color: #F5F1EB; font-size: 13px; font-family: inherit; color-scheme: dark; }
+.logs-controls input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); cursor: pointer; }
 .btn-load { padding: 6px 16px; background: #E7B400; color: #000; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
 .logs-empty { color: #444; font-size: 13px; text-align: center; padding: 32px; }
 .logs-table { overflow-x: auto; }
@@ -212,12 +213,15 @@ code { font-size: 12px; padding: 2px 8px; background: #242424; border-radius: 4p
         <div class="logs-header">
           <div class="card-title" style="margin-bottom:0">System Logs</div>
           <div class="logs-controls">
-            <input type="date" id="logDateInput">
+            <label style="color:#8E8D8A;font-size:12px">From</label>
+            <input type="date" id="logStartDate">
+            <label style="color:#8E8D8A;font-size:12px">To</label>
+            <input type="date" id="logEndDate">
             <button class="btn-load" id="loadLogsBtn" onclick="loadLogs()">Load Logs</button>
           </div>
         </div>
         <div id="logsContent">
-          <div class="logs-empty">Select a date and click Load Logs to view system data</div>
+          <div class="logs-empty">Select a date range and click Load Logs to view system data</div>
         </div>
       </div>
     </div>
@@ -271,7 +275,9 @@ async function handleLogin() {
 document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("loginEmail").addEventListener("keydown", e => { if (e.key === "Enter") handleLogin(); });
   document.getElementById("loginPassword").addEventListener("keydown", e => { if (e.key === "Enter") handleLogin(); });
-  document.getElementById("logDateInput").value = new Date().toISOString().split("T")[0];
+  document.getElementById("logEndDate").value = new Date().toISOString().split("T")[0];
+  const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7);
+  document.getElementById("logStartDate").value = weekAgo.toISOString().split("T")[0];
 });
 
 function handleSignout() {
@@ -406,32 +412,34 @@ async function selectUser(id) {
   }
   
   // Reset logs
-  document.getElementById("logsContent").innerHTML = '<div class="logs-empty">Select a date and click Load Logs to view system data</div>';
+  document.getElementById("logsContent").innerHTML = '<div class="logs-empty">Select a date range and click Load Logs to view system data</div>';
 }
 
 async function loadLogs() {
   if (!selectedUserId) return;
-  const date = document.getElementById("logDateInput").value;
+  const startDate = document.getElementById("logStartDate").value;
+  const endDate = document.getElementById("logEndDate").value;
   const btn = document.getElementById("loadLogsBtn");
   btn.textContent = "Loading...";
   
   try {
-    const start = `${date}T00:00:00Z`;
-    const end = `${date}T23:59:59Z`;
-    const logs = await supa(`system_logs?user_id=eq.${selectedUserId}&logged_at=gte.${start}&logged_at=lte.${end}&order=logged_at.asc`);
+    const start = `${startDate}T00:00:00Z`;
+    const end = `${endDate}T23:59:59Z`;
+    const logs = await supa(`system_logs?user_id=eq.${selectedUserId}&logged_at=gte.${start}&logged_at=lte.${end}&order=logged_at.asc&limit=5000`);
     
     if (logs.length === 0) {
-      document.getElementById("logsContent").innerHTML = `<div class="logs-empty">No log entries for ${date}</div>`;
+      document.getElementById("logsContent").innerHTML = `<div class="logs-empty">No log entries from ${startDate} to ${endDate}</div>`;
     } else {
       document.getElementById("logsContent").innerHTML = `
         <div class="logs-table">
           <table>
             <thead><tr>
-              <th>Time</th><th>Battery</th><th>Voltage</th><th>Solar</th><th>DC Load</th>
+              <th>Date</th><th>Time</th><th>Battery</th><th>Voltage</th><th>Solar</th><th>DC Load</th>
               <th>AC Load</th><th>Shore</th><th>Engine</th><th>Temp</th><th>Location</th>
             </tr></thead>
             <tbody>
               ${logs.map(l => `<tr>
+                <td style="color:#666;font-size:11px">${formatDate(l.logged_at)}</td>
                 <td style="color:#A8A7A7">${formatTime(l.logged_at)}</td>
                 <td><span class="${l.battery_soc > 50 ? 'soc-high' : l.battery_soc > 20 ? 'soc-mid' : 'soc-low'}">${(l.battery_soc||0).toFixed(0)}%</span></td>
                 <td style="color:#A8A7A7">${(l.battery_voltage||0).toFixed(1)}V</td>
@@ -446,7 +454,7 @@ async function loadLogs() {
             </tbody>
           </table>
         </div>
-        <div class="logs-footer">${logs.length} log entries for ${date}</div>
+        <div class="logs-footer">${logs.length} log entries from ${startDate} to ${endDate}</div>
       `;
     }
   } catch (e) {
@@ -487,7 +495,11 @@ function formatDate(dateStr) {
 
 function formatTime(dateStr) {
   if (!dateStr) return "—";
-  return new Date(dateStr).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  return new Date(dateStr).toLocaleString("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit" });
+}
+function formatDate(dateStr) {
+  if (!dateStr) return "—";
+  return new Date(dateStr).toLocaleString("en-US", { month: "short", day: "numeric" });
 }
 </script>
 </body>
