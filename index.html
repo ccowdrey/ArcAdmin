@@ -67,10 +67,9 @@ code { font-size: 12px; padding: 2px 8px; background: #242424; border-radius: 4p
 
 /* Tier badge */
 .tier { padding: 2px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; display: inline-block; }
-.tier-free { background: #2A2A2A; color: #8E8D8A; border: 1px solid #3A3A3A; }
-.tier-pro { background: #E7B40020; color: #E7B400; border: 1px solid #E7B40040; }
-.tier-premium { background: #008BDC20; color: #008BDC; border: 1px solid #008BDC40; }
-.tier-enterprise { background: #2ABC5320; color: #2ABC53; border: 1px solid #2ABC5340; }
+.tier-base_camp { background: #2A2A2A; color: #8E8D8A; border: 1px solid #3A3A3A; }
+.tier-explore { background: #E7B40020; color: #E7B400; border: 1px solid #E7B40040; }
+.tier-adventurer { background: #2ABC5320; color: #2ABC53; border: 1px solid #2ABC5340; }
 
 /* Detail view */
 .back-btn { background: none; border: none; color: #E7B400; font-size: 14px; cursor: pointer; padding: 0; margin-bottom: 20px; font-weight: 500; font-family: inherit; }
@@ -91,10 +90,27 @@ code { font-size: 12px; padding: 2px 8px; background: #242424; border-radius: 4p
 /* Logs */
 .logs-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
 .logs-controls { display: flex; gap: 8px; align-items: center; }
-.logs-controls input[type="date"] { padding: 6px 12px; background: #242424; border: 1px solid #333; border-radius: 6px; color: #F5F1EB; font-size: 13px; font-family: inherit; color-scheme: dark; }
-.logs-controls input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); cursor: pointer; }
+.logs-controls input[type="date"] { padding: 6px 12px; background: #242424; border: 1px solid #333; border-radius: 6px; color: #F5F1EB; font-size: 13px; font-family: inherit; color-scheme: dark; -webkit-appearance: none; }
+input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1) brightness(2); cursor: pointer; opacity: 0.7; }
+input[type="date"]::-webkit-datetime-edit { color: #F5F1EB; }
+input[type="date"]::-webkit-inner-spin-button { display: none; }
 .btn-load { padding: 6px 16px; background: #E7B400; color: #000; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
 .logs-empty { color: #444; font-size: 13px; text-align: center; padding: 32px; }
+.ai-section { margin-bottom: 16px; }
+.ai-section-title { font-size: 12px; font-weight: 600; color: #E7B400; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+.ai-section-title.green { color: #4CAF50; }
+.ai-section-title.red { color: #FF6565; }
+.ai-section-title.blue { color: #64B5F6; }
+.ai-body { font-size: 13px; color: #C8C4BC; line-height: 1.6; }
+.ai-metric { display: inline-flex; align-items: center; gap: 6px; background: #242424; border: 1px solid #333; border-radius: 8px; padding: 6px 12px; margin: 4px 4px 4px 0; font-size: 12px; color: #F5F1EB; }
+.ai-metric .label { color: #8E8D8A; }
+.ai-score { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 50%; font-size: 14px; font-weight: 700; }
+.ai-score.good { background: #4CAF5020; color: #4CAF50; border: 2px solid #4CAF5040; }
+.ai-score.warn { background: #E7B40020; color: #E7B400; border: 2px solid #E7B40040; }
+.ai-score.bad { background: #FF656520; color: #FF6565; border: 2px solid #FF656540; }
+.ai-loading { display: flex; align-items: center; gap: 10px; color: #8E8D8A; font-size: 13px; padding: 20px 0; }
+.ai-loading .spinner { width: 18px; height: 18px; border: 2px solid #333; border-top-color: #E7B400; border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
 .logs-table { overflow-x: auto; }
 .logs-table table { font-size: 12px; }
 .logs-table th { font-size: 10px; white-space: nowrap; padding: 8px 10px; }
@@ -136,9 +152,10 @@ code { font-size: 12px; padding: 2px 8px; background: #242424; border-radius: 4p
 <div id="dashboard" class="hidden">
   <div class="nav">
     <div class="nav-left">
-      <div class="nav-brand"><img class="nav-logo" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTY3IiBoZWlnaHQ9IjQ5IiB2aWV3Qm94PSIwIDAgMTY3IDQ5IiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgo8cGF0aCBkPSJNNTIuMzI2MiAyNy41MjgyQzU1LjQ1OTQgMjcuNTI4MiA1Ny45OTk4IDMwLjA2NzkgNTggMzMuMjAxMUM1OCAzNi4zMzQ0IDU1LjQ1OTUgMzguODc0OSA1Mi4zMjYyIDM4Ljg3NDlDNDkuMTkzMSAzOC44NzQ3IDQ2LjY1MzMgMzYuMzM0MiA0Ni42NTMzIDMzLjIwMTFDNDYuNjUzNSAzMC4wNjgxIDQ5LjE5MzIgMjcuNTI4NSA1Mi4zMjYyIDI3LjUyODJaTTMxLjI2ODYgMTEuNTMwMkMzMy4zMTA1IDkuNDk1MiAzNi42MTE1IDkuNDg5MjUgMzguNjYxMSAxMS41MTY1TDQzLjk0NjMgMTYuNzQzMUM0My45MTI0IDE2LjcyNDUgNDEuNzU4OCAxNS41NTkyIDM5LjYzMzggMTcuNjc2N0MzOC41MDAzIDE4LjgwNjEgMzcuNzA4OSAxOS42NDU0IDM2LjA3MTMgMjEuMjc3M0MzNC45MjI1IDIyLjQyMiAyNS45OTU0IDMxLjE3NTIgMjAuNzY3NiAzNi4yOTk3QzE4LjY4MzMgMzguMzQyOCAxNS4zMzc2IDM4LjI4NjEgMTMuMzE2NCAzNi4xODA2TDEwIDMyLjcyNTVMMzEuMjY4NiAxMS41MzAyWk00MS45NjU4IDIyLjI1MDlDNDQuMDA4MSAyMC4xNjg2IDQ3LjM1NjYgMjAuMTUxMyA0OS40MTk5IDIyLjIxMjhMNTAuODYwNCAyMy42NTIzQzUwLjg2MDQgMjMuNjUyMyA1MC40NiAyMy4xMTU3IDQ2Ljk1MTIgMjYuMDk1NkM0NS4yODgzIDI3LjUwNzggNDMuMDE4IDI5LjgyNzcgNDEuMDg5OCAzMS44Nzc5QzM4Ljk4MjYgMzQuMTE4NSAzNS40MDc4IDM0LjE4MTkgMzMuMjg4MSAzMS45NTNMMzIuODc2IDMxLjUxOTVMNDEuOTY1OCAyMi4yNTA5WiIgZmlsbD0id2hpdGUiLz4KPHBhdGggZD0iTTE0OC45MyAzNS40NjE2QzE0Ny41MTEgMzUuNDYxNiAxNDYuMTI2IDM1LjI2NTMgMTQ0Ljc3NyAzNC44NzI3QzE0My40MjggMzQuNDcgMTQyLjI5IDMzLjg5NjEgMTQxLjM2NCAzMy4xNTExTDE0Mi43ODQgMzAuOTMxMkMxNDMuMzA3IDMxLjM2NDEgMTQzLjkwMSAzMS43MzE1IDE0NC41NjYgMzIuMDMzNkMxNDUuMjMgMzIuMzM1NiAxNDUuOTM1IDMyLjU2NzIgMTQ2LjY4IDMyLjcyODNDMTQ3LjQyNSAzMi44ODkzIDE0OC4xOCAzMi45Njk5IDE0OC45NDUgMzIuOTY5OUMxNTAuNDQ1IDMyLjk2OTkgMTUxLjY0OCAzMi42Nzc5IDE1Mi41NTQgMzIuMDk0QzE1My40NzEgMzEuNTEwMSAxNTMuOTI5IDMwLjY1NDMgMTUzLjkyOSAyOS41MjY3QzE1My45MjkgMjguNzAxMiAxNTMuNjIyIDI4LjAwMTQgMTUzLjAwOCAyNy40Mjc2QzE1Mi40MDMgMjYuODUzNyAxNTEuMjcxIDI2LjMzMDIgMTQ5LjYxIDI1Ljg1N0wxNDcuMzE0IDI1LjE3NzRDMTQ1LjM4MSAyNC42MTM2IDE0My45NjcgMjMuODczNyAxNDMuMDcxIDIyLjk1NzVDMTQyLjE3NSAyMi4wNDEzIDE0MS43MjcgMjAuODkzNiAxNDEuNzI3IDE5LjUxNDNDMTQxLjcyNyAxOC41ODgxIDE0MS45MTMgMTcuNzUyNSAxNDIuMjg1IDE3LjAwNzVDMTQyLjY1OCAxNi4yNjI1IDE0My4xODEgMTUuNjIzMSAxNDMuODU2IDE1LjA4OTZDMTQ0LjUzIDE0LjU0NTkgMTQ1LjMyNiAxNC4xMzMxIDE0Ni4yNDIgMTMuODUxMkMxNDcuMTY4IDEzLjU1OTMgMTQ4LjE4IDEzLjQxMzMgMTQ5LjI3NyAxMy40MTMzQzE1MC42MzcgMTMuNDEzMyAxNTEuOSAxMy42MTQ2IDE1My4wNjggMTQuMDE3M0MxNTQuMjQ2IDE0LjQxIDE1NS4yMTcgMTQuOTM4NSAxNTUuOTgzIDE1LjYwM0wxNTQuNTE4IDE3LjczMjNDMTU0LjA2NSAxNy4zNDk4IDE1My41NDYgMTcuMDIyNiAxNTIuOTYyIDE2Ljc1MDdDMTUyLjM3OCAxNi40Njg4IDE1MS43NTQgMTYuMjU3NCAxNTEuMDkgMTYuMTE2NUMxNTAuNDI1IDE1Ljk2NTUgMTQ5Ljc1MSAxNS44ODk5IDE0OS4wNjYgMTUuODg5OUMxNDguMTUgMTUuODg5OSAxNDcuMzM5IDE2LjAyNTkgMTQ2LjYzNSAxNi4yOTc3QzE0NS45NCAxNi41NTk0IDE0NS4zOTYgMTYuOTUyMSAxNDUuMDA0IDE3LjQ3NTZDMTQ0LjYyMSAxNy45ODkxIDE0NC40MyAxOC42MTMzIDE0NC40MyAxOS4zNDgyQzE0NC40MyAxOS44ODE4IDE0NC41NTYgMjAuMzUgMTQ0LjgwNyAyMC43NTI3QzE0NS4wNTkgMjEuMTQ1MyAxNDUuNDk3IDIxLjUwNzcgMTQ2LjEyMSAyMS44NEMxNDYuNzQ1IDIyLjE3MjIgMTQ3LjYwNiAyMi40OTk0IDE0OC43MDQgMjIuODIxNkwxNTEuMTUgMjMuNTQ2NUMxNTMuMDMzIDI0LjEwMDIgMTU0LjQxNyAyNC44MzAxIDE1NS4zMDMgMjUuNzM2MkMxNTYuMTg5IDI2LjYzMjIgMTU2LjYzMiAyNy44MTAyIDE1Ni42MzIgMjkuMjdDMTU2LjYzMiAzMC40OTgyIDE1Ni4zMyAzMS41ODA1IDE1NS43MjYgMzIuNTE2OEMxNTUuMTMyIDMzLjQ0MzEgMTU0LjI2MSAzNC4xNjc5IDE1My4xMTMgMzQuNjkxNUMxNTEuOTY2IDM1LjIwNDkgMTUwLjU3MSAzNS40NjE2IDE0OC45MyAzNS40NjE2WiIgZmlsbD0id2hpdGUiLz4KPHBhdGggZD0iTTEyOC44OTEgMzUuNDYxNkMxMjcuMzEgMzUuNDYxNiAxMjUuODQ1IDM1LjE4NDggMTI0LjQ5NiAzNC42MzExQzEyMy4xNTcgMzQuMDY3MyAxMjEuOTg0IDMzLjI4NyAxMjAuOTc3IDMyLjI5MDNDMTE5Ljk4MSAzMS4yOTM2IDExOS4yMDYgMzAuMTI1NyAxMTguNjUyIDI4Ljc4NjdDMTE4LjA5OCAyNy40NDc3IDExNy44MjEgMjUuOTk4IDExNy44MjEgMjQuNDM3NUMxMTcuODIxIDIyLjg2NjkgMTE4LjA5OCAyMS40MTIxIDExOC42NTIgMjAuMDczMUMxMTkuMjA2IDE4LjczNDEgMTE5Ljk4MSAxNy41NjYyIDEyMC45NzcgMTYuNTY5NUMxMjEuOTg0IDE1LjU3MjggMTIzLjE1NyAxNC43OTc2IDEyNC40OTYgMTQuMjQzOUMxMjUuODQ1IDEzLjY5MDEgMTI3LjMxIDEzLjQxMzMgMTI4Ljg5MSAxMy40MTMzQzEzMC40NjEgMTMuNDEzMyAxMzEuOTE2IDEzLjY5NTIgMTMzLjI1NSAxNC4yNTlDMTM0LjU5NCAxNC44MjI4IDEzNS43NjcgMTUuNjA4IDEzNi43NzQgMTYuNjE0OEMxMzcuNzgxIDE3LjYyMTYgMTM4LjU2MSAxOC43OTQ1IDEzOS4xMTQgMjAuMTMzNUMxMzkuNjc4IDIxLjQ2MjQgMTM5Ljk2IDIyLjg5NzEgMTM5Ljk2IDI0LjQzNzVDMTM5Ljk2IDI1Ljk5OCAxMzkuNjc4IDI3LjQ0NzcgMTM5LjExNCAyOC43ODY3QzEzOC41NjEgMzAuMTI1NyAxMzcuNzgxIDMxLjI5MzYgMTM2Ljc3NCAzMi4yOTAzQzEzNS43NjcgMzMuMjg3IDEzNC41OTQgMzQuMDY3MyAxMzMuMjU1IDM0LjYzMTFDMTMxLjkxNiAzNS4xODQ4IDEzMC40NjEgMzUuNDYxNiAxMjguODkxIDM1LjQ2MTZaTTEyOC44OTEgMzIuNzU4NUMxMzAuMDI4IDMyLjc1ODUgMTMxLjA4NSAzMi41NjIxIDEzMi4wNjIgMzIuMTY5NUMxMzMuMDQ5IDMxLjc3NjkgMTMzLjkwOSAzMS4yMTgxIDEzNC42NDQgMzAuNDkzMkMxMzUuMzc5IDI5Ljc1ODMgMTM1Ljk1MyAyOC44NzczIDEzNi4zNjYgMjcuODUwNEMxMzYuNzg5IDI2LjgyMzUgMTM3IDI1LjY4NTkgMTM3IDI0LjQzNzVDMTM3IDIyLjc1NjEgMTM2LjYzOCAyMS4yOTEzIDEzNS45MTMgMjAuMDQyOUMxMzUuMTk4IDE4Ljc5NDUgMTM0LjIyNyAxNy44MjggMTMyLjk5OCAxNy4xNDM0QzEzMS43NyAxNi40NDg3IDEzMC40MDEgMTYuMTAxNCAxMjguODkxIDE2LjEwMTRDMTI3Ljc1MyAxNi4xMDE0IDEyNi42OTEgMTYuMzAyNyAxMjUuNzA0IDE2LjcwNTRDMTI0LjcyOCAxNy4wOTgxIDEyMy44NjcgMTcuNjYxOSAxMjMuMTIyIDE4LjM5NjhDMTIyLjM4NyAxOS4xMjE3IDEyMS44MTMgMTkuOTk3NiAxMjEuNCAyMS4wMjQ1QzEyMC45ODggMjIuMDQxMyAxMjAuNzgxIDIzLjE3OSAxMjAuNzgxIDI0LjQzNzVDMTIwLjc4MSAyNi4xMDg3IDEyMS4xMzkgMjcuNTY4NSAxMjEuODUzIDI4LjgxNjlDMTIyLjU3OCAzMC4wNjUzIDEyMy41NTUgMzEuMDM2OSAxMjQuNzgzIDMxLjczMTVDMTI2LjAxMSAzMi40MTYyIDEyNy4zODEgMzIuNzU4NSAxMjguODkxIDMyLjc1ODVaIiBmaWxsPSJ3aGl0ZSIvPgo8cGF0aCBkPSJNMTA5LjczMyAzNS40NjE2QzEwOC4xNzMgMzUuNDYxNiAxMDYuNzg4IDM1LjExOTMgMTA1LjU4IDM0LjQzNDdDMTA0LjM3MiAzMy43NTAxIDEwMy40MjYgMzIuODE4OSAxMDIuNzQxIDMxLjY0MDlDMTAyLjA1NiAzMC40NTI5IDEwMS43MTQgMjkuMTA4OSAxMDEuNzE0IDI3LjYwODhDMTAxLjcxNCAyNi40NzExIDEwMS45MTUgMjUuNDI0MSAxMDIuMzE4IDI0LjQ2NzdDMTAyLjczMSAyMy41MTEyIDEwMy4zMSAyMi42ODA2IDEwNC4wNTUgMjEuOTc1OUMxMDQuOCAyMS4yNzEyIDEwNS42NzEgMjAuNzI3NSAxMDYuNjY3IDIwLjM0NDlDMTA3LjY3NCAxOS45NTIzIDEwOC43NzIgMTkuNzU2IDEwOS45NiAxOS43NTZDMTEwLjkyNiAxOS43NTYgMTExLjgxNyAxOS44ODE4IDExMi42MzMgMjAuMTMzNUMxMTMuNDQ4IDIwLjM4NTIgMTE0LjIwMyAyMC43NzI4IDExNC44OTggMjEuMjk2M0wxMTMuNDc4IDIzLjQ0MDdDMTEzLjAyNSAyMy4wNDgxIDExMi40OTcgMjIuNzU2MSAxMTEuODkzIDIyLjU2NDlDMTExLjI4OSAyMi4zNjM1IDExMC42NDkgMjIuMjYyOCAxMDkuOTc1IDIyLjI2MjhDMTA4Ljg2NyAyMi4yNjI4IDEwNy45MDYgMjIuNDc0MiAxMDcuMDkgMjIuODk3MUMxMDYuMjg1IDIzLjMwOTkgMTA1LjY2MSAyMy45MTM5IDEwNS4yMTggMjQuNzA5M0MxMDQuNzc1IDI1LjUwNDYgMTA0LjU1MyAyNi40NjExIDEwNC41NTMgMjcuNTc4NkMxMDQuNTUzIDI5LjI1OTkgMTA1LjAzNyAzMC41Nzg4IDEwNi4wMDMgMzEuNTM1MkMxMDYuOTggMzIuNDgxNiAxMDguMjk4IDMyLjk1NDggMTA5Ljk2IDMyLjk1NDhDMTEwLjcyNSAzMi45NTQ4IDExMS40NCAzMi44MTg5IDExMi4xMDQgMzIuNTQ3QzExMi43NjkgMzIuMjY1MSAxMTMuMzEyIDMxLjkwMjcgMTEzLjczNSAzMS40NTk3TDExNS4xNyAzMy41NzM5QzExNC4zOTQgMzQuMTU3OSAxMTMuNTQ0IDM0LjYyMSAxMTIuNjE4IDM0Ljk2MzNDMTExLjY5MSAzNS4yOTU1IDExMC43MyAzNS40NjE2IDEwOS43MzMgMzUuNDYxNloiIGZpbGw9IndoaXRlIi8+CjxwYXRoIGQ9Ik05MC45Mjc4IDM1LjAwODZWMjAuMjA5SDkzLjcwNjVWMjIuMzUzNEM5NC4zMDA1IDIxLjM4NjkgOTUuMDA1MyAyMC43MTI0IDk1LjgyMDcgMjAuMzI5OEM5Ni42NDYzIDE5LjkzNzIgOTcuNTIyMiAxOS43NDA5IDk4LjQ0ODQgMTkuNzQwOUM5OC43NDA0IDE5Ljc0MDkgOTkuMDIyMyAxOS43NTYgOTkuMjk0MSAxOS43ODYyQzk5LjU2NTkgMTkuODE2NCA5OS44MzI3IDE5Ljg1NjYgMTAwLjA5NCAxOS45MDdMOTkuNjg2OCAyMi43OTE0Qzk5LjQwNDkgMjIuNzEwOCA5OS4xMTc5IDIyLjY1MDQgOTguODI2IDIyLjYxMDJDOTguNTM0IDIyLjU1OTggOTguMjQ3MSAyMi41MzQ3IDk3Ljk2NTIgMjIuNTM0N0M5Ni43MjY4IDIyLjUzNDcgOTUuNzA1IDIyLjkyMjMgOTQuODk5NSAyMy42OTc1Qzk0LjEwNDIgMjQuNDYyNiA5My43MDY1IDI1LjQ4OTUgOTMuNzA2NSAyNi43NzgyVjM1LjAwODZIOTAuOTI3OFoiIGZpbGw9IndoaXRlIi8+CjxwYXRoIGQ9Ik02OCAzNS4wMDg2TDc2LjMyMSAxMy44NjYzSDc5LjI2NThMODcuODQzNSAzNS4wMDg2SDg0LjY0Mkw4Mi41NDI5IDI5LjcwNzlINzMuMTE5NUw3MS4xMTA5IDM1LjAwODZINjhaTTczLjkxOTggMjcuMjMxM0g4MS43MTIzTDc3LjcyNTQgMTcuMzg1TDczLjkxOTggMjcuMjMxM1oiIGZpbGw9IndoaXRlIi8+Cjwvc3ZnPgo=" alt="ArcOS"><span class="admin">Admin</span></div>
+      <div class="nav-brand"><img class="nav-logo" src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTY3IiBoZWlnaHQ9IjQ5IiB2aWV3Qm94PSIwIDAgMTY3IDQ5IiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgo8cGF0aCBkPSJNNTIuMzI2MiAyNy41MjgyQzU1LjQ1OTQgMjcuNTI4MiA1Ny45OTk4IDMwLjA2NzkgNTggMzMuMjAxMUM1OCAzNi4zMzQ0IDU1LjQ1OTUgMzguODc0OSA1Mi4zMjYyIDM4Ljg3NDlDNDkuMTkzMSAzOC44NzQ3IDQ2LjY1MzMgMzYuMzM0MiA0Ni42NTMzIDMzLjIwMTFDNDYuNjUzNSAzMC4wNjgxIDQ5LjE5MzIgMjcuNTI4NSA1Mi4zMjYyIDI3LjUyODJaTTMxLjI2ODYgMTEuNTMwMkMzMy4zMTA1IDkuNDk1MiAzNi42MTE1IDkuNDg5MjUgMzguNjYxMSAxMS41MTY1TDQzLjk0NjMgMTYuNzQzMUM0My45MTI0IDE2LjcyNDUgNDEuNzU4OCAxNS41NTkyIDM5LjYzMzggMTcuNjc2N0MzOC41MDAzIDE4LjgwNjEgMzcuNzA4OSAxOS42NDU0IDM2LjA3MTMgMjEuMjc3M0MzNC45MjI1IDIyLjQyMiAyNS45OTU0IDMxLjE3NTIgMjAuNzY3NiAzNi4yOTk3QzE4LjY4MzMgMzguMzQyOCAxNS4zMzc2IDM4LjI4NjEgMTMuMzE2NCAzNi4xODA2TDEwIDMyLjcyNTVMMzEuMjY4NiAxMS41MzAyWk00MS45NjU4IDIyLjI1MDlDNDQuMDA4MSAyMC4xNjg2IDQ3LjM1NjYgMjAuMTUxMyA0OS40MTk5IDIyLjIxMjhMNTAuODYwNCAyMy42NTIzQzUwLjg2MDQgMjMuNjUyMyA1MC40NiAyMy4xMTU3IDQ2Ljk1MTIgMjYuMDk1NkM0NS4yODgzIDI3LjUwNzggNDMuMDE4IDI5LjgyNzcgNDEuMDg5OCAzMS44Nzc5QzM4Ljk4MjYgMzQuMTE4NSAzNS40MDc4IDM0LjE4MTkgMzMuMjg4MSAzMS45NTNMMzIuODc2IDMxLjUxOTVMNDEuOTY1OCAyMi4yNTA5WiIgZmlsbD0id2hpdGUiLz4KPHBhdGggZD0iTTE0OC45MyAzNS40NjE2QzE0Ny41MTEgMzUuNDYxNiAxNDYuMTI2IDM1LjI2NTMgMTQ0Ljc3NyAzNC44NzI3QzE0My40MjggMzQuNDcgMTQyLjI5IDMzLjg5NjEgMTQxLjM2NCAzMy4xNTExTDE0Mi43ODQgMzAuOTMxMkMxNDMuMzA3IDMxLjM2NDEgMTQzLjkwMSAzMS43MzE1IDE0NC41NjYgMzIuMDMzNkMxNDUuMjMgMzIuMzM1NiAxNDUuOTM1IDMyLjU2NzIgMTQ2LjY4IDMyLjcyODNDMTQ3LjQyNSAzMi44ODkzIDE0OC4xOCAzMi45Njk5IDE0OC45NDUgMzIuOTY5OUMxNTAuNDQ1IDMyLjk2OTkgMTUxLjY0OCAzMi42Nzc5IDE1Mi41NTQgMzIuMDk0QzE1My40NzEgMzEuNTEwMSAxNTMuOTI5IDMwLjY1NDMgMTUzLjkyOSAyOS41MjY3QzE1My45MjkgMjguNzAxMiAxNTMuNjIyIDI4LjAwMTQgMTUzLjAwOCAyNy40Mjc2QzE1Mi40MDMgMjYuODUzNyAxNTEuMjcxIDI2LjMzMDIgMTQ5LjYxIDI1Ljg1N0wxNDcuMzE0IDI1LjE3NzRDMTQ1LjM4MSAyNC42MTM2IDE0My45NjcgMjMuODczNyAxNDMuMDcxIDIyLjk1NzVDMTQyLjE3NSAyMi4wNDEzIDE0MS43MjcgMjAuODkzNiAxNDEuNzI3IDE5LjUxNDNDMTQxLjcyNyAxOC41ODgxIDE0MS45MTMgMTcuNzUyNSAxNDIuMjg1IDE3LjAwNzVDMTQyLjY1OCAxNi4yNjI1IDE0My4xODEgMTUuNjIzMSAxNDMuODU2IDE1LjA4OTZDMTQ0LjUzIDE0LjU0NTkgMTQ1LjMyNiAxNC4xMzMxIDE0Ni4yNDIgMTMuODUxMkMxNDcuMTY4IDEzLjU1OTMgMTQ4LjE4IDEzLjQxMzMgMTQ5LjI3NyAxMy40MTMzQzE1MC42MzcgMTMuNDEzMyAxNTEuOSAxMy42MTQ2IDE1My4wNjggMTQuMDE3M0MxNTQuMjQ2IDE0LjQxIDE1NS4yMTcgMTQuOTM4NSAxNTUuOTgzIDE1LjYwM0wxNTQuNTE4IDE3LjczMjNDMTU0LjA2NSAxNy4zNDk4IDE1My41NDYgMTcuMDIyNiAxNTIuOTYyIDE2Ljc1MDdDMTUyLjM3OCAxNi40Njg4IDE1MS43NTQgMTYuMjU3NCAxNTEuMDkgMTYuMTE2NUMxNTAuNDI1IDE1Ljk2NTUgMTQ5Ljc1MSAxNS44ODk5IDE0OS4wNjYgMTUuODg5OUMxNDguMTUgMTUuODg5OSAxNDcuMzM5IDE2LjAyNTkgMTQ2LjYzNSAxNi4yOTc3QzE0NS45NCAxNi41NTk0IDE0NS4zOTYgMTYuOTUyMSAxNDUuMDA0IDE3LjQ3NTZDMTQ0LjYyMSAxNy45ODkxIDE0NC40MyAxOC42MTMzIDE0NC40MyAxOS4zNDgyQzE0NC40MyAxOS44ODE4IDE0NC41NTYgMjAuMzUgMTQ0LjgwNyAyMC43NTI3QzE0NS4wNTkgMjEuMTQ1MyAxNDUuNDk3IDIxLjUwNzcgMTQ2LjEyMSAyMS44NEMxNDYuNzQ1IDIyLjE3MjIgMTQ3LjYwNiAyMi40OTk0IDE0OC43MDQgMjIuODIxNkwxNTEuMTUgMjMuNTQ2NUMxNTMuMDMzIDI0LjEwMDIgMTU0LjQxNyAyNC44MzAxIDE1NS4zMDMgMjUuNzM2MkMxNTYuMTg5IDI2LjYzMjIgMTU2LjYzMiAyNy44MTAyIDE1Ni42MzIgMjkuMjdDMTU2LjYzMiAzMC40OTgyIDE1Ni4zMyAzMS41ODA1IDE1NS43MjYgMzIuNTE2OEMxNTUuMTMyIDMzLjQ0MzEgMTU0LjI2MSAzNC4xNjc5IDE1My4xMTMgMzQuNjkxNUMxNTEuOTY2IDM1LjIwNDkgMTUwLjU3MSAzNS40NjE2IDE0OC45MyAzNS40NjE2WiIgZmlsbD0id2hpdGUiLz4KPHBhdGggZD0iTTEyOC44OTEgMzUuNDYxNkMxMjcuMzEgMzUuNDYxNiAxMjUuODQ1IDM1LjE4NDggMTI0LjQ5NiAzNC42MzExQzEyMy4xNTcgMzQuMDY3MyAxMjEuOTg0IDMzLjI4NyAxMjAuOTc3IDMyLjI5MDNDMTE5Ljk4MSAzMS4yOTM2IDExOS4yMDYgMzAuMTI1NyAxMTguNjUyIDI4Ljc4NjdDMTE4LjA5OCAyNy40NDc3IDExNy44MjEgMjUuOTk4IDExNy44MjEgMjQuNDM3NUMxMTcuODIxIDIyLjg2NjkgMTE4LjA5OCAyMS40MTIxIDExOC42NTIgMjAuMDczMUMxMTkuMjA2IDE4LjczNDEgMTE5Ljk4MSAxNy41NjYyIDEyMC45NzcgMTYuNTY5NUMxMjEuOTg0IDE1LjU3MjggMTIzLjE1NyAxNC43OTc2IDEyNC40OTYgMTQuMjQzOUMxMjUuODQ1IDEzLjY5MDEgMTI3LjMxIDEzLjQxMzMgMTI4Ljg5MSAxMy40MTMzQzEzMC40NjEgMTMuNDEzMyAxMzEuOTE2IDEzLjY5NTIgMTMzLjI1NSAxNC4yNTlDMTM0LjU5NCAxNC44MjI4IDEzNS43NjcgMTUuNjA4IDEzNi43NzQgMTYuNjE0OEMxMzcuNzgxIDE3LjYyMTYgMTM4LjU2MSAxOC43OTQ1IDEzOS4xMTQgMjAuMTMzNUMxMzkuNjc4IDIxLjQ2MjQgMTM5Ljk2IDIyLjg5NzEgMTM5Ljk2IDI0LjQzNzVDMTM5Ljk2IDI1Ljk5OCAxMzkuNjc4IDI3LjQ0NzcgMTM5LjExNCAyOC43ODY3QzEzOC41NjEgMzAuMTI1NyAxMzcuNzgxIDMxLjI5MzYgMTM2Ljc3NCAzMi4yOTAzQzEzNS43NjcgMzMuMjg3IDEzNC41OTQgMzQuMDY3MyAxMzMuMjU1IDM0LjYzMTFDMTMxLjkxNiAzNS4xODQ4IDEzMC40NjEgMzUuNDYxNiAxMjguODkxIDM1LjQ2MTZaTTEyOC44OTEgMzIuNzU4NUMxMzAuMDI4IDMyLjc1ODUgMTMxLjA4NSAzMi41NjIxIDEzMi4wNjIgMzIuMTY5NUMxMzMuMDQ5IDMxLjc3NjkgMTMzLjkwOSAzMS4yMTgxIDEzNC42NDQgMzAuNDkzMkMxMzUuMzc5IDI5Ljc1ODMgMTM1Ljk1MyAyOC44NzczIDEzNi4zNjYgMjcuODUwNEMxMzYuNzg5IDI2LjgyMzUgMTM3IDI1LjY4NTkgMTM3IDI0LjQzNzVDMTM3IDIyLjc1NjEgMTM2LjYzOCAyMS4yOTEzIDEzNS45MTMgMjAuMDQyOUMxMzUuMTk4IDE4Ljc5NDUgMTM0LjIyNyAxNy44MjggMTMyLjk5OCAxNy4xNDM0QzEzMS43NyAxNi40NDg3IDEzMC40MDEgMTYuMTAxNCAxMjguODkxIDE2LjEwMTRDMTI3Ljc1MyAxNi4xMDE0IDEyNi42OTEgMTYuMzAyNyAxMjUuNzA0IDE2LjcwNTRDMTI0LjcyOCAxNy4wOTgxIDEyMy44NjcgMTcuNjYxOSAxMjMuMTIyIDE4LjM5NjhDMTIyLjM4NyAxOS4xMjE3IDEyMS44MTMgMTkuOTk3NiAxMjEuNCAyMS4wMjQ1QzEyMC45ODggMjIuMDQxMyAxMjAuNzgxIDIzLjE3OSAxMjAuNzgxIDI0LjQzNzVDMTIwLjc4MSAyNi4xMDg3IDEyMS4xMzkgMjcuNTY4NSAxMjEuODUzIDI4LjgxNjlDMTIyLjU3OCAzMC4wNjUzIDEyMy41NTUgMzEuMDM2OSAxMjQuNzgzIDMxLjczMTVDMTI2LjAxMSAzMi40MTYyIDEyNy4zODEgMzIuNzU4NSAxMjguODkxIDMyLjc1ODVaIiBmaWxsPSJ3aGl0ZSIvPgo8cGF0aCBkPSJNMTA5LjczMyAzNS40NjE2QzEwOC4xNzMgMzUuNDYxNiAxMDYuNzg4IDM1LjExOTMgMTA1LjU4IDM0LjQzNDdDMTA0LjM3MiAzMy43NTAxIDEwMy40MjYgMzIuODE4OSAxMDIuNzQxIDMxLjY0MDlDMTAyLjA1NiAzMC40NTI5IDEwMS43MTQgMjkuMTA4OSAxMDEuNzE0IDI3LjYwODhDMTAxLjcxNCAyNi40NzExIDEwMS45MTUgMjUuNDI0MSAxMDIuMzE4IDI0LjQ2NzdDMTAyLjczMSAyMy41MTEyIDEwMy4zMSAyMi42ODA2IDEwNC4wNTUgMjEuOTc1OUMxMDQuOCAyMS4yNzEyIDEwNS42NzEgMjAuNzI3NSAxMDYuNjY3IDIwLjM0NDlDMTA3LjY3NCAxOS45NTIzIDEwOC43NzIgMTkuNzU2IDEwOS45NiAxOS43NTZDMTEwLjkyNiAxOS43NTYgMTExLjgxNyAxOS44ODE4IDExMi42MzMgMjAuMTMzNUMxMTMuNDQ4IDIwLjM4NTIgMTE0LjIwMyAyMC43NzI4IDExNC44OTggMjEuMjk2M0wxMTMuNDc4IDIzLjQ0MDdDMTEzLjAyNSAyMy4wNDgxIDExMi40OTcgMjIuNzU2MSAxMTEuODkzIDIyLjU2NDlDMTExLjI4OSAyMi4zNjM1IDExMC42NDkgMjIuMjYyOCAxMDkuOTc1IDIyLjI2MjhDMTA4Ljg2NyAyMi4yNjI4IDEwNy45MDYgMjIuNDc0MiAxMDcuMDkgMjIuODk3MUMxMDYuMjg1IDIzLjMwOTkgMTA1LjY2MSAyMy45MTM5IDEwNS4yMTggMjQuNzA5M0MxMDQuNzc1IDI1LjUwNDYgMTA0LjU1MyAyNi40NjExIDEwNC41NTMgMjcuNTc4NkMxMDQuNTUzIDI5LjI1OTkgMTA1LjAzNyAzMC41Nzg4IDEwNi4wMDMgMzEuNTM1MkMxMDYuOTggMzIuNDgxNiAxMDguMjk4IDMyLjk1NDggMTA5Ljk2IDMyLjk1NDhDMTEwLjcyNSAzMi45NTQ4IDExMS40NCAzMi44MTg5IDExMi4xMDQgMzIuNTQ3QzExMi43NjkgMzIuMjY1MSAxMTMuMzEyIDMxLjkwMjcgMTEzLjczNSAzMS40NTk3TDExNS4xNyAzMy41NzM5QzExNC4zOTQgMzQuMTU3OSAxMTMuNTQ0IDM0LjYyMSAxMTIuNjE4IDM0Ljk2MzNDMTExLjY5MSAzNS4yOTU1IDExMC43MyAzNS40NjE2IDEwOS43MzMgMzUuNDYxNloiIGZpbGw9IndoaXRlIi8+CjxwYXRoIGQ9Ik05MC45Mjc4IDM1LjAwODZWMjAuMjA5SDkzLjcwNjVWMjIuMzUzNEM5NC4zMDA1IDIxLjM4NjkgOTUuMDA1MyAyMC43MTI0IDk1LjgyMDcgMjAuMzI5OEM5Ni42NDYzIDE5LjkzNzIgOTcuNTIyMiAxOS43NDA5IDk4LjQ0ODQgMTkuNzQwOUM5OC43NDA0IDE5Ljc0MDkgOTkuMDIyMyAxOS43NTYgOTkuMjk0MSAxOS43ODYyQzk5LjU2NTkgMTkuODE2NCA5OS44MzI3IDE5Ljg1NjYgMTAwLjA5NCAxOS45MDdMOTkuNjg2OCAyMi43OTE0Qzk5LjQwNDkgMjIuNzEwOCA5OS4xMTc5IDIyLjY1MDQgOTguODI2IDIyLjYxMDJDOTguNTM0IDIyLjU1OTggOTguMjQ3MSAyMi41MzQ3IDk3Ljk2NTIgMjIuNTM0N0M5Ni43MjY4IDIyLjUzNDcgOTUuNzA1IDIyLjkyMjMgOTQuODk5NSAyMy42OTc1Qzk0LjEwNDIgMjQuNDYyNiA5My43MDY1IDI1LjQ4OTUgOTMuNzA2NSAyNi43NzgyVjM1LjAwODZIOTAuOTI3OFoiIGZpbGw9IndoaXRlIi8+CjxwYXRoIGQ9Ik02OCAzNS4wMDg2TDc2LjMyMSAxMy44NjYzSDc5LjI2NThMODcuODQzNSAzNS4wMDg2SDg0LjY0Mkw4Mi41NDI5IDI5LjcwNzlINzMuMTE5NUw3MS4xMTA5IDM1LjAwODZINjhaTTczLjkxOTggMjcuMjMxM0g4MS43MTIzTDc3LjcyNTQgMTcuMzg1TDczLjkxOTggMjcuMjMxM1oiIGZpbGw9IndoaXRlIi8+Cjwvc3ZnPgo=" alt="ArcOS"><span class="admin" id="navBrandLabel">Admin</span></div>
       <div class="nav-sep"></div>
-      <button class="nav-tab active" onclick="showUsers()">Users</button>
+      <button class="nav-tab active" id="tabUsers" onclick="showUsers()">Users</button>
+      <button class="nav-tab" id="tabCompanies" onclick="showCompanies()">Companies</button>
     </div>
     <div class="nav-right">
       <span class="nav-email" id="navEmail"></span>
@@ -193,7 +210,10 @@ code { font-size: 12px; padding: 2px 8px; background: #242424; border-radius: 4p
           <h2 class="detail-name" id="detailName"></h2>
           <div class="detail-email" id="detailEmail"></div>
         </div>
-        <div id="detailTier"></div>
+        <div style="display:flex;align-items:center;gap:12px">
+          <div id="detailTier"></div>
+          <button onclick="deleteUser(selectedUserId)" style="background:#FF656520;border:1px solid #FF656540;color:#FF6565;padding:6px 14px;border-radius:6px;font-size:12px;cursor:pointer;font-family:inherit">Delete User</button>
+        </div>
       </div>
       <div class="cards">
         <div class="card">
@@ -209,20 +229,239 @@ code { font-size: 12px; padding: 2px 8px; background: #242424; border-radius: 4p
           <div id="subInfo"></div>
         </div>
       </div>
+      
+      <!-- AI LOG ANALYSIS -->
+      <div class="card" id="aiAnalysisCard" style="display:none">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <div class="card-title" style="margin-bottom:0">
+            <span style="margin-right:6px">🧠</span>ArcOS Intelligence Report
+          </div>
+          <button id="aiAnalysisBtn" onclick="runAIAnalysis()" class="btn-load" style="font-size:11px;padding:4px 12px">Analyze Logs</button>
+        </div>
+        <div id="aiAnalysisContent">
+          <div style="color:#8E8D8A;font-size:13px">Load logs first, then click Analyze to get AI insights.</div>
+        </div>
+      </div>
+
       <div class="card">
         <div class="logs-header">
           <div class="card-title" style="margin-bottom:0">System Logs</div>
           <div class="logs-controls">
             <label style="color:#8E8D8A;font-size:12px">From</label>
-            <input type="date" id="logStartDate">
+            <input type="date" id="logStartDate" max="">
             <label style="color:#8E8D8A;font-size:12px">To</label>
-            <input type="date" id="logEndDate">
+            <input type="date" id="logEndDate" max="">
             <button class="btn-load" id="loadLogsBtn" onclick="loadLogs()">Load Logs</button>
           </div>
         </div>
         <div id="logsContent">
           <div class="logs-empty">Select a date range and click Load Logs to view system data</div>
         </div>
+      </div>
+    </div>
+
+    <!-- COMPANIES VIEW -->
+    <div id="companiesView" class="hidden">
+      <div class="stats">
+        <div class="stat-card">
+          <div class="stat-label">Total Companies</div>
+          <div class="stat-value" id="statCompanies" style="color:#E7B400">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Company Clients</div>
+          <div class="stat-value" id="statCompanyClients" style="color:#F5F1EB">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Direct Users</div>
+          <div class="stat-value" id="statDirectUsers" style="color:#F5F1EB">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Total Paid</div>
+          <div class="stat-value" id="statTotalPaid" style="color:#2ABC53">0</div>
+        </div>
+      </div>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <h3 style="font-size:16px;color:#F5F1EB">Company Accounts</h3>
+        <button class="btn-load" onclick="showAddCompanyModal()">+ Add Company</button>
+      </div>
+
+      <div class="card" style="padding:0">
+        <table class="users-table" style="width:100%">
+          <thead><tr>
+            <th>Company</th><th>Plan</th><th>Clients</th><th>Max</th><th>Rate</th><th>Status</th><th>Created</th><th></th>
+          </tr></thead>
+          <tbody id="companiesTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- COMPANY DETAIL VIEW -->
+    <div id="companyDetailView" class="hidden">
+      <div style="margin-bottom:20px">
+        <button class="btn-signout" onclick="backFromCompanyDetail()" id="companyBackBtn">← Back to Companies</button>
+      </div>
+
+      <div class="card" style="margin-bottom:20px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div>
+            <div class="card-title" id="companyName" style="font-size:20px"></div>
+            <div id="companyMeta" style="font-size:13px;color:#8E8D8A;margin-top:4px"></div>
+          </div>
+          <div id="companyPlanBadge" style="padding:4px 12px;border-radius:6px;font-size:12px;font-weight:600"></div>
+        </div>
+
+        <div class="stats" style="margin-top:16px;margin-bottom:0">
+          <div class="stat-card">
+            <div class="stat-label">Total Clients</div>
+            <div class="stat-value" id="companyStatClients" style="font-size:24px;color:#F5F1EB">0</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Base Camp</div>
+            <div class="stat-value" id="companyStatFree" style="font-size:24px;color:#8E8D8A">0</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Explore</div>
+            <div class="stat-value" id="companyStatExplorer" style="font-size:24px;color:#E7B400">0</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Adventurer</div>
+            <div class="stat-value" id="companyStatAdventure" style="font-size:24px;color:#2ABC53">0</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Company Admins -->
+      <div class="card" style="margin-bottom:20px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <div class="card-title" style="margin-bottom:0">Company Admins</div>
+          <button class="btn-load" onclick="showAddAdminModal()">+ Add Admin</button>
+        </div>
+        <table class="users-table" style="width:100%">
+          <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Added</th><th></th></tr></thead>
+          <tbody id="companyAdminsBody"></tbody>
+        </table>
+      </div>
+
+      <!-- Company Clients -->
+      <div class="card" style="margin-bottom:20px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <div class="card-title" style="margin-bottom:0">Clients</div>
+          <div class="search-box" style="flex:0 0 240px">
+            <input type="text" id="clientSearch" placeholder="Search clients..." oninput="filterCompanyClients()" style="width:100%;padding:8px 12px;background:#242424;border:1px solid #333;border-radius:6px;color:#F5F1EB;font-size:13px;font-family:inherit;outline:none">
+          </div>
+        </div>
+        <table class="users-table" style="width:100%">
+          <thead><tr><th>Name</th><th>Email</th><th>Vehicle</th><th>Tier</th><th>Last Login</th><th>Tier</th><th></th></tr></thead>
+          <tbody id="companyClientsBody"></tbody>
+        </table>
+      </div>
+
+      <!-- Client Detail Panel (shown when clicking a client in company view) -->
+      <div id="companyClientDetail" class="hidden">
+        <div class="card" style="margin-bottom:20px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div>
+              <span style="font-size:18px;font-weight:600;color:#F5F1EB" id="ccDetailName"></span>
+              <span style="font-size:13px;color:#8E8D8A;margin-left:12px" id="ccDetailEmail"></span>
+            </div>
+            <div style="display:flex;gap:8px">
+              <button class="btn-signout" onclick="closeClientDetail()">Close</button>
+              <button onclick="deleteUser(selectedClientId, true)" style="background:#FF656520;border:1px solid #FF656540;color:#FF6565;padding:6px 14px;border-radius:6px;font-size:12px;cursor:pointer;font-family:inherit">Delete Client</button>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="logs-header">
+            <div class="card-title" style="margin-bottom:0">System Logs</div>
+            <div class="logs-controls">
+              <label style="color:#8E8D8A;font-size:12px">From</label>
+              <input type="date" id="ccLogStartDate" max="">
+              <label style="color:#8E8D8A;font-size:12px">To</label>
+              <input type="date" id="ccLogEndDate" max="">
+              <button class="btn-load" id="ccLoadLogsBtn" onclick="loadClientLogs()">Load Logs</button>
+            </div>
+          </div>
+          <div id="ccLogsContent">
+            <div class="logs-empty">Select a date range and click Load Logs</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Invite Codes -->
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <div class="card-title" style="margin-bottom:0">Invite Codes</div>
+          <button class="btn-load" onclick="showAddCodeModal()">+ Create Code</button>
+        </div>
+        <table class="users-table" style="width:100%">
+          <thead><tr><th>Code</th><th>Label</th><th>Uses</th><th>Max</th><th>Expires</th><th>Status</th><th></th></tr></thead>
+          <tbody id="companyCodesBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ADD COMPANY MODAL -->
+    <div id="addCompanyModal" style="position:fixed;inset:0;background:rgba(0,0,0,0.7);display:none;align-items:center;justify-content:center;z-index:100">
+      <div style="width:440px;background:#1A1A1A;border-radius:16px;border:1px solid #2A2A2A;padding:32px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
+          <h3 style="font-size:18px;color:#F5F1EB">Add Company</h3>
+          <button onclick="closeModals()" style="background:none;border:none;color:#8E8D8A;font-size:18px;cursor:pointer">✕</button>
+        </div>
+        <div class="field"><label>Company Name</label><input id="newCompanyName" placeholder="e.g. Storyteller Overland"></div>
+        <div class="field"><label>Admin Name</label><input id="newCompanyAdminName" placeholder="First Last"></div>
+        <div class="field"><label>Admin Email</label><input id="newCompanyAdminEmail" placeholder="admin@company.com"></div>
+        <div class="field"><label>Billing Email</label><input id="newCompanyBillingEmail" placeholder="billing@company.com"></div>
+        <div class="field"><label>Website</label><input id="newCompanyWebsite" placeholder="https://company.com"></div>
+        <div class="field">
+          <label>Plan</label>
+          <select id="newCompanyPlan" style="width:100%;padding:10px 14px;background:#242424;border:1px solid #333;border-radius:8px;color:#F5F1EB;font-size:14px;font-family:inherit">
+            <option value="starter">Starter (10 clients)</option>
+            <option value="growth">Growth (50 clients)</option>
+            <option value="enterprise">Enterprise (unlimited)</option>
+          </select>
+        </div>
+        <div class="field"><label>Monthly Rate ($)</label><input id="newCompanyRate" type="number" placeholder="99.99"></div>
+        <div id="addCompanyError" class="error-box hidden"></div>
+        <button class="btn-primary" onclick="createCompany()">Create Company</button>
+      </div>
+    </div>
+
+    <!-- ADD ADMIN MODAL -->
+    <div id="addAdminModal" style="position:fixed;inset:0;background:rgba(0,0,0,0.7);display:none;align-items:center;justify-content:center;z-index:100">
+      <div style="width:400px;background:#1A1A1A;border-radius:16px;border:1px solid #2A2A2A;padding:32px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
+          <h3 style="font-size:18px;color:#F5F1EB">Add Company Admin</h3>
+          <button onclick="closeModals()" style="background:none;border:none;color:#8E8D8A;font-size:18px;cursor:pointer">✕</button>
+        </div>
+        <div class="field"><label>Email</label><input id="newAdminEmail" placeholder="user@email.com"></div>
+        <div class="field"><label>Name</label><input id="newAdminName" placeholder="First Last"></div>
+        <div class="field">
+          <label>Role</label>
+          <select id="newAdminRole" style="width:100%;padding:10px 14px;background:#242424;border:1px solid #333;border-radius:8px;color:#F5F1EB;font-size:14px;font-family:inherit">
+            <option value="admin">Admin</option>
+            <option value="owner">Owner</option>
+          </select>
+        </div>
+        <div style="font-size:11px;color:#8E8D8A;margin-bottom:16px">If this email doesn't have an ArcOS account, one will be created and a confirmation email will be sent.</div>
+        <div id="addAdminError" class="error-box hidden"></div>
+        <button class="btn-primary" onclick="addCompanyAdmin()">Add Admin</button>
+      </div>
+    </div>
+
+    <!-- ADD CODE MODAL -->
+    <div id="addCodeModal" style="position:fixed;inset:0;background:rgba(0,0,0,0.7);display:none;align-items:center;justify-content:center;z-index:100">
+      <div style="width:400px;background:#1A1A1A;border-radius:16px;border:1px solid #2A2A2A;padding:32px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
+          <h3 style="font-size:18px;color:#F5F1EB">Create Invite Code</h3>
+          <button onclick="closeModals()" style="background:none;border:none;color:#8E8D8A;font-size:18px;cursor:pointer">✕</button>
+        </div>
+        <div class="field"><label>Code</label><input id="newCodeValue" placeholder="e.g. STORYTELLER2026" style="text-transform:uppercase"></div>
+        <div class="field"><label>Label (optional)</label><input id="newCodeLabel" placeholder="e.g. Spring 2026 Builds"></div>
+        <div class="field"><label>Max Uses (blank = unlimited)</label><input id="newCodeMaxUses" type="number" placeholder="50"></div>
+        <div class="field"><label>Expires (optional)</label><input type="date" id="newCodeExpires" style="width:100%;padding:10px 14px;background:#242424;border:1px solid #333;border-radius:8px;color:#F5F1EB;font-size:14px;font-family:inherit;color-scheme:dark"></div>
+        <div id="addCodeError" class="error-box hidden"></div>
+        <button class="btn-primary" onclick="createInviteCode()">Create Code</button>
       </div>
     </div>
   </div>
@@ -236,6 +475,11 @@ let token = null;
 let currentUser = null;
 let allUsers = [];
 let selectedUserId = null;
+let allCompanies = [];
+let selectedCompanyId = null;
+let userRole = null; // 'super_admin', 'company_admin', or null
+let userCompanyId = null; // set if company admin
+let userCompanyName = null;
 
 // Auth
 async function handleLogin() {
@@ -259,10 +503,36 @@ async function handleLogin() {
     
     token = data.access_token;
     currentUser = data.user;
-    document.getElementById("navEmail").textContent = email;
+    
+    // Determine role: super admin, company admin, or unauthorized
+    const profiles = await supa(`profiles?id=eq.${currentUser.id}&select=*`);
+    const profile = profiles[0];
+    
+    if (profile?.is_admin) {
+      userRole = "super_admin";
+      setupSuperAdminNav(email);
+      loadUsers();
+    } else {
+      // Check company_admins
+      const adminRecords = await supa(`company_admins?user_id=eq.${currentUser.id}&select=*`);
+      if (adminRecords.length > 0) {
+        userRole = "company_admin";
+        userCompanyId = adminRecords[0].company_id;
+        
+        // Get company name
+        const companies = await supa(`companies?id=eq.${userCompanyId}&select=name`);
+        userCompanyName = companies[0]?.name || "My Company";
+        
+        setupCompanyAdminNav(email, userCompanyName);
+        await showCompanies();
+        await showCompanyDetail(userCompanyId);
+      } else {
+        throw new Error("Access denied. You must be an admin to use this dashboard.");
+      }
+    }
+    
     document.getElementById("loginScreen").classList.add("hidden");
     document.getElementById("dashboard").classList.remove("hidden");
-    loadUsers();
   } catch (e) {
     errEl.textContent = e.message;
     errEl.classList.remove("hidden");
@@ -271,18 +541,45 @@ async function handleLogin() {
   btn.textContent = "Sign In";
 }
 
+function setupSuperAdminNav(email) {
+  document.getElementById("navEmail").textContent = email;
+  document.getElementById("navBrandLabel").textContent = "Admin";
+  document.getElementById("tabUsers").classList.remove("hidden");
+  document.getElementById("tabCompanies").classList.remove("hidden");
+  document.getElementById("tabUsers").classList.add("active");
+  document.getElementById("tabCompanies").classList.remove("active");
+}
+
+function setupCompanyAdminNav(email, companyName) {
+  document.getElementById("navEmail").textContent = email;
+  document.getElementById("navBrandLabel").textContent = companyName;
+  // Hide super admin tabs
+  document.getElementById("tabUsers").classList.add("hidden");
+  document.getElementById("tabCompanies").classList.add("hidden");
+}
+
 // Enter key support
 document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("loginEmail").addEventListener("keydown", e => { if (e.key === "Enter") handleLogin(); });
   document.getElementById("loginPassword").addEventListener("keydown", e => { if (e.key === "Enter") handleLogin(); });
-  document.getElementById("logEndDate").value = new Date().toISOString().split("T")[0];
-  const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7);
-  document.getElementById("logStartDate").value = weekAgo.toISOString().split("T")[0];
+  // Use local date (not UTC which could be tomorrow)
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+  document.getElementById("logEndDate").value = today;
+  const weekAgo = new Date(now); weekAgo.setDate(weekAgo.getDate() - 7);
+  document.getElementById("logStartDate").value = `${weekAgo.getFullYear()}-${String(weekAgo.getMonth()+1).padStart(2,'0')}-${String(weekAgo.getDate()).padStart(2,'0')}`;
+  // Set max date to today on all date pickers
+  document.querySelectorAll('input[type="date"]').forEach(el => { el.max = today; });
 });
 
 function handleSignout() {
   token = null;
   currentUser = null;
+  userRole = null;
+  userCompanyId = null;
+  userCompanyName = null;
+  selectedCompanyId = null;
+  selectedClientId = null;
   document.getElementById("dashboard").classList.add("hidden");
   document.getElementById("loginScreen").classList.remove("hidden");
   document.getElementById("loginPassword").value = "";
@@ -316,7 +613,7 @@ async function loadUsers() {
       subscription: subs.find(s => s.user_id === p.id),
     }));
     
-    const paid = subs.filter(s => s.tier !== "free").length;
+    const paid = subs.filter(s => s.tier !== "base_camp").length;
     document.getElementById("statTotal").textContent = profiles.length;
     document.getElementById("statPaid").textContent = paid;
     document.getElementById("statFree").textContent = profiles.length - paid;
@@ -423,9 +720,16 @@ async function loadLogs() {
   btn.textContent = "Loading...";
   
   try {
-    const start = `${startDate}T00:00:00Z`;
-    const end = `${endDate}T23:59:59Z`;
+    // Convert local dates to UTC for query (start of day local → UTC, end of day local → UTC)
+    const startLocal = new Date(startDate + "T00:00:00");
+    const endLocal = new Date(endDate + "T23:59:59");
+    const start = startLocal.toISOString();
+    const end = endLocal.toISOString();
     const logs = await supa(`system_logs?user_id=eq.${selectedUserId}&logged_at=gte.${start}&logged_at=lte.${end}&order=logged_at.asc&limit=5000`);
+    
+    // Store for AI analysis
+    window.currentLogData = logs;
+    window.currentLogDateRange = { start: startDate, end: endDate };
     
     if (logs.length === 0) {
       document.getElementById("logsContent").innerHTML = `<div class="logs-empty">No log entries from ${startDate} to ${endDate}</div>`;
@@ -435,7 +739,7 @@ async function loadLogs() {
           <table>
             <thead><tr>
               <th>Date</th><th>Time</th><th>Battery</th><th>Voltage</th><th>Solar</th><th>DC Load</th>
-              <th>AC Load</th><th>Shore</th><th>Engine</th><th>Temp</th><th>Location</th>
+              <th>AC Load</th><th>Fresh</th><th>Grey</th><th>Shore</th><th>Engine</th><th>Temp</th><th>Location</th>
             </tr></thead>
             <tbody>
               ${logs.map(l => `<tr>
@@ -446,6 +750,8 @@ async function loadLogs() {
                 <td class="solar-val">${(l.solar_power||0).toFixed(0)}W</td>
                 <td style="color:#A8A7A7">${(l.dc_load_power||0).toFixed(0)}W</td>
                 <td style="color:#A8A7A7">${(l.ac_load_power||0).toFixed(0)}W</td>
+                <td style="color:${l.fresh_water_level != null && l.fresh_water_level < 20 ? '#FF6565' : '#4A9FE5'}">${l.fresh_water_level != null ? l.fresh_water_level.toFixed(0) + '%' : '—'}</td>
+                <td style="color:${l.grey_water_level != null && l.grey_water_level > 80 ? '#FF6565' : '#A8A7A7'}">${l.grey_water_level != null ? l.grey_water_level.toFixed(0) + '%' : '—'}</td>
                 <td>${l.shore_connected ? `<span class="shore-on">● ${(l.shore_power||0).toFixed(0)}W</span>` : '<span class="text-dim">Off</span>'}</td>
                 <td>${l.engine_running ? '<span class="engine-on">Running</span>' : '<span class="text-dim">Off</span>'}</td>
                 <td style="color:#A8A7A7">${l.outside_temp ? l.outside_temp.toFixed(0) + '°F' : '—'}</td>
@@ -461,17 +767,673 @@ async function loadLogs() {
     document.getElementById("logsContent").innerHTML = `<div class="logs-empty" style="color:#FF6565">Failed to load: ${e.message}</div>`;
   }
   btn.textContent = "Load Logs";
+  
+  // Show AI analysis card if logs were loaded
+  if (window.currentLogData && window.currentLogData.length > 0) {
+    document.getElementById("aiAnalysisCard").style.display = "block";
+    document.getElementById("aiAnalysisContent").innerHTML = '<div style="color:#8E8D8A;font-size:13px">Click <strong>Analyze Logs</strong> to get AI-powered insights on this data.</div>';
+    document.getElementById("aiAnalysisBtn").textContent = "Analyze Logs";
+  } else {
+    document.getElementById("aiAnalysisCard").style.display = "none";
+  }
 }
 
 function showUsers() {
   document.getElementById("usersView").classList.remove("hidden");
   document.getElementById("detailView").classList.add("hidden");
+  document.getElementById("companiesView").classList.add("hidden");
+  document.getElementById("companyDetailView").classList.add("hidden");
+  document.getElementById("tabUsers").classList.add("active");
+  document.getElementById("tabCompanies").classList.remove("active");
   selectedUserId = null;
+}
+
+// ── Companies ──
+
+async function showCompanies() {
+  document.getElementById("usersView").classList.add("hidden");
+  document.getElementById("detailView").classList.add("hidden");
+  document.getElementById("companiesView").classList.remove("hidden");
+  document.getElementById("companyDetailView").classList.add("hidden");
+  document.getElementById("tabUsers").classList.remove("active");
+  document.getElementById("tabCompanies").classList.add("active");
+  await loadCompanies();
+}
+
+function backFromCompanyDetail() {
+  if (userRole === "company_admin") {
+    // Company admins can't go back — this is their home
+    return;
+  }
+  showCompanies();
+}
+
+async function loadCompanies() {
+  try {
+    const [companies, profiles, subs, admins] = await Promise.all([
+      supa("companies?select=*&order=created_at.desc"),
+      supa("profiles?select=id,company_id,first_name,last_name,email"),
+      supa("subscriptions?select=user_id,tier,status"),
+      supa("company_admins?select=*"),
+    ]);
+    
+    allCompanies = companies.map(c => {
+      const clients = profiles.filter(p => p.company_id === c.id);
+      const clientSubs = clients.map(cl => subs.find(s => s.user_id === cl.id)).filter(Boolean);
+      const companyAdmins = admins.filter(a => a.company_id === c.id);
+      return { ...c, clients, clientSubs, admins: companyAdmins };
+    });
+
+    // Master stats
+    const directUsers = profiles.filter(p => !p.company_id).length;
+    const companyClients = profiles.filter(p => p.company_id).length;
+    const paidUsers = subs.filter(s => s.status === "active" && s.tier !== "base_camp").length;
+    
+    document.getElementById("statCompanies").textContent = companies.length;
+    document.getElementById("statCompanyClients").textContent = companyClients;
+    document.getElementById("statDirectUsers").textContent = directUsers;
+    document.getElementById("statTotalPaid").textContent = paidUsers;
+
+    renderCompanies(allCompanies);
+  } catch (e) {
+    console.error("Load companies failed:", e);
+  }
+}
+
+function renderCompanies(companies) {
+  const tbody = document.getElementById("companiesTableBody");
+  if (companies.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:#666;padding:32px">No companies yet</td></tr>`;
+    return;
+  }
+  
+  const planColors = { starter: "#8E8D8A", growth: "#E7B400", enterprise: "#2ABC53" };
+  
+  tbody.innerHTML = companies.map(c => `<tr style="cursor:pointer" onclick="showCompanyDetail('${c.id}')">
+    <td style="font-weight:600;color:#F5F1EB">${c.name}</td>
+    <td><span class="tier" style="background:${planColors[c.plan] || '#666'}20;color:${planColors[c.plan] || '#666'}">${c.plan}</span></td>
+    <td style="color:#F5F1EB;font-weight:600">${c.clients.length}</td>
+    <td style="color:#666">${c.max_clients}</td>
+    <td style="color:#2ABC53">${c.monthly_rate ? '$' + Number(c.monthly_rate).toFixed(0) + '/mo' : '—'}</td>
+    <td>${c.is_active ? '<span style="color:#2ABC53">Active</span>' : '<span style="color:#FF6565">Inactive</span>'}</td>
+    <td style="color:#666;font-size:12px">${timeAgo(c.created_at)}</td>
+    <td><span style="color:#E7B400;font-size:12px">View →</span></td>
+  </tr>`).join("");
+}
+
+async function showCompanyDetail(companyId) {
+  selectedCompanyId = companyId;
+  const company = allCompanies.find(c => c.id === companyId);
+  if (!company) return;
+
+  document.getElementById("companiesView").classList.add("hidden");
+  document.getElementById("companyDetailView").classList.remove("hidden");
+  
+  // Hide back button for company admins (this is their home view)
+  document.getElementById("companyBackBtn").style.display = userRole === "company_admin" ? "none" : "inline-block";
+
+  // Header
+  document.getElementById("companyName").textContent = company.name;
+  const meta = [company.website, company.billing_email].filter(Boolean).join(" · ");
+  document.getElementById("companyMeta").textContent = meta || "No details";
+  
+  const planColors = { starter: "#8E8D8A", growth: "#E7B400", enterprise: "#2ABC53" };
+  const badge = document.getElementById("companyPlanBadge");
+  badge.textContent = company.plan.toUpperCase();
+  badge.style.background = (planColors[company.plan] || "#666") + "20";
+  badge.style.color = planColors[company.plan] || "#666";
+
+  // Stats
+  const free = company.clientSubs.filter(s => s.tier === "base_camp").length;
+  const explorer = company.clientSubs.filter(s => s.tier === "explore").length;
+  const adventure = company.clientSubs.filter(s => s.tier === "adventurer").length;
+  document.getElementById("companyStatClients").textContent = company.clients.length;
+  document.getElementById("companyStatFree").textContent = free;
+  document.getElementById("companyStatExplorer").textContent = explorer;
+  document.getElementById("companyStatAdventure").textContent = adventure;
+
+  // Admins
+  const adminProfiles = await Promise.all(
+    company.admins.map(a => supa(`profiles?id=eq.${a.user_id}&select=*`).then(r => ({ ...r[0], role: a.role, admin_created: a.created_at })))
+  );
+  
+  document.getElementById("companyAdminsBody").innerHTML = adminProfiles.map(a => `<tr>
+    <td style="color:#F5F1EB">${a?.first_name || ''} ${a?.last_name || ''}</td>
+    <td style="color:#8E8D8A">${a?.email || '—'}</td>
+    <td><span class="tier" style="background:${a?.role === 'owner' ? '#E7B400' : '#8E8D8A'}20;color:${a?.role === 'owner' ? '#E7B400' : '#8E8D8A'}">${a?.role || 'admin'}</span></td>
+    <td style="color:#666;font-size:12px">${timeAgo(a?.admin_created)}</td>
+    <td><button class="btn-signout" onclick="removeAdmin('${a?.id}')">Remove</button></td>
+  </tr>`).join("") || `<tr><td colspan="5" style="text-align:center;color:#666;padding:16px">No admins</td></tr>`;
+
+  // Clients
+  const clientsWithVehicles = await Promise.all(
+    company.clients.map(async cl => {
+      const vehicles = await supa(`vehicles?user_id=eq.${cl.id}&select=*`);
+      const sub = company.clientSubs.find(s => s.user_id === cl.id);
+      return { ...cl, vehicle: vehicles[0], tier: sub?.tier || 'free' };
+    })
+  );
+
+  // Store for filtering
+  window.companyClientsData = clientsWithVehicles;
+  renderCompanyClients(clientsWithVehicles);
+
+  // Set default dates for client log viewer
+  const ccNow = new Date();
+  const ccEnd = `${ccNow.getFullYear()}-${String(ccNow.getMonth()+1).padStart(2,'0')}-${String(ccNow.getDate()).padStart(2,'0')}`;
+  const ccWeekAgo = new Date(ccNow); ccWeekAgo.setDate(ccWeekAgo.getDate() - 7);
+  const ccStart = `${ccWeekAgo.getFullYear()}-${String(ccWeekAgo.getMonth()+1).padStart(2,'0')}-${String(ccWeekAgo.getDate()).padStart(2,'0')}`;
+  document.getElementById("ccLogStartDate").value = ccStart;
+  document.getElementById("ccLogEndDate").value = ccEnd;
+
+  // Load invite codes
+  await loadCompanyCodes(companyId);
+}
+
+let selectedClientId = null;
+
+function renderCompanyClients(clients) {
+  document.getElementById("companyClientsBody").innerHTML = clients.map(cl => `<tr style="cursor:pointer" onclick="showClientDetail('${cl.id}', '${(cl.first_name || '').replace(/'/g, "\\'")} ${(cl.last_name || '').replace(/'/g, "\\'")}', '${cl.email}')">
+    <td style="color:#F5F1EB">${cl.first_name || ''} ${cl.last_name || ''}</td>
+    <td style="color:#8E8D8A">${cl.email}</td>
+    <td style="color:#666;font-size:12px">${cl.vehicle ? cl.vehicle.make + ' ' + cl.vehicle.model : '—'}</td>
+    <td>${tierBadge(cl.tier)}</td>
+    <td style="color:#666;font-size:12px">${timeAgo(cl.last_login_at)}</td>
+    <td>
+      <select onclick="event.stopPropagation()" onchange="changeClientTier('${cl.id}', this.value)" style="background:#242424;border:1px solid #333;border-radius:4px;color:#F5F1EB;font-size:12px;padding:4px 8px;font-family:inherit">
+        <option value="base_camp" ${cl.tier === 'base_camp' ? 'selected' : ''}>Base Camp</option>
+        <option value="explore" ${cl.tier === 'explore' ? 'selected' : ''}>Explore</option>
+        <option value="adventurer" ${cl.tier === 'adventurer' ? 'selected' : ''}>Adventurer</option>
+      </select>
+    </td>
+    <td><button class="btn-signout" onclick="event.stopPropagation();deleteUser('${cl.id}', true)" style="color:#FF6565;font-size:11px">Delete</button></td>
+  </tr>`).join("") || `<tr><td colspan="7" style="text-align:center;color:#666;padding:16px">No clients</td></tr>`;
+}
+
+function filterCompanyClients() {
+  const q = document.getElementById("clientSearch").value.toLowerCase();
+  if (!q) {
+    renderCompanyClients(window.companyClientsData || []);
+    return;
+  }
+  const filtered = (window.companyClientsData || []).filter(cl => 
+    (cl.first_name || '').toLowerCase().includes(q) ||
+    (cl.last_name || '').toLowerCase().includes(q) ||
+    (cl.email || '').toLowerCase().includes(q)
+  );
+  renderCompanyClients(filtered);
+}
+
+async function showClientDetail(clientId, name, email) {
+  selectedClientId = clientId;
+  // Reuse the full user detail view
+  selectedUserId = clientId;
+  
+  // Hide company detail, show user detail view
+  document.getElementById("companyDetailView").classList.add("hidden");
+  document.getElementById("detailView").classList.remove("hidden");
+  
+  // Change back button to go back to company detail
+  document.querySelector(".back-btn").textContent = "← Back to Company";
+  document.querySelector(".back-btn").onclick = function() {
+    document.getElementById("detailView").classList.add("hidden");
+    document.getElementById("companyDetailView").classList.remove("hidden");
+    selectedUserId = null;
+    selectedClientId = null;
+    // Restore back button for normal user view
+    document.querySelector(".back-btn").textContent = "← Back to Users";
+    document.querySelector(".back-btn").onclick = function() { showUsers(); };
+  };
+  
+  // Load full user detail (same as admin selectUser)
+  const u = { id: clientId, first_name: name.split(' ')[0], last_name: name.split(' ').slice(1).join(' '), email: email };
+  
+  document.getElementById("detailName").textContent = name.trim() || email;
+  document.getElementById("detailEmail").textContent = email;
+  
+  // Load profile data
+  try {
+    const profiles = await supa(`profiles?id=eq.${clientId}&select=*`);
+    const p = profiles[0] || u;
+    document.getElementById("detailName").textContent = `${p.first_name || ''} ${p.last_name || ''}`.trim() || email;
+    
+    const sub = await supa(`subscriptions?user_id=eq.${clientId}&select=*`);
+    document.getElementById("detailTier").innerHTML = tierBadge(sub[0]?.tier);
+    
+    document.getElementById("accountInfo").innerHTML = `
+      ${infoRow("User ID", `<span class="mono">${clientId.slice(0, 8)}...</span>`)}
+      ${infoRow("Joined", formatDate(p.created_at))}
+      ${infoRow("Last Login", timeAgo(p.last_login_at))}
+      ${infoRow("Company", userRole === 'super_admin' ? (p.company_id ? 'Yes' : 'No') : '—')}
+    `;
+    
+    document.getElementById("subInfo").innerHTML = sub[0] ? `
+      ${infoRow("Tier", sub[0].tier?.toUpperCase())}
+      ${infoRow("Status", `<span class="status-dot ${sub[0].status === 'active' ? 'status-active' : 'status-inactive'}"></span>${sub[0].status}`)}
+      ${infoRow("Platform", sub[0].platform || "—")}
+    ` : '<div style="color:#444;font-size:13px">No subscription</div>';
+  } catch (e) {
+    console.error("Load client detail failed:", e);
+  }
+  
+  // Vehicle
+  try {
+    const vehicles = await supa(`vehicles?user_id=eq.${clientId}`);
+    const v = vehicles[0];
+    document.getElementById("vehicleInfo").innerHTML = v ? `
+      ${infoRow("Nickname", v.nickname || "—")}
+      ${infoRow("Vehicle", `${v.year || ""} ${v.make || ""} ${v.model || ""}`.trim() || "—")}
+      ${infoRow("Cerbo IP", `<span class="mono">${v.cerbo_ip || "—"}</span>`)}
+    ` : '<div style="color:#444;font-size:13px">No vehicle registered</div>';
+  } catch (e) {
+    document.getElementById("vehicleInfo").innerHTML = '<div style="color:#FF6565;font-size:13px">Failed to load</div>';
+  }
+  
+  // Reset logs
+  document.getElementById("logsContent").innerHTML = '<div class="logs-empty">Select a date range and click Load Logs to view system data</div>';
+}
+
+function closeClientDetail() {
+  document.getElementById("companyClientDetail").classList.add("hidden");
+  selectedClientId = null;
+}
+
+async function loadClientLogs() {
+  if (!selectedClientId) return;
+  const startDate = document.getElementById("ccLogStartDate").value;
+  const endDate = document.getElementById("ccLogEndDate").value;
+  const btn = document.getElementById("ccLoadLogsBtn");
+  btn.textContent = "Loading...";
+  
+  try {
+    const startLocal = new Date(startDate + "T00:00:00");
+    const endLocal = new Date(endDate + "T23:59:59");
+    const start = startLocal.toISOString();
+    const end = endLocal.toISOString();
+    const logs = await supa(`system_logs?user_id=eq.${selectedClientId}&logged_at=gte.${start}&logged_at=lte.${end}&order=logged_at.asc&limit=5000`);
+    
+    if (logs.length === 0) {
+      document.getElementById("ccLogsContent").innerHTML = `<div class="logs-empty">No log entries from ${startDate} to ${endDate}</div>`;
+    } else {
+      document.getElementById("ccLogsContent").innerHTML = `
+        <div class="logs-table">
+          <table>
+            <thead><tr>
+              <th>Date</th><th>Time</th><th>Battery</th><th>Voltage</th><th>Solar</th><th>DC Load</th>
+              <th>AC Load</th><th>Fresh</th><th>Grey</th><th>Shore</th><th>Engine</th><th>Temp</th><th>Location</th>
+            </tr></thead>
+            <tbody>
+              ${logs.map(l => `<tr>
+                <td style="color:#666;font-size:11px">${formatDate(l.logged_at)}</td>
+                <td style="color:#A8A7A7">${formatTime(l.logged_at)}</td>
+                <td><span class="${l.battery_soc > 50 ? 'soc-high' : l.battery_soc > 20 ? 'soc-mid' : 'soc-low'}">${(l.battery_soc||0).toFixed(0)}%</span></td>
+                <td style="color:#A8A7A7">${(l.battery_voltage||0).toFixed(1)}V</td>
+                <td class="solar-val">${(l.solar_power||0).toFixed(0)}W</td>
+                <td style="color:#A8A7A7">${(l.dc_load_power||0).toFixed(0)}W</td>
+                <td style="color:#A8A7A7">${(l.ac_load_power||0).toFixed(0)}W</td>
+                <td style="color:${l.fresh_water_level != null && l.fresh_water_level < 20 ? '#FF6565' : '#4A9FE5'}">${l.fresh_water_level != null ? l.fresh_water_level.toFixed(0) + '%' : '—'}</td>
+                <td style="color:${l.grey_water_level != null && l.grey_water_level > 80 ? '#FF6565' : '#A8A7A7'}">${l.grey_water_level != null ? l.grey_water_level.toFixed(0) + '%' : '—'}</td>
+                <td>${l.shore_connected ? `<span class="shore-on">● ${(l.shore_power||0).toFixed(0)}W</span>` : '<span class="text-dim">Off</span>'}</td>
+                <td>${l.engine_running ? '<span class="engine-on">Running</span>' : '<span class="text-dim">Off</span>'}</td>
+                <td style="color:#A8A7A7">${l.outside_temp ? l.outside_temp.toFixed(0) + '°F' : '—'}</td>
+                <td style="color:#666;font-size:11px">${l.latitude && l.longitude ? `${l.latitude.toFixed(3)}, ${l.longitude.toFixed(3)}` : '—'}</td>
+              </tr>`).join("")}
+            </tbody>
+          </table>
+        </div>
+        <div class="logs-footer">${logs.length} log entries from ${startDate} to ${endDate}</div>
+      `;
+    }
+  } catch (e) {
+    document.getElementById("ccLogsContent").innerHTML = `<div class="logs-empty" style="color:#FF6565">Failed to load: ${e.message}</div>`;
+  }
+  btn.textContent = "Load Logs";
+}
+
+async function loadCompanyCodes(companyId) {
+  try {
+    const codes = await supa(`company_codes?company_id=eq.${companyId}&select=*&order=created_at.desc`);
+    const tbody = document.getElementById("companyCodesBody");
+    
+    if (codes.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:#666;padding:16px">No invite codes yet</td></tr>`;
+      return;
+    }
+    
+    tbody.innerHTML = codes.map(c => {
+      const isExpired = c.expires_at && new Date(c.expires_at) < new Date();
+      const isMaxed = c.max_uses && c.current_uses >= c.max_uses;
+      const active = c.is_active && !isExpired && !isMaxed;
+      const statusColor = active ? "#2ABC53" : "#FF6565";
+      const statusText = !c.is_active ? "Disabled" : isExpired ? "Expired" : isMaxed ? "Maxed Out" : "Active";
+      
+      return `<tr>
+        <td><code style="background:#242424;padding:4px 10px;border-radius:4px;color:#E7B400;font-size:13px;font-weight:600;letter-spacing:1px">${c.code}</code></td>
+        <td style="color:#8E8D8A">${c.label || '—'}</td>
+        <td style="color:#F5F1EB;font-weight:600">${c.current_uses}</td>
+        <td style="color:#666">${c.max_uses || '∞'}</td>
+        <td style="color:#666;font-size:12px">${c.expires_at ? new Date(c.expires_at).toLocaleDateString() : 'Never'}</td>
+        <td><span style="color:${statusColor};font-size:12px;font-weight:600">${statusText}</span></td>
+        <td>
+          ${c.is_active ? `<button class="btn-signout" onclick="toggleCode('${c.id}', false)">Disable</button>` : `<button class="btn-signout" onclick="toggleCode('${c.id}', true)">Enable</button>`}
+        </td>
+      </tr>`;
+    }).join("");
+  } catch (e) {
+    console.error("Load codes failed:", e);
+  }
+}
+
+function showAddCodeModal() {
+  // Auto-generate a code suggestion
+  const company = allCompanies.find(c => c.id === selectedCompanyId);
+  const prefix = company ? company.name.replace(/[^A-Z0-9]/gi, '').substring(0, 8).toUpperCase() : 'ARC';
+  const year = new Date().getFullYear();
+  document.getElementById("newCodeValue").value = `${prefix}${year}`;
+  document.getElementById("addCodeModal").classList.remove("hidden");
+  document.getElementById("addCodeModal").style.display = "flex";
+}
+
+async function createInviteCode() {
+  const code = document.getElementById("newCodeValue").value.trim().toUpperCase();
+  const label = document.getElementById("newCodeLabel").value.trim();
+  const maxUses = document.getElementById("newCodeMaxUses").value;
+  const expires = document.getElementById("newCodeExpires").value;
+  const errEl = document.getElementById("addCodeError");
+  
+  if (!code || code.length < 3) {
+    errEl.textContent = "Code must be at least 3 characters";
+    errEl.classList.remove("hidden");
+    return;
+  }
+  
+  try {
+    const body = {
+      company_id: selectedCompanyId,
+      code: code,
+      label: label || null,
+      max_uses: maxUses ? parseInt(maxUses) : null,
+      expires_at: expires ? new Date(expires + "T23:59:59Z").toISOString() : null,
+      is_active: true
+    };
+    
+    const res = await fetch(`${SUPA_URL}/rest/v1/company_codes`, {
+      method: "POST",
+      headers: { apikey: SUPA_KEY, Authorization: `Bearer ${token}`, "Content-Type": "application/json", Prefer: "return=representation" },
+      body: JSON.stringify(body)
+    });
+    
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.message || "Code already exists");
+    }
+    
+    closeModals();
+    await loadCompanyCodes(selectedCompanyId);
+  } catch (e) {
+    errEl.textContent = e.message;
+    errEl.classList.remove("hidden");
+  }
+}
+
+async function toggleCode(codeId, active) {
+  try {
+    await fetch(`${SUPA_URL}/rest/v1/company_codes?id=eq.${codeId}`, {
+      method: "PATCH",
+      headers: { apikey: SUPA_KEY, Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ is_active: active })
+    });
+    await loadCompanyCodes(selectedCompanyId);
+  } catch (e) {
+    console.error("Toggle code failed:", e);
+  }
+}
+
+function showAddCompanyModal() {
+  document.getElementById("addCompanyModal").classList.remove("hidden");
+  document.getElementById("addCompanyModal").style.display = "flex";
+}
+
+function showAddAdminModal() {
+  document.getElementById("newAdminEmail").value = "";
+  document.getElementById("newAdminName").value = "";
+  document.getElementById("addAdminError").classList.add("hidden");
+  document.getElementById("addAdminModal").style.display = "flex";
+}
+
+function closeModals() {
+  ["addCompanyModal","addAdminModal","addCodeModal"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.classList.add("hidden"); el.style.display = "none"; }
+  });
+}
+
+async function createCompany() {
+  const name = document.getElementById("newCompanyName").value.trim();
+  const adminName = document.getElementById("newCompanyAdminName").value.trim();
+  const adminEmail = document.getElementById("newCompanyAdminEmail").value.trim();
+  const billingEmail = document.getElementById("newCompanyBillingEmail").value.trim();
+  const website = document.getElementById("newCompanyWebsite").value.trim();
+  const plan = document.getElementById("newCompanyPlan").value;
+  const rate = document.getElementById("newCompanyRate").value;
+  const errEl = document.getElementById("addCompanyError");
+  
+  if (!name || !adminEmail) {
+    errEl.textContent = "Company name and admin email are required";
+    errEl.classList.remove("hidden");
+    return;
+  }
+  
+  const maxClients = plan === "starter" ? 10 : plan === "growth" ? 50 : 9999;
+  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+$/, '');
+  
+  try {
+    // Create company
+    const res = await fetch(`${SUPA_URL}/rest/v1/companies`, {
+      method: "POST",
+      headers: { apikey: SUPA_KEY, Authorization: `Bearer ${token}`, "Content-Type": "application/json", Prefer: "return=representation" },
+      body: JSON.stringify({ name, slug, plan, max_clients: maxClients, monthly_rate: rate || null, billing_email: billingEmail || null, website: website || null })
+    });
+    const [company] = await res.json();
+    
+    // Find admin user profile
+    const profiles = await supa(`profiles?email=eq.${adminEmail}&select=*`);
+    if (profiles.length > 0) {
+      // Add as company admin (owner)
+      await fetch(`${SUPA_URL}/rest/v1/company_admins`, {
+        method: "POST",
+        headers: { apikey: SUPA_KEY, Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ company_id: company.id, user_id: profiles[0].id, role: "owner" })
+      });
+    }
+    
+    closeModals();
+    await loadCompanies();
+  } catch (e) {
+    errEl.textContent = e.message;
+    errEl.classList.remove("hidden");
+  }
+}
+
+async function addCompanyAdmin() {
+  const email = document.getElementById("newAdminEmail").value.trim().toLowerCase();
+  const name = document.getElementById("newAdminName").value.trim();
+  const role = document.getElementById("newAdminRole").value;
+  const errEl = document.getElementById("addAdminError");
+  errEl.classList.add("hidden");
+  
+  if (!email || !selectedCompanyId) {
+    errEl.textContent = "Email is required";
+    errEl.classList.remove("hidden");
+    return;
+  }
+  
+  try {
+    // Check if user already has an ArcOS account
+    const profiles = await supa(`profiles?email=eq.${encodeURIComponent(email)}&select=id`);
+    let userId;
+    
+    if (profiles.length > 0) {
+      // Existing user — just add as admin
+      userId = profiles[0].id;
+    } else {
+      // New user — create account via Supabase Auth Admin API
+      // Generate a temporary password (user will reset via email)
+      const tempPassword = 'ArcOS_' + crypto.randomUUID().slice(0, 12) + '!';
+      
+      const signUpRes = await fetch(`${SUPA_URL}/auth/v1/signup`, {
+        method: "POST",
+        headers: { 
+          apikey: SUPA_KEY, 
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ 
+          email: email, 
+          password: tempPassword,
+          data: { 
+            first_name: name.split(' ')[0] || '',
+            last_name: name.split(' ').slice(1).join(' ') || ''
+          }
+        })
+      });
+      
+      const signUpData = await signUpRes.json();
+      
+      if (!signUpRes.ok) {
+        throw new Error(signUpData.msg || signUpData.error_description || "Failed to create account");
+      }
+      
+      userId = signUpData.user?.id || signUpData.id;
+      
+      if (!userId) {
+        throw new Error("Account created but no user ID returned");
+      }
+      
+      // Wait for database triggers to create profile and subscription
+      await new Promise(r => setTimeout(r, 3000));
+      
+      // Update the profile with the name
+      const firstName = name.split(' ')[0] || '';
+      const lastName = name.split(' ').slice(1).join(' ') || '';
+      if (firstName || lastName) {
+        await fetch(`${SUPA_URL}/rest/v1/profiles?id=eq.${userId}`, {
+          method: "PATCH",
+          headers: { apikey: SUPA_KEY, Authorization: `Bearer ${token}`, "Content-Type": "application/json", "Prefer": "return=minimal" },
+          body: JSON.stringify({ first_name: firstName, last_name: lastName })
+        });
+      }
+      
+      console.log(`✅ Created new ArcOS account for ${email} — confirmation email sent`);
+    }
+    
+    // Assign company to profile
+    await fetch(`${SUPA_URL}/rest/v1/profiles?id=eq.${userId}`, {
+      method: "PATCH",
+      headers: { apikey: SUPA_KEY, Authorization: `Bearer ${token}`, "Content-Type": "application/json", "Prefer": "return=minimal" },
+      body: JSON.stringify({ company_id: selectedCompanyId })
+    });
+    
+    // Add as company admin
+    const addRes = await fetch(`${SUPA_URL}/rest/v1/company_admins`, {
+      method: "POST",
+      headers: { apikey: SUPA_KEY, Authorization: `Bearer ${token}`, "Content-Type": "application/json", "Prefer": "return=minimal" },
+      body: JSON.stringify({ company_id: selectedCompanyId, user_id: userId, role })
+    });
+    
+    if (!addRes.ok) {
+      const errText = await addRes.text();
+      if (errText.includes("duplicate")) {
+        throw new Error("This user is already an admin for this company");
+      }
+      throw new Error(errText);
+    }
+    
+    closeModals();
+    await loadCompanies();
+    await showCompanyDetail(selectedCompanyId);
+    
+  } catch (e) {
+    errEl.textContent = e.message;
+    errEl.classList.remove("hidden");
+  }
+}
+
+async function changeClientTier(userId, newTier) {
+  try {
+    await fetch(`${SUPA_URL}/rest/v1/subscriptions?user_id=eq.${userId}&status=eq.active`, {
+      method: "PATCH",
+      headers: { apikey: SUPA_KEY, Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ tier: newTier, managed_by_company: selectedCompanyId })
+    });
+    console.log(`✅ Updated ${userId} to ${newTier}`);
+  } catch (e) {
+    console.error("Tier change failed:", e);
+    alert("Failed to update tier: " + e.message);
+  }
+}
+
+async function removeAdmin(profileId) {
+  if (!confirm("Remove this admin?")) return;
+  try {
+    await fetch(`${SUPA_URL}/rest/v1/company_admins?user_id=eq.${profileId}&company_id=eq.${selectedCompanyId}`, {
+      method: "DELETE",
+      headers: { apikey: SUPA_KEY, Authorization: `Bearer ${token}` }
+    });
+    await loadCompanies();
+    await showCompanyDetail(selectedCompanyId);
+  } catch (e) {
+    console.error("Remove admin failed:", e);
+  }
+}
+
+async function deleteUser(userId, isCompanyClient = false) {
+  const confirmMsg = "Are you sure you want to delete this user? This will remove their profile, subscription, vehicles, and all log data. This cannot be undone.";
+  if (!confirm(confirmMsg)) return;
+  if (!confirm("This is permanent. Are you absolutely sure?")) return;
+  
+  try {
+    // Delete in order: logs → vehicles → subscriptions → company_admins → profile
+    // (auth.users deletion requires admin API, so we clean up app data)
+    await fetch(`${SUPA_URL}/rest/v1/system_logs?user_id=eq.${userId}`, {
+      method: "DELETE",
+      headers: { apikey: SUPA_KEY, Authorization: `Bearer ${token}` }
+    });
+    await fetch(`${SUPA_URL}/rest/v1/vehicles?user_id=eq.${userId}`, {
+      method: "DELETE",
+      headers: { apikey: SUPA_KEY, Authorization: `Bearer ${token}` }
+    });
+    await fetch(`${SUPA_URL}/rest/v1/subscriptions?user_id=eq.${userId}`, {
+      method: "DELETE",
+      headers: { apikey: SUPA_KEY, Authorization: `Bearer ${token}` }
+    });
+    await fetch(`${SUPA_URL}/rest/v1/company_admins?user_id=eq.${userId}`, {
+      method: "DELETE",
+      headers: { apikey: SUPA_KEY, Authorization: `Bearer ${token}` }
+    });
+    await fetch(`${SUPA_URL}/rest/v1/profiles?id=eq.${userId}`, {
+      method: "DELETE",
+      headers: { apikey: SUPA_KEY, Authorization: `Bearer ${token}` }
+    });
+    
+    console.log("✅ User deleted:", userId);
+    
+    if (isCompanyClient && selectedCompanyId) {
+      closeClientDetail();
+      await loadCompanies();
+      await showCompanyDetail(selectedCompanyId);
+    } else {
+      showUsers();
+      await loadUsers();
+    }
+  } catch (e) {
+    console.error("Delete user failed:", e);
+    alert("Failed to delete user: " + e.message);
+  }
 }
 
 // Helpers
 function tierBadge(tier) {
-  const t = tier || "free";
+  const t = tier || "base_camp";
   return `<span class="tier tier-${t}">${t}</span>`;
 }
 
@@ -500,6 +1462,291 @@ function formatTime(dateStr) {
 function formatDate(dateStr) {
   if (!dateStr) return "—";
   return new Date(dateStr).toLocaleString("en-US", { month: "short", day: "numeric" });
+}
+
+// ── AI LOG ANALYSIS ──
+async function runAIAnalysis() {
+  const logs = window.currentLogData;
+  const dateRange = window.currentLogDateRange;
+  if (!logs || logs.length === 0) return;
+  
+  const btn = document.getElementById("aiAnalysisBtn");
+  const content = document.getElementById("aiAnalysisContent");
+  btn.textContent = "Analyzing...";
+  btn.disabled = true;
+  content.innerHTML = '<div class="ai-loading"><div class="spinner"></div>Analyzing ' + logs.length + ' log entries...</div>';
+  
+  // Small delay for UX
+  await new Promise(r => setTimeout(r, 800));
+  
+  const stats = computeLogStats(logs);
+  const analysis = generateAnalysis(stats, logs.length, dateRange);
+  content.innerHTML = renderAIAnalysis(analysis);
+  btn.textContent = "Re-Analyze";
+  btn.disabled = false;
+}
+
+function computeLogStats(logs) {
+  const s = {
+    battery: { minSoc: Infinity, maxSoc: -Infinity, avgSoc: 0, minVoltage: Infinity, maxVoltage: -Infinity, avgVoltage: 0, timeBelowCritical: 0, timeBelowHalf: 0 },
+    solar: { maxPower: 0, avgPowerWhenActive: 0, activeEntries: 0, minYield: Infinity, maxYield: -Infinity },
+    loads: { avgDC: 0, maxDC: 0, avgAC: 0, maxAC: 0, avgTotal: 0, maxTotal: 0 },
+    shore: { connectedEntries: 0, avgPower: 0 },
+    engine: { runningEntries: 0, avgPower: 0 },
+    water: { freshMin: null, freshMax: null, greyMin: null, greyMax: null },
+    temp: { hasData: false, min: Infinity, max: -Infinity },
+    gaps: []
+  };
+  
+  let socSum = 0, voltSum = 0, solarPowerSum = 0, shorePowerSum = 0, enginePowerSum = 0;
+  let dcSum = 0, acSum = 0, totalSum = 0;
+  
+  logs.forEach((l, i) => {
+    const soc = l.battery_soc || 0;
+    const volt = l.battery_voltage || 0;
+    const solar = l.solar_power || 0;
+    const dc = l.dc_load_power || 0;
+    const ac = l.ac_load_power || 0;
+    const total = l.total_consumption || 0;
+    
+    s.battery.minSoc = Math.min(s.battery.minSoc, soc);
+    s.battery.maxSoc = Math.max(s.battery.maxSoc, soc);
+    socSum += soc;
+    s.battery.minVoltage = Math.min(s.battery.minVoltage, volt);
+    s.battery.maxVoltage = Math.max(s.battery.maxVoltage, volt);
+    voltSum += volt;
+    if (soc < 20) s.battery.timeBelowCritical++;
+    if (soc < 50) s.battery.timeBelowHalf++;
+    
+    s.solar.maxPower = Math.max(s.solar.maxPower, solar);
+    if (solar > 5) { solarPowerSum += solar; s.solar.activeEntries++; }
+    const yield_ = l.solar_daily_yield || 0;
+    if (yield_ > 0) { s.solar.minYield = Math.min(s.solar.minYield, yield_); s.solar.maxYield = Math.max(s.solar.maxYield, yield_); }
+    
+    dcSum += dc; s.loads.maxDC = Math.max(s.loads.maxDC, dc);
+    acSum += ac; s.loads.maxAC = Math.max(s.loads.maxAC, ac);
+    totalSum += total; s.loads.maxTotal = Math.max(s.loads.maxTotal, total);
+    
+    if (l.shore_connected) { s.shore.connectedEntries++; shorePowerSum += (l.shore_power || 0); }
+    if (l.engine_running) { s.engine.runningEntries++; enginePowerSum += (l.alternator_power || 0); }
+    
+    if (l.fresh_water_level != null) {
+      s.water.freshMin = s.water.freshMin === null ? l.fresh_water_level : Math.min(s.water.freshMin, l.fresh_water_level);
+      s.water.freshMax = s.water.freshMax === null ? l.fresh_water_level : Math.max(s.water.freshMax, l.fresh_water_level);
+    }
+    if (l.grey_water_level != null) {
+      s.water.greyMin = s.water.greyMin === null ? l.grey_water_level : Math.min(s.water.greyMin, l.grey_water_level);
+      s.water.greyMax = s.water.greyMax === null ? l.grey_water_level : Math.max(s.water.greyMax, l.grey_water_level);
+    }
+    if (l.outside_temp != null) { s.temp.hasData = true; s.temp.min = Math.min(s.temp.min, l.outside_temp); s.temp.max = Math.max(s.temp.max, l.outside_temp); }
+    
+    // Detect gaps
+    if (i > 0) {
+      const prevTime = new Date(logs[i-1].logged_at).getTime();
+      const currTime = new Date(l.logged_at).getTime();
+      const diffMin = (currTime - prevTime) / 60000;
+      if (diffMin > 20) {
+        s.gaps.push({
+          from: new Date(logs[i-1].logged_at).toLocaleString(),
+          to: new Date(l.logged_at).toLocaleString(),
+          duration: diffMin > 60 ? (diffMin/60).toFixed(1) + ' hours' : Math.round(diffMin) + ' min'
+        });
+      }
+    }
+  });
+  
+  const n = logs.length || 1;
+  s.battery.avgSoc = socSum / n;
+  s.battery.avgVoltage = voltSum / n;
+  s.solar.avgPowerWhenActive = s.solar.activeEntries > 0 ? solarPowerSum / s.solar.activeEntries : 0;
+  if (s.solar.minYield === Infinity) s.solar.minYield = 0;
+  if (s.solar.maxYield === -Infinity) s.solar.maxYield = 0;
+  s.loads.avgDC = dcSum / n; s.loads.avgAC = acSum / n; s.loads.avgTotal = totalSum / n;
+  s.loads.maxTotal = Math.max(s.loads.maxTotal, 0);
+  s.shore.avgPower = s.shore.connectedEntries > 0 ? shorePowerSum / s.shore.connectedEntries : 0;
+  s.engine.avgPower = s.engine.runningEntries > 0 ? enginePowerSum / s.engine.runningEntries : 0;
+  
+  return s;
+}
+
+function generateAnalysis(stats, logCount, dateRange) {
+  let score = 100;
+  const good = [];
+  const concerns = [];
+  const recs = [];
+  
+  const s = stats;
+  const pctBelowCritical = s.battery.timeBelowCritical / logCount * 100;
+  const pctBelowHalf = s.battery.timeBelowHalf / logCount * 100;
+  const pctShore = s.shore.connectedEntries / logCount * 100;
+  const solarHours = s.solar.activeEntries * 15 / 60;
+  
+  // ── Battery Health ──
+  if (s.battery.avgSoc >= 70) {
+    good.push(`Battery maintained a healthy average SOC of ${s.battery.avgSoc.toFixed(0)}% across the period`);
+  } else if (s.battery.avgSoc >= 50) {
+    recs.push(`Average SOC of ${s.battery.avgSoc.toFixed(0)}% is moderate — consider more frequent charging or reducing loads`);
+    score -= 10;
+  } else {
+    concerns.push(`Average SOC of ${s.battery.avgSoc.toFixed(0)}% is low — battery is consistently undercharged`);
+    score -= 25;
+  }
+  
+  if (pctBelowCritical > 10) {
+    concerns.push(`Battery dropped below 20% SOC for ${s.battery.timeBelowCritical} readings (${pctBelowCritical.toFixed(0)}% of the time) — this accelerates battery degradation`);
+    score -= 20;
+  } else if (pctBelowCritical > 0) {
+    concerns.push(`Battery briefly dipped below 20% SOC (${s.battery.timeBelowCritical} readings) — monitor to prevent deep discharge damage`);
+    score -= 5;
+  }
+  
+  if (s.battery.minVoltage < 11.5 && s.battery.minVoltage > 0) {
+    concerns.push(`Minimum voltage of ${s.battery.minVoltage.toFixed(1)}V is dangerously low — risk of permanent battery damage below 11V`);
+    score -= 15;
+  } else if (s.battery.minVoltage >= 12.0) {
+    good.push(`Voltage stayed healthy — never dropped below ${s.battery.minVoltage.toFixed(1)}V`);
+  }
+  
+  if (s.battery.maxVoltage > 14.8) {
+    concerns.push(`Peak voltage of ${s.battery.maxVoltage.toFixed(1)}V may indicate overcharging — check charge controller settings`);
+    score -= 10;
+  }
+  
+  // ── Solar ──
+  if (s.solar.maxPower > 0) {
+    if (s.solar.maxPower > 200) {
+      good.push(`Strong solar production — peaked at ${s.solar.maxPower.toFixed(0)}W with ${solarHours.toFixed(1)} hours of active generation`);
+    } else if (s.solar.maxPower > 50) {
+      good.push(`Solar system active — peaked at ${s.solar.maxPower.toFixed(0)}W over ${solarHours.toFixed(1)} hours`);
+    } else {
+      concerns.push(`Solar production is very low (peak ${s.solar.maxPower.toFixed(0)}W) — panels may be shaded, dirty, or underperforming`);
+      recs.push(`Inspect solar panels for shading, dirt buildup, or loose connections`);
+      score -= 10;
+    }
+  } else {
+    if (pctShore < 90) {
+      concerns.push(`No solar production detected during this period — if panels are installed, check connections and controller`);
+      score -= 10;
+    }
+  }
+  
+  // ── Consumption ──
+  if (s.loads.maxTotal > 2000) {
+    concerns.push(`Very high peak consumption of ${s.loads.maxTotal.toFixed(0)}W — verify this is expected (HVAC, cooking appliances)`);
+    score -= 5;
+  }
+  if (s.loads.avgTotal > 500) {
+    recs.push(`Average consumption is ${s.loads.avgTotal.toFixed(0)}W — consider which loads can be reduced for longer battery life`);
+  } else if (s.loads.avgTotal > 0) {
+    good.push(`Power consumption is reasonable at ${s.loads.avgTotal.toFixed(0)}W average`);
+  }
+  
+  if (s.loads.avgAC > 300 && pctShore < 20) {
+    concerns.push(`High AC load (${s.loads.avgAC.toFixed(0)}W avg) while mostly off-grid — this will drain the battery quickly`);
+    score -= 10;
+  }
+  
+  // ── Shore Power ──
+  if (pctShore > 80) {
+    good.push(`Connected to shore power ${pctShore.toFixed(0)}% of the time — battery stays topped off`);
+  } else if (pctShore > 0) {
+    good.push(`Shore power used for ${pctShore.toFixed(0)}% of the period (${s.shore.connectedEntries} readings)`);
+  }
+  
+  // ── Water Tanks ──
+  if (s.water.freshMin !== null) {
+    if (s.water.freshMin < 15) {
+      concerns.push(`Fresh water dropped to ${s.water.freshMin.toFixed(0)}% — near empty`);
+      recs.push(`Plan a fresh water fill-up soon — running dry can damage the water pump`);
+      score -= 5;
+    } else {
+      good.push(`Fresh water levels healthy (${s.water.freshMin.toFixed(0)}% – ${s.water.freshMax.toFixed(0)}%)`);
+    }
+  }
+  if (s.water.greyMax !== null && s.water.greyMax > 80) {
+    concerns.push(`Grey water tank reached ${s.water.greyMax.toFixed(0)}% — needs dumping soon`);
+    recs.push(`Dump grey water tank at next available dump station to prevent overflow`);
+    score -= 5;
+  }
+  
+  // ── Data Gaps ──
+  if (s.gaps.length > 5) {
+    concerns.push(`${s.gaps.length} data gaps detected — system monitoring was interrupted frequently`);
+    recs.push(`Check that the iPad stays connected to the Cerbo's network and the app remains active`);
+    score -= 10;
+  } else if (s.gaps.length > 0) {
+    concerns.push(`${s.gaps.length} data gap${s.gaps.length > 1 ? 's' : ''} detected in the log timeline`);
+    score -= 3;
+  }
+  
+  if (good.length === 0) good.push(`System is operational and logging data`);
+  score = Math.max(0, Math.min(100, score));
+  
+  // ── Build Summary ──
+  let summary = '';
+  if (score >= 80) {
+    summary = `System is in excellent health over this period. Battery, solar, and consumption patterns look well-balanced.`;
+  } else if (score >= 60) {
+    summary = `System is functioning adequately but there are some areas worth monitoring. ${concerns.length} concern${concerns.length !== 1 ? 's' : ''} identified.`;
+  } else if (score >= 40) {
+    summary = `Several issues detected that need attention. Battery health and charging patterns should be reviewed.`;
+  } else {
+    summary = `System health is poor — multiple critical issues detected. Immediate attention recommended to prevent damage.`;
+  }
+  
+  if (logCount < 10) {
+    summary += ` Note: Limited data (${logCount} entries) — analysis will be more accurate with a larger dataset.`;
+  }
+  
+  return { score, summary, good, concerns, recs, stats };
+}
+
+function renderAIAnalysis(analysis) {
+  const { score, summary, good, concerns, recs, stats } = analysis;
+  const scoreClass = score >= 70 ? 'good' : score >= 40 ? 'warn' : 'bad';
+  const s = stats;
+  
+  const formatBullets = (items, emptyMsg) => {
+    if (!items || items.length === 0) return `<div style="color:#8E8D8A;font-size:13px">${emptyMsg || 'None identified'}</div>`;
+    return items.map(item => 
+      `<div style="display:flex;gap:8px;margin-bottom:6px;font-size:13px;color:#C8C4BC;line-height:1.5"><span style="flex-shrink:0">•</span><span>${item}</span></div>`
+    ).join('');
+  };
+  
+  let html = '';
+  
+  // Score + Summary
+  html += '<div style="display:flex;align-items:flex-start;gap:16px;margin-bottom:20px">';
+  html += `<div class="ai-score ${scoreClass}">${score}</div>`;
+  html += `<div><div class="ai-body">${summary}</div>`;
+  
+  // Key metrics row
+  html += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px">';
+  html += `<div class="ai-metric"><span class="label">Avg SOC</span> ${s.battery.avgSoc.toFixed(0)}%</div>`;
+  html += `<div class="ai-metric"><span class="label">Avg Voltage</span> ${s.battery.avgVoltage.toFixed(1)}V</div>`;
+  if (s.solar.maxPower > 0) html += `<div class="ai-metric"><span class="label">Peak Solar</span> ${s.solar.maxPower.toFixed(0)}W</div>`;
+  html += `<div class="ai-metric"><span class="label">Avg Load</span> ${s.loads.avgTotal.toFixed(0)}W</div>`;
+  if (s.water.freshMin !== null) html += `<div class="ai-metric"><span class="label">Fresh Water</span> ${s.water.freshMin.toFixed(0)}–${s.water.freshMax.toFixed(0)}%</div>`;
+  html += '</div></div></div>';
+  
+  // Sections
+  html += '<div class="ai-section"><div class="ai-section-title green">✓ What\'s Looking Good</div>' + formatBullets(good) + '</div>';
+  html += '<div class="ai-section"><div class="ai-section-title red">⚠ Concerns & Anomalies</div>' + formatBullets(concerns, 'No concerns — everything looks healthy') + '</div>';
+  if (recs.length > 0) {
+    html += '<div class="ai-section"><div class="ai-section-title blue">→ Recommendations</div>' + formatBullets(recs) + '</div>';
+  }
+  
+  // Gap details
+  if (s.gaps.length > 0) {
+    html += '<div class="ai-section"><div class="ai-section-title" style="color:#8E8D8A">Data Gaps</div>';
+    html += s.gaps.slice(0, 8).map(g => 
+      `<div style="font-size:12px;color:#666;margin-bottom:4px">${g.from} → ${g.to} (${g.duration})</div>`
+    ).join('');
+    if (s.gaps.length > 8) html += `<div style="font-size:12px;color:#666">...and ${s.gaps.length - 8} more</div>`;
+    html += '</div>';
+  }
+  
+  return html;
 }
 </script>
 </body>
