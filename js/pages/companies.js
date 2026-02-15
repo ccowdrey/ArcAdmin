@@ -21,6 +21,13 @@ const CompaniesPage = {
         const clients = profiles.filter(p => p.company_id === c.id);
         const clientSubs = clients.map(cl => subs.find(s => s.user_id === cl.id)).filter(Boolean);
         const companyAdmins = admins.filter(a => a.company_id === c.id);
+        // Register company slug
+        Router.registerSlug(c.id, c.name);
+        // Register client slugs
+        clients.forEach(cl => {
+          const name = `${cl.first_name || ''} ${cl.last_name || ''}`.trim() || cl.email.split('@')[0];
+          Router.registerSlug(cl.id, name);
+        });
         return { ...c, clients, clientSubs, admins: companyAdmins };
       });
       
@@ -41,9 +48,6 @@ const CompaniesPage = {
   },
   
   render(companies) {
-    // Register slugs
-    companies.forEach(c => Router.registerSlug(c.id, c.name));
-    
     const tbody = document.getElementById("companiesTableBody");
     if (companies.length === 0) {
       tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:#666;padding:32px">No companies yet</td></tr>`;
@@ -92,6 +96,11 @@ const CompanyDetailPage = {
         const clients = profiles.filter(p => p.company_id === c.id);
         const clientSubs = clients.map(cl => subs.find(s => s.user_id === cl.id)).filter(Boolean);
         const companyAdmins = admins.filter(a => a.company_id === c.id);
+        Router.registerSlug(c.id, c.name);
+        clients.forEach(cl => {
+          const name = `${cl.first_name || ''} ${cl.last_name || ''}`.trim() || cl.email.split('@')[0];
+          Router.registerSlug(cl.id, name);
+        });
         return { ...c, clients, clientSubs, admins: companyAdmins };
       });
     }
@@ -156,12 +165,6 @@ const CompanyDetailPage = {
   },
   
   renderClients(clients) {
-    // Register slugs for clients
-    clients.forEach(cl => {
-      const name = `${cl.first_name || ''} ${cl.last_name || ''}`.trim() || cl.email.split('@')[0];
-      Router.registerSlug(cl.id, name);
-    });
-    
     const companySlug = Router.getSlug(selectedCompanyId);
     document.getElementById("companyClientsBody").innerHTML = clients.map(cl => {
       const clientSlug = Router.getSlug(cl.id);
