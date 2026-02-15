@@ -40,7 +40,7 @@ document.addEventListener("DOMContentLoaded", () => {
   
   Router.on('/companies/:companyId/clients/:clientId', (params) => {
     if (!token) { Router.navigate('/login'); return; }
-    UserDetailPage.load({ userId: params.clientId });
+    UserDetailPage.load({ userId: Router.resolveId(params.clientId) });
   });
   
   Router.on('/', () => {

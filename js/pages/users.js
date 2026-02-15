@@ -31,9 +31,16 @@ const UsersPage = {
   },
   
   render(users) {
+    // Register slugs for all users
+    users.forEach(u => {
+      const name = `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.email.split('@')[0];
+      Router.registerSlug(u.id, name);
+    });
+    
     const tbody = document.getElementById('usersTableBody');
-    tbody.innerHTML = users.map(u => `
-      <tr onclick="Router.navigate('/users/${u.id}')">
+    tbody.innerHTML = users.map(u => {
+      const slug = Router.getSlug(u.id);
+      return `<tr onclick="Router.navigate('/users/${slug}')">
         <td>
           <div class="user-name">${escHtml(u.first_name || '')} ${escHtml(u.last_name || '')}</div>
           <div class="user-email">${escHtml(u.email)}</div>
@@ -42,8 +49,8 @@ const UsersPage = {
         <td class="text-muted">${formatDate(u.created_at)}</td>
         <td class="text-muted">${timeAgo(u.last_login_at)}</td>
         <td class="text-dim">${u.company_id ? '✓' : '—'}</td>
-      </tr>
-    `).join('');
+      </tr>`;
+    }).join('');
   },
   
   filter(query) {

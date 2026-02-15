@@ -41,6 +41,9 @@ const CompaniesPage = {
   },
   
   render(companies) {
+    // Register slugs
+    companies.forEach(c => Router.registerSlug(c.id, c.name));
+    
     const tbody = document.getElementById("companiesTableBody");
     if (companies.length === 0) {
       tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:#666;padding:32px">No companies yet</td></tr>`;
@@ -49,16 +52,19 @@ const CompaniesPage = {
     
     const planColors = { starter: "#8E8D8A", growth: "#E7B400", enterprise: "#2ABC53" };
     
-    tbody.innerHTML = companies.map(c => `<tr onclick="Router.navigate('/companies/${c.id}')">
-      <td style="font-weight:600;color:#F5F1EB">${escHtml(c.name)}</td>
-      <td><span class="tier" style="background:${planColors[c.plan] || '#666'}20;color:${planColors[c.plan] || '#666'}">${c.plan}</span></td>
-      <td style="color:#F5F1EB;font-weight:600">${c.clients.length}</td>
-      <td style="color:#666">${c.max_clients}</td>
-      <td style="color:#2ABC53">${c.monthly_rate ? '$' + Number(c.monthly_rate).toFixed(0) + '/mo' : '—'}</td>
-      <td>${c.is_active ? '<span style="color:#2ABC53">Active</span>' : '<span style="color:#FF6565">Inactive</span>'}</td>
-      <td style="color:#666;font-size:12px">${timeAgo(c.created_at)}</td>
-      <td><span style="color:#E7B400;font-size:12px">View →</span></td>
-    </tr>`).join("");
+    tbody.innerHTML = companies.map(c => {
+      const slug = Router.getSlug(c.id);
+      return `<tr onclick="Router.navigate('/companies/${slug}')">
+        <td style="font-weight:600;color:#F5F1EB">${escHtml(c.name)}</td>
+        <td><span class="tier" style="background:${planColors[c.plan] || '#666'}20;color:${planColors[c.plan] || '#666'}">${c.plan}</span></td>
+        <td style="color:#F5F1EB;font-weight:600">${c.clients.length}</td>
+        <td style="color:#666">${c.max_clients}</td>
+        <td style="color:#2ABC53">${c.monthly_rate ? '$' + Number(c.monthly_rate).toFixed(0) + '/mo' : '—'}</td>
+        <td>${c.is_active ? '<span style="color:#2ABC53">Active</span>' : '<span style="color:#FF6565">Inactive</span>'}</td>
+        <td style="color:#666;font-size:12px">${timeAgo(c.created_at)}</td>
+        <td><span style="color:#E7B400;font-size:12px">View →</span></td>
+      </tr>`;
+    }).join("");
   }
 };
 
@@ -69,7 +75,7 @@ const CompanyDetailPage = {
   clientsData: [],
   
   async load(params) {
-    this.companyId = params.companyId;
+    this.companyId = Router.resolveId(params.companyId);
     selectedCompanyId = this.companyId;
     setActivePage('pageCompanyDetail');
     if (Auth.isSuper()) setActiveTab('tabCompanies');
@@ -150,21 +156,31 @@ const CompanyDetailPage = {
   },
   
   renderClients(clients) {
-    document.getElementById("companyClientsBody").innerHTML = clients.map(cl => `<tr onclick="Router.navigate('/companies/${selectedCompanyId}/clients/${cl.id}')">
-      <td style="color:#F5F1EB">${escHtml(cl.first_name || '')} ${escHtml(cl.last_name || '')}</td>
-      <td style="color:#8E8D8A">${escHtml(cl.email)}</td>
-      <td style="color:#666;font-size:12px">${cl.vehicle ? escHtml(cl.vehicle.make + ' ' + cl.vehicle.model) : '—'}</td>
-      <td>${tierBadge(cl.tier)}</td>
-      <td style="color:#666;font-size:12px">${timeAgo(cl.last_login_at)}</td>
-      <td>
-        <select onclick="event.stopPropagation()" onchange="CompanyDetailPage.changeTier('${cl.id}', this.value)" style="background:#242424;border:1px solid #333;border-radius:4px;color:#F5F1EB;font-size:12px;padding:4px 8px;font-family:inherit">
-          <option value="base_camp" ${cl.tier === 'base_camp' ? 'selected' : ''}>Base Camp</option>
-          <option value="explore" ${cl.tier === 'explore' ? 'selected' : ''}>Explore</option>
-          <option value="adventurer" ${cl.tier === 'adventurer' ? 'selected' : ''}>Adventurer</option>
-        </select>
-      </td>
-      <td><button class="btn-delete" onclick="event.stopPropagation();UserDetailPage.userId='${cl.id}';UserDetailPage.userName='${escHtml(cl.first_name || '')}';UserDetailPage.deleteUser()" style="font-size:11px">Delete</button></td>
-    </tr>`).join("") || `<tr><td colspan="7" style="text-align:center;color:#666;padding:16px">No clients</td></tr>`;
+    // Register slugs for clients
+    clients.forEach(cl => {
+      const name = `${cl.first_name || ''} ${cl.last_name || ''}`.trim() || cl.email.split('@')[0];
+      Router.registerSlug(cl.id, name);
+    });
+    
+    const companySlug = Router.getSlug(selectedCompanyId);
+    document.getElementById("companyClientsBody").innerHTML = clients.map(cl => {
+      const clientSlug = Router.getSlug(cl.id);
+      return `<tr onclick="Router.navigate('/companies/${companySlug}/clients/${clientSlug}')">
+        <td style="color:#F5F1EB">${escHtml(cl.first_name || '')} ${escHtml(cl.last_name || '')}</td>
+        <td style="color:#8E8D8A">${escHtml(cl.email)}</td>
+        <td style="color:#666;font-size:12px">${cl.vehicle ? escHtml(cl.vehicle.make + ' ' + cl.vehicle.model) : '—'}</td>
+        <td>${tierBadge(cl.tier)}</td>
+        <td style="color:#666;font-size:12px">${timeAgo(cl.last_login_at)}</td>
+        <td>
+          <select onclick="event.stopPropagation()" onchange="CompanyDetailPage.changeTier('${cl.id}', this.value)" style="background:#242424;border:1px solid #333;border-radius:4px;color:#F5F1EB;font-size:12px;padding:4px 8px;font-family:inherit">
+            <option value="base_camp" ${cl.tier === 'base_camp' ? 'selected' : ''}>Base Camp</option>
+            <option value="explore" ${cl.tier === 'explore' ? 'selected' : ''}>Explore</option>
+            <option value="adventurer" ${cl.tier === 'adventurer' ? 'selected' : ''}>Adventurer</option>
+          </select>
+        </td>
+        <td><button class="btn-delete" onclick="event.stopPropagation();UserDetailPage.userId='${cl.id}';UserDetailPage.userName='${escHtml(cl.first_name || '')}';UserDetailPage.deleteUser()" style="font-size:11px">Delete</button></td>
+      </tr>`;
+    }).join("") || `<tr><td colspan="7" style="text-align:center;color:#666;padding:16px">No clients</td></tr>`;
   },
   
   filterClients() {

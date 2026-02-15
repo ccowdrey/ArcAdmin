@@ -7,7 +7,8 @@ const UserDetailPage = {
   currentLogData: null,
   
   async load(params) {
-    this.userId = params.userId;
+    // Resolve slug or ID
+    this.userId = Router.resolveId(params.userId);
     setActivePage('pageUserDetail');
     
     // Breadcrumb

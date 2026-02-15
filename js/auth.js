@@ -45,6 +45,7 @@ const Auth = {
   },
   
   setupCompanyAdmin(email, companyName) {
+    Router.registerSlug(userCompanyId, companyName);
     document.getElementById('navBrandLabel').textContent = companyName;
     document.getElementById('navEmail').textContent = email;
     hide('tabUsers');
@@ -52,7 +53,7 @@ const Auth = {
     hide('navTabs');
     hide('loginPage');
     show('appShell');
-    Router.navigate(`/companies/${userCompanyId}`);
+    Router.navigate(`/companies/${Router.getSlug(userCompanyId)}`);
   },
   
   signout() {
