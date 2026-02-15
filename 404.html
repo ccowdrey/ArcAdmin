@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<script>
+  // GitHub Pages SPA redirect hack
+  // Converts the path to a query string so index.html can restore it
+  var path = window.location.pathname;
+  window.location.replace(window.location.origin + '/?route=' + encodeURIComponent(path));
+</script>
+</head>
+<body></body>
+</html>
