@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ArcOS Admin Dashboard</title>
+<title>ArcOne Admin Dashboard</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -470,6 +470,9 @@ input[type="date"]::-webkit-inner-spin-button { display: none; }
 <script>
 const SUPA_URL = "https://agpsalkaajjivoytcipb.supabase.co";
 const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFncHNhbGthYWpqaXZveXRjaXBiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA4NDUxMDEsImV4cCI6MjA4NjQyMTEwMX0.rm3KLQIC4apB8Oe5zvYIhrsOdh8A_4oQgxMSqPdrUpo";
+// Service role key — used ONLY for admin auth operations (delete user from auth.users)
+// This dashboard is internal-only; never expose this key in client-facing apps
+const SERVICE_ROLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFncHNhbGthYWpqaXZveXRjaXBiIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MDg0NTEwMSwiZXhwIjoyMDg2NDIxMTAxfQ.fClSWJxKIVTOccGsq86DC-fMStmK2CunyNqQMnew9zk";
 
 let token = null;
 let refreshToken = null;
@@ -1434,7 +1437,8 @@ async function deleteUser(userId, isCompanyClient = false) {
   if (!confirm("This is permanent. Are you absolutely sure?")) return;
   
   try {
-    const res = await fetch(`${SUPA_URL}/rest/v1/rpc/delete_user_completely`, {
+    // Step 1: Delete app data via RPC (profiles, vehicles, logs, etc.)
+    const rpcRes = await fetch(`${SUPA_URL}/rest/v1/rpc/delete_user_completely`, {
       method: "POST",
       headers: { 
         apikey: SUPA_KEY, 
@@ -1444,12 +1448,26 @@ async function deleteUser(userId, isCompanyClient = false) {
       body: JSON.stringify({ target_user_id: userId })
     });
     
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.message || "Delete failed");
+    if (!rpcRes.ok) {
+      const err = await rpcRes.json();
+      console.warn("RPC delete partial failure:", err.message);
     }
     
-    console.log("✅ User deleted:", userId);
+    // Step 2: Delete from auth.users via Admin API (requires service_role key)
+    const authRes = await fetch(`${SUPA_URL}/auth/v1/admin/users/${userId}`, {
+      method: "DELETE",
+      headers: {
+        apikey: SERVICE_ROLE_KEY,
+        Authorization: `Bearer ${SERVICE_ROLE_KEY}`
+      }
+    });
+    
+    if (!authRes.ok) {
+      const err = await authRes.json();
+      throw new Error("Auth delete failed: " + (err.message || err.msg || JSON.stringify(err)));
+    }
+    
+    console.log("✅ User fully deleted:", userId);
     alert("User deleted successfully.");
     
     if (isCompanyClient && selectedCompanyId) {
