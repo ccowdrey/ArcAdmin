@@ -1434,30 +1434,23 @@ async function deleteUser(userId, isCompanyClient = false) {
   if (!confirm("This is permanent. Are you absolutely sure?")) return;
   
   try {
-    // Delete in order: logs → vehicles → subscriptions → company_admins → profile
-    // (auth.users deletion requires admin API, so we clean up app data)
-    await fetch(`${SUPA_URL}/rest/v1/system_logs?user_id=eq.${userId}`, {
-      method: "DELETE",
-      headers: { apikey: SUPA_KEY, Authorization: `Bearer ${token}` }
-    });
-    await fetch(`${SUPA_URL}/rest/v1/vehicles?user_id=eq.${userId}`, {
-      method: "DELETE",
-      headers: { apikey: SUPA_KEY, Authorization: `Bearer ${token}` }
-    });
-    await fetch(`${SUPA_URL}/rest/v1/subscriptions?user_id=eq.${userId}`, {
-      method: "DELETE",
-      headers: { apikey: SUPA_KEY, Authorization: `Bearer ${token}` }
-    });
-    await fetch(`${SUPA_URL}/rest/v1/company_admins?user_id=eq.${userId}`, {
-      method: "DELETE",
-      headers: { apikey: SUPA_KEY, Authorization: `Bearer ${token}` }
-    });
-    await fetch(`${SUPA_URL}/rest/v1/profiles?id=eq.${userId}`, {
-      method: "DELETE",
-      headers: { apikey: SUPA_KEY, Authorization: `Bearer ${token}` }
+    const res = await fetch(`${SUPA_URL}/rest/v1/rpc/delete_user_completely`, {
+      method: "POST",
+      headers: { 
+        apikey: SUPA_KEY, 
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ target_user_id: userId })
     });
     
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.message || "Delete failed");
+    }
+    
     console.log("✅ User deleted:", userId);
+    alert("User deleted successfully.");
     
     if (isCompanyClient && selectedCompanyId) {
       closeClientDetail();
