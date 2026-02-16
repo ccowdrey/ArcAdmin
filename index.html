@@ -308,7 +308,10 @@ input[type="date"]::-webkit-inner-spin-button { display: none; }
             <div class="card-title" id="companyName" style="font-size:20px"></div>
             <div id="companyMeta" style="font-size:13px;color:#8E8D8A;margin-top:4px"></div>
           </div>
-          <div id="companyPlanBadge" style="padding:4px 12px;border-radius:6px;font-size:12px;font-weight:600"></div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button id="editCompanyBtn" class="btn-load" onclick="showEditCompanyModal()" style="display:none">Edit</button>
+            <div id="companyPlanBadge" style="padding:4px 12px;border-radius:6px;font-size:12px;font-weight:600"></div>
+          </div>
         </div>
 
         <div class="stats" style="margin-top:16px;margin-bottom:0">
@@ -462,6 +465,30 @@ input[type="date"]::-webkit-inner-spin-button { display: none; }
         <div class="field"><label>Expires (optional)</label><input type="date" id="newCodeExpires" style="width:100%;padding:10px 14px;background:#242424;border:1px solid #333;border-radius:8px;color:#F5F1EB;font-size:14px;font-family:inherit;color-scheme:dark"></div>
         <div id="addCodeError" class="error-box hidden"></div>
         <button class="btn-primary" onclick="createInviteCode()">Create Code</button>
+      </div>
+    </div>
+
+    <!-- EDIT COMPANY MODAL -->
+    <div id="editCompanyModal" style="position:fixed;inset:0;background:rgba(0,0,0,0.7);display:none;align-items:center;justify-content:center;z-index:100">
+      <div style="width:440px;background:#1A1A1A;border-radius:16px;border:1px solid #2A2A2A;padding:32px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
+          <h3 style="font-size:18px;color:#F5F1EB">Edit Company</h3>
+          <button onclick="closeModals()" style="background:none;border:none;color:#8E8D8A;font-size:18px;cursor:pointer">✕</button>
+        </div>
+        <div class="field"><label>Company Name</label><input id="editCompanyName"></div>
+        <div class="field"><label>Billing Email</label><input id="editCompanyBillingEmail" placeholder="billing@company.com"></div>
+        <div class="field"><label>Website</label><input id="editCompanyWebsite" placeholder="https://company.com"></div>
+        <div class="field">
+          <label>Plan</label>
+          <select id="editCompanyPlan" style="width:100%;padding:10px 14px;background:#242424;border:1px solid #333;border-radius:8px;color:#F5F1EB;font-size:14px;font-family:inherit">
+            <option value="starter">Starter (10 clients)</option>
+            <option value="growth">Growth (50 clients)</option>
+            <option value="enterprise">Enterprise (unlimited)</option>
+          </select>
+        </div>
+        <div class="field"><label>Monthly Rate ($)</label><input id="editCompanyRate" type="number" placeholder="99.99"></div>
+        <div id="editCompanyError" class="error-box hidden"></div>
+        <button class="btn-primary" onclick="saveCompanyEdits()">Save Changes</button>
       </div>
     </div>
   </div>
@@ -916,6 +943,9 @@ async function showCompanyDetail(companyId) {
   
   // Hide back button for company admins (this is their home view)
   document.getElementById("companyBackBtn").style.display = userRole === "company_admin" ? "none" : "inline-block";
+  
+  // Show edit button for super admins
+  document.getElementById("editCompanyBtn").style.display = userRole === "super_admin" ? "inline-block" : "none";
 
   // Header
   document.getElementById("companyName").textContent = company.name;
@@ -1179,6 +1209,52 @@ function showAddCodeModal() {
   document.getElementById("addCodeModal").style.display = "flex";
 }
 
+function showEditCompanyModal() {
+  const company = allCompanies.find(c => c.id === selectedCompanyId);
+  if (!company) return;
+  document.getElementById("editCompanyName").value = company.name || "";
+  document.getElementById("editCompanyBillingEmail").value = company.billing_email || "";
+  document.getElementById("editCompanyWebsite").value = company.website || "";
+  document.getElementById("editCompanyPlan").value = company.plan || "starter";
+  document.getElementById("editCompanyRate").value = company.monthly_rate || "";
+  document.getElementById("editCompanyError").classList.add("hidden");
+  document.getElementById("editCompanyModal").classList.remove("hidden");
+  document.getElementById("editCompanyModal").style.display = "flex";
+}
+
+async function saveCompanyEdits() {
+  const name = document.getElementById("editCompanyName").value.trim();
+  if (!name) {
+    document.getElementById("editCompanyError").textContent = "Company name is required";
+    document.getElementById("editCompanyError").classList.remove("hidden");
+    return;
+  }
+  
+  const updates = {
+    name: name,
+    billing_email: document.getElementById("editCompanyBillingEmail").value.trim() || null,
+    website: document.getElementById("editCompanyWebsite").value.trim() || null,
+    plan: document.getElementById("editCompanyPlan").value,
+    monthly_rate: parseFloat(document.getElementById("editCompanyRate").value) || null
+  };
+  
+  try {
+    const res = await fetch(`${SUPA_URL}/rest/v1/companies?id=eq.${selectedCompanyId}`, {
+      method: "PATCH",
+      headers: { apikey: SUPA_KEY, Authorization: `Bearer ${token}`, "Content-Type": "application/json", Prefer: "return=representation" },
+      body: JSON.stringify(updates)
+    });
+    if (!res.ok) throw new Error(await res.text());
+    
+    closeModals();
+    await loadCompanies();
+    await showCompanyDetail(selectedCompanyId);
+  } catch (e) {
+    document.getElementById("editCompanyError").textContent = "Failed to save: " + e.message;
+    document.getElementById("editCompanyError").classList.remove("hidden");
+  }
+}
+
 async function createInviteCode() {
   const code = document.getElementById("newCodeValue").value.trim().toUpperCase();
   const label = document.getElementById("newCodeLabel").value.trim();
@@ -1247,7 +1323,7 @@ function showAddAdminModal() {
 }
 
 function closeModals() {
-  ["addCompanyModal","addAdminModal","addCodeModal"].forEach(id => {
+  ["addCompanyModal","addAdminModal","addCodeModal","editCompanyModal"].forEach(id => {
     const el = document.getElementById(id);
     if (el) { el.classList.add("hidden"); el.style.display = "none"; }
   });
