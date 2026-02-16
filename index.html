@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ArcOne Admin Dashboard</title>
+<title>ArcOS Admin Dashboard</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -472,7 +472,7 @@ const SUPA_URL = "https://agpsalkaajjivoytcipb.supabase.co";
 const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFncHNhbGthYWpqaXZveXRjaXBiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA4NDUxMDEsImV4cCI6MjA4NjQyMTEwMX0.rm3KLQIC4apB8Oe5zvYIhrsOdh8A_4oQgxMSqPdrUpo";
 // Service role key — used ONLY for admin auth operations (delete user from auth.users)
 // This dashboard is internal-only; never expose this key in client-facing apps
-const SERVICE_ROLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFncHNhbGthYWpqaXZveXRjaXBiIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MDg0NTEwMSwiZXhwIjoyMDg2NDIxMTAxfQ.fClSWJxKIVTOccGsq86DC-fMStmK2CunyNqQMnew9zk";
+const SERVICE_ROLE_KEY = "PASTE_YOUR_SERVICE_ROLE_KEY_HERE";
 
 let token = null;
 let refreshToken = null;
@@ -1049,7 +1049,7 @@ async function showClientDetail(clientId, name, email) {
       ${infoRow("User ID", `<span class="mono">${clientId.slice(0, 8)}...</span>`)}
       ${infoRow("Joined", formatDate(p.created_at))}
       ${infoRow("Last Login", timeAgo(p.last_login_at))}
-      ${infoRow("Company", userRole === 'super_admin' ? (p.company_id ? 'Yes' : 'No') : '—')}
+      ${infoRow("Company", userRole === 'super_admin' ? (p.company_id ? (allCompanies.find(c => c.id === p.company_id)?.name || 'Unknown') : 'None') : '—')}
     `;
     
     document.getElementById("subInfo").innerHTML = sub[0] ? `
