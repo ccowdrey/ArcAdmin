@@ -31,8 +31,16 @@ const TripsPage = {
       this.renderTripsList();
       this.renderStats();
     } catch (e) {
+      // Table may not exist yet or no trips recorded
+      this.trips = [];
+      this.filteredTrips = [];
+      this.renderStats();
       document.getElementById('tripsContent').innerHTML = `
-        <div class="logs-empty" style="color:#FF6565">Failed to load trips: ${e.message}</div>
+        <div class="logs-empty" style="padding:60px 20px;text-align:center">
+          <div style="font-size:32px;margin-bottom:12px">🚐</div>
+          <div style="color:#8E8D8A;font-size:15px;margin-bottom:6px">No trips recorded yet</div>
+          <div style="color:#555;font-size:13px">Trips will appear here once users start driving with ArcOS installed.<br>Make sure you've run the <code>trips</code> and <code>trip_points</code> migration in Supabase.</div>
+        </div>
       `;
     }
   },
