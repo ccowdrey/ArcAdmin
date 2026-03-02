@@ -3,9 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ArcOS Admin</title>
+<title>ArcNode Admin</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/styles.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 </head>
 <body>
 
@@ -14,7 +15,7 @@
   <div class="login-wrap">
     <div class="login-box">
       <div class="login-title">
-        <div><img src="assets/arcos-logo-white.svg" class="logo-img" alt="ArcOS" onerror="this.style.display='none';this.nextElementSibling.style.display='inline'"><span style="display:none"><span class="arc">Arc</span><span class="os">OS</span></span></div>
+        <div><img src="assets/mark-white.svg" class="logo-img" alt="ArcNode" onerror="this.style.display='none';this.nextElementSibling.style.display='inline'"><span style="display:none"><span class="arc">Arc</span><span class="os">OS</span></span></div>
         <div class="sub">Admin Dashboard</div>
       </div>
       <div class="error-box hidden" id="loginError"></div>
@@ -32,13 +33,14 @@
   <nav class="nav">
     <div class="nav-left">
       <div class="nav-brand" onclick="Router.navigate('/')">
-        <img src="assets/arcos-logo-white.svg" class="nav-logo" alt="ArcOS" onerror="this.style.display='none'">
+        <img src="assets/mark-white.svg" class="nav-logo" alt="ArcNode" onerror="this.style.display='none'">
         <span class="admin" id="navBrandLabel">Admin</span>
       </div>
       <div class="nav-sep"></div>
       <div id="navTabs" style="display:flex;gap:4px">
         <button class="nav-tab active" id="tabUsers" onclick="navUsers()">Users</button>
         <button class="nav-tab" id="tabCompanies" onclick="navCompanies()">Companies</button>
+        <button class="nav-tab" id="tabTrips" onclick="navTrips()">Trips</button>
       </div>
     </div>
     <div class="nav-right">
@@ -85,7 +87,7 @@
     <!-- AI Analysis Card -->
     <div class="card" id="userAiCard" style="display:none">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-        <div class="card-title" style="margin-bottom:0"><span style="margin-right:6px">🧠</span>ArcOS Intelligence Report</div>
+        <div class="card-title" style="margin-bottom:0"><span style="margin-right:6px">🧠</span>ArcNode Intelligence Report</div>
         <button id="userAiBtn" onclick="AIAnalysis.run(UserDetailPage.currentLogData, {start:document.getElementById('userLogStart').value, end:document.getElementById('userLogEnd').value}, document.getElementById('userAiContent'), this)" class="btn-load" style="font-size:11px;padding:4px 12px">Analyze Logs</button>
       </div>
       <div id="userAiContent"><div style="color:#8E8D8A;font-size:13px">Click <strong>Analyze Logs</strong> for AI-powered insights.</div></div>
@@ -190,6 +192,21 @@
     </div>
   </div>
 
+  <!-- ═══════════════ TRIPS PAGE ═══════════════ -->
+  <div id="pageTrips" class="page content">
+    <div class="stats">
+      <div class="stat-card"><div class="stat-label">Total Trips</div><div class="stat-value" id="statTotalTrips">—</div></div>
+      <div class="stat-card"><div class="stat-label">Total Distance</div><div class="stat-value" id="statTotalDistance">—</div></div>
+      <div class="stat-card"><div class="stat-label">Drive Time</div><div class="stat-value" id="statTotalDriveTime">—</div></div>
+      <div class="stat-card"><div class="stat-label">Drivers</div><div class="stat-value" id="statUniqueDrivers">—</div></div>
+    </div>
+    <div class="search"><input placeholder="Search by driver, location..." oninput="TripsPage.filter(this.value)"></div>
+    <div id="tripsContent"></div>
+    
+    <!-- Trip Detail Panel (map + timeline) -->
+    <div id="tripDetailPanel" class="card" style="display:none;margin-top:24px"></div>
+  </div>
+
 </div><!-- /appShell -->
 
 <!-- ═══════════════════════════════════ MODALS ═══════════════════════════════════ -->
@@ -223,7 +240,7 @@
     <div class="error-box hidden" id="addAdminError"></div>
     <div class="field"><label>Name</label><input id="newAdminName" placeholder="Jane Smith"></div>
     <div class="field"><label>Email</label><input id="newAdminEmail" placeholder="admin@company.com"></div>
-    <div style="font-size:12px;color:#666;margin:-8px 0 16px">If this email doesn't have an ArcOS account, one will be created and a confirmation email sent.</div>
+    <div style="font-size:12px;color:#666;margin:-8px 0 16px">If this email doesn't have an ArcNode account, one will be created and a confirmation email sent.</div>
     <div class="field"><label>Role</label>
       <select id="newAdminRole" style="width:100%;padding:10px 14px;background:#242424;border:1px solid #333;border-radius:8px;color:#F5F1EB;font-size:14px;font-family:inherit">
         <option value="admin">Admin</option>
@@ -248,6 +265,7 @@
 </div>
 
 <!-- JavaScript Modules -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="js/api.js"></script>
 <script src="js/router.js"></script>
 <script src="js/utils.js"></script>
@@ -256,6 +274,7 @@
 <script src="js/pages/users.js"></script>
 <script src="js/pages/user-detail.js"></script>
 <script src="js/pages/companies.js"></script>
+<script src="js/pages/trips.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

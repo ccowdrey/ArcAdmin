@@ -38,6 +38,12 @@ document.addEventListener("DOMContentLoaded", () => {
     CompanyDetailPage.load(params);
   });
   
+  Router.on('/trips', () => {
+    if (!token) { Router.navigate('/login'); return; }
+    if (!Auth.isSuper()) { Router.navigate('/'); return; }
+    TripsPage.load();
+  });
+  
   Router.on('/companies/:companyId/clients/:clientId', (params) => {
     if (!token) { Router.navigate('/login'); return; }
     UserDetailPage.load({ userId: Router.resolveId(params.clientId) });
@@ -87,4 +93,5 @@ async function handleLogin() {
 // ── Nav handlers (called from HTML) ──
 function navUsers() { Router.navigate('/users'); }
 function navCompanies() { Router.navigate('/companies'); }
+function navTrips() { Router.navigate('/trips'); }
 function handleSignout() { Auth.signout(); }

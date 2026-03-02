@@ -269,3 +269,40 @@ input[type="date"]::-webkit-inner-spin-button { display: none; }
 }
 
 .hidden { display: none !important; }
+
+/* ── Trips ── */
+.trip-route { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #A8A7A7; line-height: 1.8; }
+.trip-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.trip-dot-start { background: #2ABC53; }
+.trip-dot-end { background: #FF6565; }
+.trip-stat { font-size: 13px; color: #A8A7A7; font-weight: 500; white-space: nowrap; }
+.trip-row-active { background: #E7B40010 !important; border-left: 3px solid #E7B400; }
+
+/* Trip Detail Panel */
+.trip-detail-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
+.trip-detail-title { font-size: 20px; font-weight: 700; margin: 0; }
+.trip-detail-meta { color: #8E8D8A; font-size: 13px; margin-top: 4px; }
+.trip-detail-stats { display: flex; gap: 24px; margin-bottom: 20px; padding: 16px 0; border-top: 1px solid #222; border-bottom: 1px solid #222; }
+.trip-detail-stat { text-align: center; flex: 1; }
+.trip-detail-stat-value { font-size: 24px; font-weight: 700; color: #F5F1EB; }
+.trip-detail-stat-label { font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+
+/* Map */
+.trip-map { height: 420px; border-radius: 10px; overflow: hidden; background: #1A1A1A; margin-bottom: 16px; }
+.trips-loading { display: flex; align-items: center; justify-content: center; gap: 10px; color: #8E8D8A; font-size: 13px; padding: 40px; }
+.trips-loading .spinner { width: 18px; height: 18px; border: 2px solid #333; border-top-color: #E7B400; border-radius: 50%; animation: spin 0.8s linear infinite; }
+
+/* Map markers */
+.trip-pin { width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 50%; font-size: 10px; font-weight: 700; color: #fff; }
+.trip-pin-start { background: #2ABC53; border: 2px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,0.4); }
+.trip-pin-end { background: #FF6565; border: 2px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,0.4); }
+
+/* Speed legend */
+.trip-legend { background: #1A1A1Acc; backdrop-filter: blur(8px); border: 1px solid #333; border-radius: 8px; padding: 10px 14px; }
+.trip-legend-title { font-size: 10px; color: #8E8D8A; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+.trip-legend-bar { height: 6px; border-radius: 3px; background: linear-gradient(to right, #4285F4, #4CAF50, #E7B400, #FF6500, #FF0000); margin-bottom: 4px; }
+.trip-legend-labels { display: flex; justify-content: space-between; font-size: 9px; color: #666; }
+
+/* Timeline hover */
+.trip-timeline tr { transition: background 0.1s; }
+.trip-timeline tr:hover { background: #E7B40010; }
