@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ArcNode Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+</head>
+<body>
+
+<!-- ═══════════════════════════════════ LOGIN PAGE ═══════════════════════════════════ -->
+<div id="loginPage">
+  <div class="login-wrap">
+    <div class="login-box">
+      <div class="login-title">
+        <div><img src="assets/mark-white.svg" class="logo-img" alt="ArcNode" onerror="this.style.display='none';this.nextElementSibling.style.display='inline'"><span style="display:none"><span class="arc">Arc</span><span class="os">OS</span></span></div>
+        <div class="sub">Admin Dashboard</div>
+      </div>
+      <div class="error-box hidden" id="loginError"></div>
+      <div class="field"><label>Email</label><input type="email" id="loginEmail" autocomplete="email"></div>
+      <div class="field"><label>Password</label><input type="password" id="loginPassword" autocomplete="current-password"></div>
+      <button class="btn-primary" id="loginBtn" onclick="handleLogin()">Sign In</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════ APP SHELL ═══════════════════════════════════ -->
+<div id="appShell" class="hidden">
+
+  <!-- Navigation -->
+  <nav class="nav">
+    <div class="nav-left">
+      <div class="nav-brand" onclick="Router.navigate('/')">
+        <img src="assets/mark-white.svg" class="nav-logo" alt="ArcNode" onerror="this.style.display='none'">
+        <span class="admin" id="navBrandLabel">Admin</span>
+      </div>
+      <div class="nav-sep"></div>
+      <div id="navTabs" style="display:flex;gap:4px">
+        <button class="nav-tab active" id="tabUsers" onclick="navUsers()">Users</button>
+        <button class="nav-tab" id="tabCompanies" onclick="navCompanies()">Companies</button>
+        <button class="nav-tab" id="tabTrips" onclick="navTrips()">Trips</button>
+      </div>
+    </div>
+    <div class="nav-right">
+      <span class="nav-email" id="navEmail"></span>
+      <button class="btn-signout" onclick="handleSignout()">Sign Out</button>
+    </div>
+  </nav>
+
+  <!-- ═══════════════ USERS PAGE ═══════════════ -->
+  <div id="pageUsers" class="page content">
+    <div class="stats">
+      <div class="stat-card"><div class="stat-label">Total Users</div><div class="stat-value" id="statTotalUsers">—</div></div>
+      <div class="stat-card"><div class="stat-label">Active (7d)</div><div class="stat-value" id="statActiveUsers">—</div></div>
+      <div class="stat-card"><div class="stat-label">Paid</div><div class="stat-value" id="statPaidUsers">—</div></div>
+    </div>
+    <div class="search"><input placeholder="Search by name or email..." oninput="UsersPage.filter(this.value)"></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>User</th><th>Tier</th><th>Joined</th><th>Last Active</th><th>Company</th></tr></thead>
+        <tbody id="usersTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ═══════════════ USER DETAIL PAGE ═══════════════ -->
+  <div id="pageUserDetail" class="page content">
+    <div class="breadcrumb" id="userDetailBreadcrumb"></div>
+    <div class="detail-header">
+      <div>
+        <h1 class="detail-name" id="userDetailName"></h1>
+        <div class="detail-email" id="userDetailEmail"></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px">
+        <div id="userDetailTier"></div>
+        <button class="btn-delete" onclick="UserDetailPage.deleteUser()">Delete User</button>
+      </div>
+    </div>
+    <div class="cards">
+      <div class="card"><div class="card-title">Account</div><div id="userAccountInfo"></div></div>
+      <div class="card"><div class="card-title">Vehicle</div><div id="userVehicleInfo"></div></div>
+      <div class="card"><div class="card-title">Subscription</div><div id="userSubInfo"></div></div>
+    </div>
+    
+    <!-- AI Analysis Card -->
+    <div class="card" id="userAiCard" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <div class="card-title" style="margin-bottom:0"><span style="margin-right:6px">🧠</span>ArcNode Intelligence Report</div>
+        <button id="userAiBtn" onclick="AIAnalysis.run(UserDetailPage.currentLogData, {start:document.getElementById('userLogStart').value, end:document.getElementById('userLogEnd').value}, document.getElementById('userAiContent'), this)" class="btn-load" style="font-size:11px;padding:4px 12px">Analyze Logs</button>
+      </div>
+      <div id="userAiContent"><div style="color:#8E8D8A;font-size:13px">Click <strong>Analyze Logs</strong> for AI-powered insights.</div></div>
+    </div>
+    
+    <!-- System Logs -->
+    <div class="card">
+      <div class="logs-header">
+        <div class="card-title" style="margin-bottom:0">System Logs</div>
+        <div class="logs-controls">
+          <label style="color:#8E8D8A;font-size:12px">From</label>
+          <input type="date" id="userLogStart" max="">
+          <label style="color:#8E8D8A;font-size:12px">To</label>
+          <input type="date" id="userLogEnd" max="">
+          <button class="btn-load" id="userLoadLogsBtn" onclick="UserDetailPage.loadLogs()">Load Logs</button>
+        </div>
+      </div>
+      <div id="userLogsContent"><div class="logs-empty">Select a date range and click Load Logs</div></div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ COMPANIES PAGE ═══════════════ -->
+  <div id="pageCompanies" class="page content">
+    <div class="stats">
+      <div class="stat-card"><div class="stat-label">Companies</div><div class="stat-value" id="statCompanies">—</div></div>
+      <div class="stat-card"><div class="stat-label">Company Clients</div><div class="stat-value" id="statCompanyClients">—</div></div>
+      <div class="stat-card"><div class="stat-label">Direct Users</div><div class="stat-value" id="statDirectUsers">—</div></div>
+      <div class="stat-card"><div class="stat-label">Total Paid</div><div class="stat-value" id="statTotalPaid">—</div></div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;margin-bottom:16px">
+      <button class="btn-load" onclick="CompanyDetailPage.showAddCompanyModal()">+ Add Company</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Company</th><th>Plan</th><th>Clients</th><th>Max</th><th>Rate</th><th>Status</th><th>Created</th><th></th></tr></thead>
+        <tbody id="companiesTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ═══════════════ COMPANY DETAIL PAGE ═══════════════ -->
+  <div id="pageCompanyDetail" class="page content">
+    <div class="breadcrumb" id="companyDetailBreadcrumb"></div>
+    <div class="company-header">
+      <div>
+        <h1 class="detail-name" id="companyName"></h1>
+        <div class="detail-email" id="companyMeta"></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px">
+        <span class="tier" id="companyPlanBadge"></span>
+      </div>
+    </div>
+    
+    <!-- Stats -->
+    <div class="stats">
+      <div class="stat-card"><div class="stat-label">Clients</div><div class="stat-value" id="companyStatClients">0</div></div>
+      <div class="stat-card"><div class="stat-label">Base Camp</div><div class="stat-value" id="companyStatFree">0</div></div>
+      <div class="stat-card"><div class="stat-label">Explore</div><div class="stat-value" id="companyStatExplorer">0</div></div>
+      <div class="stat-card"><div class="stat-label">Adventurer</div><div class="stat-value" id="companyStatAdventure">0</div></div>
+    </div>
+    
+    <!-- Admins -->
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div class="card-title" style="margin-bottom:0">Admins</div>
+        <button class="btn-load" style="font-size:11px;padding:4px 12px" onclick="CompanyDetailPage.showAddAdminModal()">+ Add Admin</button>
+      </div>
+      <div class="table-wrap" style="border:none">
+        <table>
+          <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Added</th><th></th></tr></thead>
+          <tbody id="companyAdminsBody"></tbody>
+        </table>
+      </div>
+    </div>
+    
+    <!-- Clients -->
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div class="card-title" style="margin-bottom:0">Clients</div>
+        <input id="clientSearch" placeholder="Search clients..." oninput="CompanyDetailPage.filterClients()" style="padding:6px 12px;background:#242424;border:1px solid #333;border-radius:6px;color:#F5F1EB;font-size:13px;font-family:inherit;width:240px;outline:none">
+      </div>
+      <div class="table-wrap" style="border:none">
+        <table>
+          <thead><tr><th>Name</th><th>Email</th><th>Vehicle</th><th>Tier</th><th>Last Active</th><th>Change Tier</th><th></th></tr></thead>
+          <tbody id="companyClientsBody"></tbody>
+        </table>
+      </div>
+    </div>
+    
+    <!-- Invite Codes -->
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div class="card-title" style="margin-bottom:0">Invite Codes</div>
+        <button class="btn-load" style="font-size:11px;padding:4px 12px" onclick="CompanyDetailPage.showAddCodeModal()">+ New Code</button>
+      </div>
+      <div class="table-wrap" style="border:none">
+        <table>
+          <thead><tr><th>Code</th><th>Label</th><th>Uses</th><th>Max</th><th>Expires</th><th>Status</th><th></th></tr></thead>
+          <tbody id="companyCodesBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ TRIPS PAGE ═══════════════ -->
+  <div id="pageTrips" class="page content">
+    <div class="stats">
+      <div class="stat-card"><div class="stat-label">Total Trips</div><div class="stat-value" id="statTotalTrips">—</div></div>
+      <div class="stat-card"><div class="stat-label">Total Distance</div><div class="stat-value" id="statTotalDistance">—</div></div>
+      <div class="stat-card"><div class="stat-label">Drive Time</div><div class="stat-value" id="statTotalDriveTime">—</div></div>
+      <div class="stat-card"><div class="stat-label">Drivers</div><div class="stat-value" id="statUniqueDrivers">—</div></div>
+    </div>
+    <div class="search"><input placeholder="Search by driver, location..." oninput="TripsPage.filter(this.value)"></div>
+    <div id="tripsContent"></div>
+    
+    <!-- Trip Detail Panel (map + timeline) -->
+    <div id="tripDetailPanel" class="card" style="display:none;margin-top:24px"></div>
+  </div>
+
+</div><!-- /appShell -->
+
+<!-- ═══════════════════════════════════ MODALS ═══════════════════════════════════ -->
+
+<!-- Add Company Modal -->
+<div class="modal-overlay" id="addCompanyModal">
+  <div class="modal-box">
+    <div class="modal-header"><h3>Add Company</h3><button class="modal-close" onclick="closeModals()">✕</button></div>
+    <div class="error-box hidden" id="addCompanyError"></div>
+    <div class="field"><label>Company Name</label><input id="newCompanyName" placeholder="Rogue Overland"></div>
+    <div class="field"><label>Admin Name</label><input id="newCompanyAdminName" placeholder="John Smith"></div>
+    <div class="field"><label>Admin Email</label><input id="newCompanyAdminEmail" placeholder="admin@company.com"></div>
+    <div class="field"><label>Billing Email</label><input id="newCompanyBillingEmail" placeholder="billing@company.com"></div>
+    <div class="field"><label>Website</label><input id="newCompanyWebsite" placeholder="https://company.com"></div>
+    <div class="field"><label>Plan</label>
+      <select id="newCompanyPlan" style="width:100%;padding:10px 14px;background:#242424;border:1px solid #333;border-radius:8px;color:#F5F1EB;font-size:14px;font-family:inherit">
+        <option value="starter">Starter (10 clients)</option>
+        <option value="growth">Growth (50 clients)</option>
+        <option value="enterprise">Enterprise (unlimited)</option>
+      </select>
+    </div>
+    <div class="field"><label>Monthly Rate ($)</label><input id="newCompanyRate" type="number" placeholder="0"></div>
+    <button class="btn-primary" onclick="CompanyDetailPage.createCompany()">Create Company</button>
+  </div>
+</div>
+
+<!-- Add Admin Modal -->
+<div class="modal-overlay" id="addAdminModal">
+  <div class="modal-box">
+    <div class="modal-header"><h3>Add Admin</h3><button class="modal-close" onclick="closeModals()">✕</button></div>
+    <div class="error-box hidden" id="addAdminError"></div>
+    <div class="field"><label>Name</label><input id="newAdminName" placeholder="Jane Smith"></div>
+    <div class="field"><label>Email</label><input id="newAdminEmail" placeholder="admin@company.com"></div>
+    <div style="font-size:12px;color:#666;margin:-8px 0 16px">If this email doesn't have an ArcNode account, one will be created and a confirmation email sent.</div>
+    <div class="field"><label>Role</label>
+      <select id="newAdminRole" style="width:100%;padding:10px 14px;background:#242424;border:1px solid #333;border-radius:8px;color:#F5F1EB;font-size:14px;font-family:inherit">
+        <option value="admin">Admin</option>
+        <option value="owner">Owner</option>
+      </select>
+    </div>
+    <button class="btn-primary" onclick="CompanyDetailPage.addAdmin()">Add Admin</button>
+  </div>
+</div>
+
+<!-- Add Invite Code Modal -->
+<div class="modal-overlay" id="addCodeModal">
+  <div class="modal-box">
+    <div class="modal-header"><h3>New Invite Code</h3><button class="modal-close" onclick="closeModals()">✕</button></div>
+    <div class="error-box hidden" id="addCodeError"></div>
+    <div class="field"><label>Code</label><input id="newCodeValue" placeholder="ROGUE2026" style="text-transform:uppercase;letter-spacing:1px"></div>
+    <div class="field"><label>Label (optional)</label><input id="newCodeLabel" placeholder="Spring promo"></div>
+    <div class="field"><label>Max Uses (optional)</label><input id="newCodeMaxUses" type="number" placeholder="Leave blank for unlimited"></div>
+    <div class="field"><label>Expires (optional)</label><input type="date" id="newCodeExpires" style="width:100%;padding:10px 14px;background:#242424;border:1px solid #333;border-radius:8px;color:#F5F1EB;font-size:14px;font-family:inherit;color-scheme:dark"></div>
+    <button class="btn-primary" onclick="CompanyDetailPage.createCode()">Create Code</button>
+  </div>
+</div>
+
+<!-- JavaScript Modules -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="js/api.js"></script>
+<script src="js/router.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/analysis.js"></script>
+<script src="js/pages/users.js"></script>
+<script src="js/pages/user-detail.js"></script>
+<script src="js/pages/companies.js"></script>
+<script src="js/pages/trips.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
