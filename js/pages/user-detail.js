@@ -427,7 +427,7 @@ const UserDetailPage = {
         <table>
           <thead><tr>
             <th>Date</th><th>Time</th><th>Battery</th><th>Voltage</th><th>Solar</th><th>DC Load</th>
-            <th>AC Load</th><th>Fresh</th><th>Grey</th><th>Shore</th><th>Engine</th><th>Temp</th><th>Location</th>
+            <th>AC Load</th><th>Fresh</th><th>Grey</th><th>Shore</th><th>Engine</th><th>Temp</th><th>Indoor</th><th>Outdoor</th><th>Humidity</th><th>Location</th>
           </tr></thead>
           <tbody>
             ${logs.map(l => `<tr>
@@ -443,6 +443,9 @@ const UserDetailPage = {
               <td>${l.shore_connected ? '<span class="shore-on">●</span>' : '<span style="color:#333">○</span>'}</td>
               <td>${l.engine_running ? '<span class="engine-on">●</span>' : '<span style="color:#333">○</span>'}</td>
               <td style="color:#A8A7A7">${l.outside_temp != null ? l.outside_temp.toFixed(0) + '°' : '—'}</td>
+              <td style="color:#E7B400">${l.ruuvi_indoor_temp_f != null ? l.ruuvi_indoor_temp_f.toFixed(1) + '°F' : '—'}</td>
+              <td style="color:#2ABC53">${l.ruuvi_outdoor_temp_f != null ? l.ruuvi_outdoor_temp_f.toFixed(1) + '°F' : '—'}</td>
+              <td style="color:#A8A7A7;font-size:11px">${l.ruuvi_indoor_humidity != null ? l.ruuvi_indoor_humidity.toFixed(0) + '%' : '—'}${l.ruuvi_outdoor_humidity != null ? ' / ' + l.ruuvi_outdoor_humidity.toFixed(0) + '%' : ''}</td>
               <td style="color:#666;font-size:11px">${l.latitude ? l.latitude.toFixed(3) + ',' + l.longitude.toFixed(3) : '—'}</td>
             </tr>`).join('')}
           </tbody>
