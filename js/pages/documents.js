@@ -251,32 +251,12 @@ const Documents = {
       const insertedDocs = await insertRes.json();
       const documentId = insertedDocs[0]?.id;
 
-      // 3. Trigger processing Edge Function directly (bypasses webhook auth issues)
+      // 3. Orchestrate multi-step AI processing
       if (documentId) {
-        // Update progress UI
-        const textEl = document.getElementById(`docProgressText_${vehicleId}`);
-        if (textEl) textEl.textContent = 'Processing with AI...';
-
-        // Fire and forget — don't block the UI
-        fetch(`${SUPA_URL}/functions/v1/process-document`, {
-          method: "POST",
-          headers: {
-            apikey: SUPA_KEY,
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({ document_id: documentId })
-        }).then(res => {
-          console.log("Process-document response:", res.status);
-          // Reload docs list after processing completes
-          const container = document.getElementById(`docsContainer_${vehicleId}`);
-          if (container) Documents.loadForVehicle(vehicleId, companyId, container);
-        }).catch(err => {
-          console.error("Process-document call failed:", err);
-        });
+        this.processDocument(documentId, vehicleId, companyId, docType);
       }
 
-      // 4. Reload documents list (shows "Pending" status immediately)
+      // 4. Reload documents list (shows "Processing" status immediately)
       const container = progressEl?.parentElement;
       if (container) {
         await this.loadForVehicle(vehicleId, companyId, container);
@@ -361,6 +341,104 @@ const Documents = {
     } catch (e) {
       return 0;
     }
+  },
+
+  // ── Multi-step AI Processing ──
+  // Orchestrates: start → extract(pages 1-10) → extract(11-20) → ... → embed → cleanup
+
+  async processDocument(documentId, vehicleId, companyId, docType) {
+    const PAGE_BATCH = 10;
+    const fnUrl = `${SUPA_URL}/functions/v1/process-document`;
+
+    try {
+      console.log(`🚀 Starting processing for ${documentId}`);
+
+      // Step 1: Upload PDF to Anthropic, get page count
+      const startRes = await this.callProcessFn({ action: "start", document_id: documentId });
+      if (!startRes.file_id) throw new Error(startRes.error || "Start failed");
+
+      const { file_id, total_pages, vehicle_id: vId } = startRes;
+      console.log(`📄 ${total_pages} pages, file_id: ${file_id}`);
+
+      // Step 2: Extract text in batches of PAGE_BATCH pages
+      let allText = "";
+      for (let page = 1; page <= total_pages; page += PAGE_BATCH) {
+        const endPage = Math.min(page + PAGE_BATCH - 1, total_pages);
+        console.log(`📖 Extracting pages ${page}-${endPage}...`);
+
+        const extractRes = await this.callProcessFn({
+          action: "extract",
+          document_id: documentId,
+          file_id,
+          start_page: page,
+          end_page: endPage,
+          document_type: docType,
+        });
+
+        if (extractRes.text) {
+          allText += (allText ? "\n\n" : "") + extractRes.text;
+          console.log(`✅ Pages ${page}-${endPage}: ${extractRes.chars} chars`);
+        } else {
+          console.warn(`⚠️ No text from pages ${page}-${endPage}`);
+        }
+      }
+
+      if (allText.trim().length < 50) {
+        throw new Error("Could not extract meaningful text from PDF");
+      }
+
+      console.log(`📝 Total extracted: ${allText.length} chars`);
+
+      // Step 3: Chunk + embed + store
+      console.log("🧠 Embedding and storing...");
+      const embedRes = await this.callProcessFn({
+        action: "embed",
+        document_id: documentId,
+        all_text: allText,
+        vehicle_id: vId || vehicleId,
+        document_type: docType,
+      });
+
+      console.log(`✅ Processing complete: ${embedRes.chunk_count} chunks`);
+
+      // Step 4: Cleanup Anthropic file
+      await this.callProcessFn({ action: "cleanup", file_id });
+
+      // Reload docs list to show "Ready" status
+      const container = document.getElementById(`docsContainer_${vehicleId}`);
+      if (container) this.loadForVehicle(vehicleId, companyId, container);
+
+    } catch (e) {
+      console.error("Processing failed:", e);
+      // Mark as failed in DB
+      try {
+        await supaPatch(`vehicle_documents?id=eq.${documentId}`, {
+          processing_status: 'failed',
+          error_message: e.message || 'Processing failed'
+        });
+      } catch (_) {}
+      // Reload to show failed status
+      const container = document.getElementById(`docsContainer_${vehicleId}`);
+      if (container) this.loadForVehicle(vehicleId, companyId, container);
+    }
+  },
+
+  async callProcessFn(body) {
+    const res = await fetch(`${SUPA_URL}/functions/v1/process-document`, {
+      method: "POST",
+      headers: {
+        apikey: SUPA_KEY,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const errText = await res.text();
+      let errMsg;
+      try { errMsg = JSON.parse(errText).error; } catch(_) { errMsg = errText; }
+      throw new Error(errMsg || `Edge Function error (${res.status})`);
+    }
+    return res.json();
   }
 };
 
