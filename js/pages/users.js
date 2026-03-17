@@ -24,7 +24,6 @@ const UsersPage = {
       const companyMap = {};
       companies.forEach(c => { companyMap[c.id] = c.name; });
 
-      // Set of all company admin user IDs and users with vehicles
       const adminUserIds = new Set(companyAdmins.map(a => a.user_id));
       const vehicleUserIds = new Set(vehicles.map(v => v.user_id));
 
@@ -35,7 +34,6 @@ const UsersPage = {
       });
 
       // Admin-only = in company_admins AND no vehicle AND not super admin
-      // If they have a vehicle, they're a real user who also happens to be an admin
       this.allUsers = enriched.filter(u => !adminUserIds.has(u.id) || vehicleUserIds.has(u.id) || u.is_admin);
       this.allAdmins = enriched
         .filter(u => adminUserIds.has(u.id) && !vehicleUserIds.has(u.id) && !u.is_admin)
@@ -49,7 +47,6 @@ const UsersPage = {
           };
         });
 
-      // Stats — based on real users only
       document.getElementById('statTotalUsers').textContent = this.allUsers.length;
       document.getElementById('statActiveUsers').textContent = this.allUsers.filter(u => {
         const lastLogin = new Date(u.last_login_at || 0);
@@ -120,8 +117,7 @@ const UsersPage = {
       u.adminCompanyName.toLowerCase().includes(q)
     );
     this.renderAdmins(filtered);
-  }
-};
+  },
 
   showTab(tab) {
     const isUsers = tab === 'users';
