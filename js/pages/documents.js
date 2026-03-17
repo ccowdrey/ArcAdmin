@@ -251,9 +251,21 @@ const Documents = {
       const insertedDocs = await insertRes.json();
       const documentId = insertedDocs[0]?.id;
 
-      // 3. Orchestrate multi-step AI processing
+      // 3. Trigger processing — single call, Pro plan handles the timeout
       if (documentId) {
-        this.processDocument(documentId, vehicleId, companyId, docType);
+        fetch(`${SUPA_URL}/functions/v1/process-document`, {
+          method: "POST",
+          headers: { apikey: SUPA_KEY, "Content-Type": "application/json" },
+          body: JSON.stringify({ document_id: documentId })
+        }).then(async res => {
+          console.log("Process-document response:", res.status);
+          if (res.ok) {
+            const data = await res.json();
+            console.log(`✅ Processed: ${data.chunk_count} chunks`);
+          }
+          const container = document.getElementById(`docsContainer_${vehicleId}`);
+          if (container) Documents.loadForVehicle(vehicleId, companyId, container);
+        }).catch(err => console.error("Process-document failed:", err));
       }
 
       // 4. Reload documents list (shows "Processing" status immediately)
