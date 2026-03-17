@@ -343,22 +343,18 @@ const CompanyDetailPage = {
         // Existing user — just assign them
         userId = profiles[0].id;
       } else {
-        // New user — send invite email (they'll get a "Set your password" link)
+        // New user — invite via Edge Function (sends "Set your password" email)
         const firstName = name.split(' ')[0] || '';
         const lastName = name.split(' ').slice(1).join(' ') || '';
         const data = await supaInvite(email, {
           first_name: firstName,
           last_name: lastName
         });
-        userId = data.user?.id || data.id;
+        userId = data.user_id;
         if (!userId) throw new Error("Invite sent but no user ID returned");
         
-        // Wait for the profile trigger to create the row
-        await new Promise(r => setTimeout(r, 3000));
-        
-        if (firstName || lastName) {
-          await supaPatch(`profiles?id=eq.${userId}`, { first_name: firstName, last_name: lastName });
-        }
+        // Edge Function handles profile name update, but wait for it
+        await new Promise(r => setTimeout(r, 2000));
       }
       
       await supaPatch(`profiles?id=eq.${userId}`, { company_id: selectedCompanyId });
