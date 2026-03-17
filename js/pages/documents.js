@@ -251,21 +251,9 @@ const Documents = {
       const insertedDocs = await insertRes.json();
       const documentId = insertedDocs[0]?.id;
 
-      // 3. Trigger processing — single call, Pro plan handles the timeout
+      // 3. Process the PDF client-side (no Edge Function timeout limits)
       if (documentId) {
-        fetch(`${SUPA_URL}/functions/v1/process-document`, {
-          method: "POST",
-          headers: { apikey: SUPA_KEY, "Content-Type": "application/json" },
-          body: JSON.stringify({ document_id: documentId })
-        }).then(async res => {
-          console.log("Process-document response:", res.status);
-          if (res.ok) {
-            const data = await res.json();
-            console.log(`✅ Processed: ${data.chunk_count} chunks`);
-          }
-          const container = document.getElementById(`docsContainer_${vehicleId}`);
-          if (container) Documents.loadForVehicle(vehicleId, companyId, container);
-        }).catch(err => console.error("Process-document failed:", err));
+        this.processClientSide(file, documentId, vehicleId, companyId, docType);
       }
 
       // 4. Reload documents list (shows "Processing" status immediately)
@@ -355,139 +343,142 @@ const Documents = {
     }
   },
 
-  // ── Multi-step AI Processing ──
-  // Orchestrates: start → extract(pages 1-10) → extract(11-20) → ... → embed → cleanup
+  // ── Client-Side AI Processing ──
+  // Claude extraction runs in the browser (no timeout limits).
+  // Only the embed+store step uses the Edge Function (fast, <30s).
 
-  async processDocument(documentId, vehicleId, companyId, docType) {
-    const PAGE_BATCH = 10;
-    const fnUrl = `${SUPA_URL}/functions/v1/process-document`;
+  // NOTE: The Anthropic API key is used client-side here.
+  // This is acceptable because the admin site is behind auth
+  // and only used by you and builder admins — not public.
+  ANTHROPIC_KEY: null,
 
+  async processClientSide(file, documentId, vehicleId, companyId, docType) {
     try {
-      console.log(`🚀 Starting processing for ${documentId}`);
-
-      // Step 1: Upload PDF to Anthropic, get page count
-      const startRes = await this.callProcessFn({ action: "start", document_id: documentId });
-      if (!startRes.file_id) throw new Error(startRes.error || "Start failed");
-
-      const { file_id, total_pages, vehicle_id: vId } = startRes;
-      console.log(`📄 ${total_pages} pages, file_id: ${file_id}`);
-
-      // Step 2: Extract text in batches of PAGE_BATCH pages
-      let allText = "";
-      for (let page = 1; page <= total_pages; page += PAGE_BATCH) {
-        const endPage = Math.min(page + PAGE_BATCH - 1, total_pages);
-        console.log(`📖 Extracting pages ${page}-${endPage}...`);
-
-        // Rate limit: wait 5s between extract calls to stay under token/min limits
-        if (page > 1) {
-          console.log('⏳ Waiting 5s for rate limit...');
-          await new Promise(r => setTimeout(r, 5000));
-        }
-
-        try {
-          const extractRes = await this.callProcessFn({
-            action: "extract",
-            document_id: documentId,
-            file_id,
-            start_page: page,
-            end_page: endPage,
-            document_type: docType,
-          });
-
-          if (extractRes.text && extractRes.text.trim().length > 20) {
-            allText += (allText ? "\n\n" : "") + extractRes.text;
-            console.log(`✅ Pages ${page}-${endPage}: ${extractRes.chars} chars`);
-          } else {
-            // No meaningful text — we've probably passed the end of the document
-            console.log(`📄 Pages ${page}-${endPage}: minimal text — likely end of document`);
-            break;
-          }
-        } catch (e) {
-          // If rate limited, wait longer and retry once
-          if (e.message && e.message.includes('rate_limit')) {
-            console.log('⏳ Rate limited — waiting 30s and retrying...');
-            await new Promise(r => setTimeout(r, 30000));
-            try {
-              const retryRes = await this.callProcessFn({
-                action: "extract",
-                document_id: documentId,
-                file_id,
-                start_page: page,
-                end_page: endPage,
-                document_type: docType,
-              });
-              if (retryRes.text && retryRes.text.trim().length > 20) {
-                allText += (allText ? "\n\n" : "") + retryRes.text;
-                console.log(`✅ Retry pages ${page}-${endPage}: ${retryRes.chars} chars`);
-              }
-            } catch (retryErr) {
-              console.warn(`⚠️ Retry failed for pages ${page}-${endPage}: ${retryErr.message}`);
-              // Continue with what we have
-              break;
-            }
-          } else {
-            console.warn(`⚠️ Extract failed for pages ${page}-${endPage}: ${e.message}`);
-            break;
-          }
-        }
+      // Get the Anthropic key (prompt once per session)
+      if (!this.ANTHROPIC_KEY) {
+        this.ANTHROPIC_KEY = prompt('Enter your Anthropic API key for document processing:');
+        if (!this.ANTHROPIC_KEY) throw new Error('Anthropic API key required');
       }
 
-      if (allText.trim().length < 50) {
-        throw new Error("Could not extract meaningful text from PDF");
-      }
+      console.log('🚀 Processing client-side...');
 
-      console.log(`📝 Total extracted: ${allText.length} chars`);
+      // Step 1: Upload PDF to Anthropic Files API
+      console.log('📤 Uploading to Anthropic...');
+      const formData = new FormData();
+      formData.append('file', file, file.name);
 
-      // Step 3: Chunk + embed + store
-      console.log("🧠 Embedding and storing...");
-      const embedRes = await this.callProcessFn({
-        action: "embed",
-        document_id: documentId,
-        all_text: allText,
-        vehicle_id: vId || vehicleId,
-        document_type: docType,
+      const upRes = await fetch('https://api.anthropic.com/v1/files', {
+        method: 'POST',
+        headers: {
+          'x-api-key': this.ANTHROPIC_KEY,
+          'anthropic-version': '2023-06-01',
+          'anthropic-beta': 'files-api-2025-04-14',
+        },
+        body: formData,
       });
 
-      console.log(`✅ Processing complete: ${embedRes.chunk_count} chunks`);
+      if (!upRes.ok) {
+        const err = await upRes.text();
+        throw new Error(`Anthropic upload failed: ${err.slice(0, 200)}`);
+      }
 
-      // Step 4: Cleanup Anthropic file
-      await this.callProcessFn({ action: "cleanup", file_id });
+      const fileId = (await upRes.json()).id;
+      console.log(`✅ Uploaded: ${fileId}`);
 
-      // Reload docs list to show "Ready" status
+      // Step 2: Claude extracts full text (no timeout in browser!)
+      console.log('🧠 Claude extracting text... (this may take a few minutes)');
+      const docCtx = { manual: "van/RV owner's manual", wiring: "wiring diagram", appliance: "appliance spec sheet", warranty: "warranty document" }[docType] || "vehicle document";
+
+      const cRes = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'x-api-key': this.ANTHROPIC_KEY,
+          'anthropic-version': '2023-06-01',
+          'anthropic-beta': 'files-api-2025-04-14',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 64000,
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'document', source: { type: 'file', file_id: fileId } },
+              { type: 'text', text: `Extract ALL text content from this ${docCtx}. This will be used for a searchable knowledge base so completeness is critical.
+
+Rules:
+- Extract every heading, paragraph, list, table, spec, warning, and note
+- Use markdown: # for main headings, ## for sub-headings, ### for sub-sub-headings
+- Preserve numbered lists and bullet points
+- For tables, use markdown table format
+- Preserve all model numbers, measurements, specs, and values
+- For wiring diagrams, describe connections, wire colors, gauges, component names
+- Include "--- Page N ---" separators between pages
+- Do NOT summarize — extract verbatim content
+- Do NOT add commentary — output only the document text
+- If text is partially illegible, note [illegible]` },
+            ],
+          }],
+        }),
+      });
+
+      if (!cRes.ok) {
+        const err = await cRes.text();
+        throw new Error(`Claude extraction failed: ${err.slice(0, 300)}`);
+      }
+
+      const cData = await cRes.json();
+      const extractedText = cData.content?.[0]?.text || '';
+      console.log(`📝 Extracted ${extractedText.length} chars`);
+
+      if (extractedText.trim().length < 50) {
+        throw new Error('Claude returned insufficient text');
+      }
+
+      // Step 3: Cleanup Anthropic file
+      try {
+        await fetch(`https://api.anthropic.com/v1/files/${fileId}`, {
+          method: 'DELETE',
+          headers: { 'x-api-key': this.ANTHROPIC_KEY, 'anthropic-version': '2023-06-01', 'anthropic-beta': 'files-api-2025-04-14' },
+        });
+      } catch (_) {}
+
+      // Step 4: Send extracted text to Edge Function for embed+store (fast)
+      console.log('🔢 Embedding and storing chunks...');
+      const embedRes = await fetch(`${SUPA_URL}/functions/v1/process-document`, {
+        method: 'POST',
+        headers: { apikey: SUPA_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          document_id: documentId,
+          vehicle_id: vehicleId,
+          document_type: docType,
+          extracted_text: extractedText,
+        }),
+      });
+
+      if (!embedRes.ok) {
+        const err = await embedRes.text();
+        throw new Error(`Embed+store failed: ${err.slice(0, 200)}`);
+      }
+
+      const result = await embedRes.json();
+      console.log(`✅ Done: ${result.chunk_count} chunks`);
+
+      // Reload docs list
       const container = document.getElementById(`docsContainer_${vehicleId}`);
       if (container) this.loadForVehicle(vehicleId, companyId, container);
 
     } catch (e) {
-      console.error("Processing failed:", e);
-      // Mark as failed in DB
+      console.error('Processing failed:', e);
       try {
         await supaPatch(`vehicle_documents?id=eq.${documentId}`, {
           processing_status: 'failed',
           error_message: e.message || 'Processing failed'
         });
       } catch (_) {}
-      // Reload to show failed status
       const container = document.getElementById(`docsContainer_${vehicleId}`);
       if (container) this.loadForVehicle(vehicleId, companyId, container);
     }
-  },
-
-  async callProcessFn(body) {
-    const res = await fetch(`${SUPA_URL}/functions/v1/process-document`, {
-      method: "POST",
-      headers: {
-        apikey: SUPA_KEY,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) {
-      const errText = await res.text();
-      let errMsg;
-      try { errMsg = JSON.parse(errText).error; } catch(_) { errMsg = errText; }
-      throw new Error(errMsg || `Edge Function error (${res.status})`);
-    }
-    return res.json();
   }
 };
 
