@@ -347,7 +347,7 @@ const Documents = {
   // Vercel handles Claude extraction (5 min timeout, no limits)
   // Edge Function handles embed+store (fast, <30s)
 
-  VERCEL_PROCESS_URL: 'https://arcnode-processor.vercel.app',
+  VERCEL_PROCESS_URL: 'https://arcnode-processor.vercel.app/api/process-pdf',
 
   async processViaVercel(documentId, vehicleId, companyId, docType) {
     try {
