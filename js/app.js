@@ -235,7 +235,7 @@ async function handleForgotPassword() {
     const res = await fetch(`${SUPA_URL}/auth/v1/otp`, {
       method: "POST",
       headers: { apikey: SUPA_KEY, "Content-Type": "application/json" },
-      body: JSON.stringify({ email, create_user: false })
+      body: JSON.stringify({ email, type: "recovery", create_user: false })
     });
 
     if (!res.ok) {
@@ -282,7 +282,7 @@ async function handleResetPassword() {
     const verifyRes = await fetch(`${SUPA_URL}/auth/v1/verify`, {
       method: "POST",
       headers: { apikey: SUPA_KEY, "Content-Type": "application/json" },
-      body: JSON.stringify({ email, token: token_val, type: "magiclink" })
+      body: JSON.stringify({ email, token: token_val, type: "recovery" })
     });
 
     if (!verifyRes.ok) {

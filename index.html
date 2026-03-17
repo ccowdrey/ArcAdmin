@@ -55,7 +55,7 @@
       <!-- Step 2: Code + New Password -->
       <div id="forgotStep2" class="hidden">
         <div style="color:#8E8D8A;font-size:13px;margin-bottom:20px;text-align:center">Enter the code from your email and choose a new password.</div>
-        <div class="field"><label>Reset Code</label><input type="text" id="forgotToken" autocomplete="one-time-code" placeholder="Paste code from email" style="letter-spacing:2px;font-size:16px" onkeydown="if(event.key==='Enter')document.getElementById('resetPassword').focus()"></div>
+        <div class="field"><label>Reset Code</label><input type="text" id="forgotToken" autocomplete="one-time-code" placeholder="Code from email" onkeydown="if(event.key==='Enter')document.getElementById('resetPassword').focus()"></div>
         <div class="field"><label>New Password</label><input type="password" id="resetPassword" autocomplete="new-password" placeholder="At least 8 characters" onkeydown="if(event.key==='Enter')document.getElementById('resetConfirmPassword').focus()"></div>
         <div class="field"><label>Confirm Password</label><input type="password" id="resetConfirmPassword" autocomplete="new-password" placeholder="Re-enter password" onkeydown="if(event.key==='Enter')handleResetPassword()"></div>
         <button class="btn-primary" id="resetBtn" onclick="handleResetPassword()">Set New Password</button>
