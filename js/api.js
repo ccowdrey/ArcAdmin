@@ -3,6 +3,7 @@
 
 const SUPA_URL = "https://agpsalkaajjivoytcipb.supabase.co";
 const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFncHNhbGthYWpqaXZveXRjaXBiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA4NDUxMDEsImV4cCI6MjA4NjQyMTEwMX0.rm3KLQIC4apB8Oe5zvYIhrsOdh8A_4oQgxMSqPdrUpo";
+const SUPA_SERVICE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFncHNhbGthYWpqaXZveXRjaXBiIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MDg0NTEwMSwiZXhwIjoyMDg2NDIxMTAxfQ.fClSWJxKIVTOccGsq86DC-fMStmK2CunyNqQMnew9zk";
 
 // ── State ──
 let token = null;
@@ -95,12 +96,29 @@ async function supaSignup(email, password, metadata = {}) {
   return data;
 }
 
+async function supaInvite(email, metadata = {}) {
+  const res = await fetch(`${SUPA_URL}/auth/v1/invite`, {
+    method: "POST",
+    headers: {
+      apikey: SUPA_SERVICE_KEY,
+      Authorization: `Bearer ${SUPA_SERVICE_KEY}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ email, data: metadata })
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.msg || data.error_description || "Invite failed");
+  return data;
+}
+
 // ── Exports (global) ──
 window.SUPA_URL = SUPA_URL;
 window.SUPA_KEY = SUPA_KEY;
+window.SUPA_SERVICE_KEY = SUPA_SERVICE_KEY;
 window.supa = supa;
 window.supaPost = supaPost;
 window.supaPatch = supaPatch;
 window.supaDelete = supaDelete;
 window.supaLogin = supaLogin;
 window.supaSignup = supaSignup;
+window.supaInvite = supaInvite;

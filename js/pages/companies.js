@@ -340,20 +340,22 @@ const CompanyDetailPage = {
       let userId;
       
       if (profiles.length > 0) {
+        // Existing user — just assign them
         userId = profiles[0].id;
       } else {
-        const tempPassword = 'ArcOS_' + crypto.randomUUID().slice(0, 12) + '!';
-        const data = await supaSignup(email, tempPassword, {
-          first_name: name.split(' ')[0] || '',
-          last_name: name.split(' ').slice(1).join(' ') || ''
-        });
-        userId = data.user?.id || data.id;
-        if (!userId) throw new Error("Account created but no user ID returned");
-        
-        await new Promise(r => setTimeout(r, 3000));
-        
+        // New user — send invite email (they'll get a "Set your password" link)
         const firstName = name.split(' ')[0] || '';
         const lastName = name.split(' ').slice(1).join(' ') || '';
+        const data = await supaInvite(email, {
+          first_name: firstName,
+          last_name: lastName
+        });
+        userId = data.user?.id || data.id;
+        if (!userId) throw new Error("Invite sent but no user ID returned");
+        
+        // Wait for the profile trigger to create the row
+        await new Promise(r => setTimeout(r, 3000));
+        
         if (firstName || lastName) {
           await supaPatch(`profiles?id=eq.${userId}`, { first_name: firstName, last_name: lastName });
         }
