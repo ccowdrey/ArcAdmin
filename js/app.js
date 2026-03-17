@@ -190,61 +190,146 @@ async function handleSetPassword() {
 // ── Forgot Password Handlers ──
 function showForgotPassword(e) {
   e.preventDefault();
-  document.getElementById('forgotEmail').value = document.getElementById('loginEmail').value;
-  document.getElementById('forgotError').classList.add('hidden');
-  document.getElementById('forgotSuccess').classList.add('hidden');
-  hide('loginPage');
-  show('forgotPasswordPage');
-  setTimeout(() => document.getElementById('forgotEmail').focus(), 100);
+  document.getElementById("forgotEmail").value = document.getElementById("loginEmail").value;
+  document.getElementById("forgotError").classList.add("hidden");
+  showForgotStep1();
+  hide("loginPage");
+  show("forgotPasswordPage");
+  setTimeout(() => document.getElementById("forgotEmail").focus(), 100);
+}
+
+function showForgotStep1(e) {
+  if (e) e.preventDefault();
+  document.getElementById("forgotStep1").classList.remove("hidden");
+  document.getElementById("forgotStep2").classList.add("hidden");
+  document.getElementById("forgotSubtitle").textContent = "Reset Password";
+  document.getElementById("forgotError").classList.add("hidden");
+  document.getElementById("forgotBtn").disabled = false;
+  document.getElementById("forgotBtn").textContent = "Send Reset Code";
 }
 
 function showLogin(e) {
   e.preventDefault();
-  hide('forgotPasswordPage');
-  show('loginPage');
-  setTimeout(() => document.getElementById('loginEmail').focus(), 100);
+  hide("forgotPasswordPage");
+  show("loginPage");
+  setTimeout(() => document.getElementById("loginEmail").focus(), 100);
 }
 
 async function handleForgotPassword() {
-  const email = document.getElementById('forgotEmail').value.trim();
-  const errEl = document.getElementById('forgotError');
-  const successEl = document.getElementById('forgotSuccess');
-  const btn = document.getElementById('forgotBtn');
+  const email = document.getElementById("forgotEmail").value.trim();
+  const errEl = document.getElementById("forgotError");
+  const btn = document.getElementById("forgotBtn");
 
-  errEl.classList.add('hidden');
-  successEl.classList.add('hidden');
+  errEl.classList.add("hidden");
 
   if (!email) {
-    errEl.textContent = 'Please enter your email address';
-    errEl.classList.remove('hidden');
+    errEl.textContent = "Please enter your email address";
+    errEl.classList.remove("hidden");
     return;
   }
 
   btn.disabled = true;
-  btn.textContent = 'Sending...';
+  btn.textContent = "Sending...";
 
   try {
-    const res = await fetch(`${SUPA_URL}/auth/v1/recover`, {
-      method: 'POST',
-      headers: {
-        apikey: SUPA_KEY,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        email,
-        gotrue_meta_security: {}
-      })
+    const res = await fetch(`${SUPA_URL}/auth/v1/otp`, {
+      method: "POST",
+      headers: { apikey: SUPA_KEY, "Content-Type": "application/json" },
+      body: JSON.stringify({ email, create_user: false })
     });
 
-    // Supabase always returns 200 for this endpoint (even if email not found)
-    // to prevent email enumeration
-    successEl.textContent = 'Check your email for a password reset link.';
-    successEl.classList.remove('hidden');
-    btn.textContent = 'Email Sent';
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.msg || data.error_description || "Failed to send code");
+    }
+
+    // Move to step 2
+    document.getElementById("forgotStep1").classList.add("hidden");
+    document.getElementById("forgotStep2").classList.remove("hidden");
+    document.getElementById("forgotSubtitle").textContent = "Check Your Email";
+    document.getElementById("forgotToken").value = "";
+    document.getElementById("resetPassword").value = "";
+    document.getElementById("resetConfirmPassword").value = "";
+    setTimeout(() => document.getElementById("forgotToken").focus(), 100);
+
   } catch (e) {
-    errEl.textContent = e.message || 'Failed to send reset email';
-    errEl.classList.remove('hidden');
+    errEl.textContent = e.message || "Failed to send reset code";
+    errEl.classList.remove("hidden");
     btn.disabled = false;
-    btn.textContent = 'Send Reset Email';
+    btn.textContent = "Send Reset Code";
+  }
+}
+
+async function handleResetPassword() {
+  const email = document.getElementById("forgotEmail").value.trim();
+  const token_val = document.getElementById("forgotToken").value.trim();
+  const password = document.getElementById("resetPassword").value;
+  const confirm = document.getElementById("resetConfirmPassword").value;
+  const errEl = document.getElementById("forgotError");
+  const btn = document.getElementById("resetBtn");
+
+  errEl.classList.add("hidden");
+
+  if (!token_val) { errEl.textContent = "Please enter the code from your email"; errEl.classList.remove("hidden"); return; }
+  if (!password || password.length < 8) { errEl.textContent = "Password must be at least 8 characters"; errEl.classList.remove("hidden"); return; }
+  if (password !== confirm) { errEl.textContent = "Passwords do not match"; errEl.classList.remove("hidden"); return; }
+
+  btn.disabled = true;
+  btn.textContent = "Verifying...";
+
+  try {
+    // Verify OTP to get a session
+    const verifyRes = await fetch(`${SUPA_URL}/auth/v1/verify`, {
+      method: "POST",
+      headers: { apikey: SUPA_KEY, "Content-Type": "application/json" },
+      body: JSON.stringify({ email, token: token_val, type: "magiclink" })
+    });
+
+    if (!verifyRes.ok) {
+      const data = await verifyRes.json();
+      throw new Error(data.msg || data.error_description || "Invalid or expired code");
+    }
+
+    const session = await verifyRes.json();
+    const sessionToken = session.access_token;
+
+    // Update password using the verified session
+    btn.textContent = "Setting password...";
+    const updateRes = await fetch(`${SUPA_URL}/auth/v1/user`, {
+      method: "PUT",
+      headers: { apikey: SUPA_KEY, Authorization: `Bearer ${sessionToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ password })
+    });
+
+    if (!updateRes.ok) {
+      const data = await updateRes.json();
+      throw new Error(data.msg || data.error_description || "Failed to update password");
+    }
+
+    // Success — go back to login
+    hide("forgotPasswordPage");
+    show("loginPage");
+    document.getElementById("loginEmail").value = email;
+    document.getElementById("loginError").textContent = "";
+    // Show a brief success message in the login error box (reuse it as info)
+    const loginErr = document.getElementById("loginError");
+    loginErr.style.background = "#2ABC5320";
+    loginErr.style.borderColor = "#2ABC5340";
+    loginErr.style.color = "#2ABC53";
+    loginErr.textContent = "Password updated! Sign in with your new password.";
+    loginErr.classList.remove("hidden");
+    setTimeout(() => {
+      loginErr.classList.add("hidden");
+      loginErr.style.background = "";
+      loginErr.style.borderColor = "";
+      loginErr.style.color = "";
+    }, 5000);
+    setTimeout(() => document.getElementById("loginPassword").focus(), 100);
+
+  } catch (e) {
+    errEl.textContent = e.message || "Failed to reset password";
+    errEl.classList.remove("hidden");
+    btn.disabled = false;
+    btn.textContent = "Set New Password";
   }
 }

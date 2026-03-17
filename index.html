@@ -38,16 +38,32 @@
     <div class="login-box">
       <div class="login-title">
         <div><img src="assets/mark-white.svg" class="logo-img" alt="ArcNode" onerror="this.style.display='none';this.nextElementSibling.style.display='inline'"><span style="display:none"><span class="arc">Arc</span><span class="os">OS</span></span></div>
-        <div class="sub">Reset Password</div>
+        <div class="sub" id="forgotSubtitle">Reset Password</div>
       </div>
-      <div style="color:#8E8D8A;font-size:13px;margin-bottom:20px;text-align:center">Enter your email and we'll send you a link to reset your password.</div>
       <div class="error-box hidden" id="forgotError"></div>
-      <div class="success-box hidden" id="forgotSuccess" style="padding:8px 12px;background:#2ABC5320;border:1px solid #2ABC5340;border-radius:8px;color:#2ABC53;font-size:13px;margin-bottom:16px;text-align:center"></div>
-      <div class="field"><label>Email</label><input type="email" id="forgotEmail" autocomplete="email" placeholder="your@email.com"></div>
-      <button class="btn-primary" id="forgotBtn" onclick="handleForgotPassword()">Send Reset Email</button>
-      <div style="text-align:center;margin-top:16px">
-        <a href="#" onclick="showLogin(event)" style="font-size:13px;color:#767DFB;text-decoration:none">← Back to sign in</a>
+
+      <!-- Step 1: Email -->
+      <div id="forgotStep1">
+        <div style="color:#8E8D8A;font-size:13px;margin-bottom:20px;text-align:center">Enter your email and we'll send you a reset code.</div>
+        <div class="field"><label>Email</label><input type="email" id="forgotEmail" autocomplete="email" placeholder="your@email.com" onkeydown="if(event.key==='Enter')handleForgotPassword()"></div>
+        <button class="btn-primary" id="forgotBtn" onclick="handleForgotPassword()">Send Reset Code</button>
+        <div style="text-align:center;margin-top:16px">
+          <a href="#" onclick="showLogin(event)" style="font-size:13px;color:#767DFB;text-decoration:none">← Back to sign in</a>
+        </div>
       </div>
+
+      <!-- Step 2: Code + New Password -->
+      <div id="forgotStep2" class="hidden">
+        <div style="color:#8E8D8A;font-size:13px;margin-bottom:20px;text-align:center">Enter the code from your email and choose a new password.</div>
+        <div class="field"><label>Reset Code</label><input type="text" id="forgotToken" autocomplete="one-time-code" placeholder="Paste code from email" style="letter-spacing:2px;font-size:16px" onkeydown="if(event.key==='Enter')document.getElementById('resetPassword').focus()"></div>
+        <div class="field"><label>New Password</label><input type="password" id="resetPassword" autocomplete="new-password" placeholder="At least 8 characters" onkeydown="if(event.key==='Enter')document.getElementById('resetConfirmPassword').focus()"></div>
+        <div class="field"><label>Confirm Password</label><input type="password" id="resetConfirmPassword" autocomplete="new-password" placeholder="Re-enter password" onkeydown="if(event.key==='Enter')handleResetPassword()"></div>
+        <button class="btn-primary" id="resetBtn" onclick="handleResetPassword()">Set New Password</button>
+        <div style="text-align:center;margin-top:16px">
+          <a href="#" onclick="showForgotStep1(event)" style="font-size:13px;color:#767DFB;text-decoration:none">← Resend code</a>
+        </div>
+      </div>
+
     </div>
   </div>
 </div>
