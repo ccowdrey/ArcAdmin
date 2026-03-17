@@ -26,6 +26,24 @@
   </div>
 </div>
 
+<!-- ═══════════════════════════════════ SET PASSWORD PAGE ═══════════════════════════════════ -->
+<div id="setPasswordPage" class="hidden">
+  <div class="login-wrap">
+    <div class="login-box">
+      <div class="login-title">
+        <div><img src="assets/mark-white.svg" class="logo-img" alt="ArcNode" onerror="this.style.display='none';this.nextElementSibling.style.display='inline'"><span style="display:none"><span class="arc">Arc</span><span class="os">OS</span></span></div>
+        <div class="sub">Set Your Password</div>
+      </div>
+      <div style="color:#8E8D8A;font-size:13px;margin-bottom:20px;text-align:center">Welcome to ArcNode! Create a password to access the admin dashboard.</div>
+      <div class="error-box hidden" id="setPasswordError"></div>
+      <div class="success-box hidden" id="setPasswordSuccess" style="padding:8px 12px;background:#2ABC5320;border:1px solid #2ABC5340;border-radius:8px;color:#2ABC53;font-size:13px;margin-bottom:16px"></div>
+      <div class="field"><label>New Password</label><input type="password" id="newPassword" autocomplete="new-password" placeholder="At least 8 characters"></div>
+      <div class="field"><label>Confirm Password</label><input type="password" id="confirmPassword" autocomplete="new-password" placeholder="Re-enter password"></div>
+      <button class="btn-primary" id="setPasswordBtn" onclick="handleSetPassword()">Set Password</button>
+    </div>
+  </div>
+</div>
+
 <!-- ═══════════════════════════════════ APP SHELL ═══════════════════════════════════ -->
 <div id="appShell" class="hidden">
 
