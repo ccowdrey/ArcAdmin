@@ -285,7 +285,7 @@ const TripsPage = {
     // Hover marker (hidden until timeline hover)
     this.hoverMarker = L.circleMarker([0, 0], {
       radius: 7,
-      fillColor: '#767DFB',
+      fillColor: '#E7B400',
       fillOpacity: 1,
       color: '#fff',
       weight: 2

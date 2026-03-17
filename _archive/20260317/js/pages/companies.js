@@ -54,7 +54,7 @@ const CompaniesPage = {
       return;
     }
     
-    const planColors = { starter: "#8E8D8A", growth: "#767DFB", enterprise: "#2ABC53" };
+    const planColors = { starter: "#8E8D8A", growth: "#E7B400", enterprise: "#2ABC53" };
     
     tbody.innerHTML = companies.map(c => {
       const slug = Router.getSlug(c.id);
@@ -66,7 +66,7 @@ const CompaniesPage = {
         <td style="color:#2ABC53">${c.monthly_rate ? '$' + Number(c.monthly_rate).toFixed(0) + '/mo' : '—'}</td>
         <td>${c.is_active ? '<span style="color:#2ABC53">Active</span>' : '<span style="color:#FF6565">Inactive</span>'}</td>
         <td style="color:#666;font-size:12px">${timeAgo(c.created_at)}</td>
-        <td><span style="color:#767DFB;font-size:12px">View →</span></td>
+        <td><span style="color:#E7B400;font-size:12px">View →</span></td>
       </tr>`;
     }).join("");
   }
@@ -122,7 +122,7 @@ const CompanyDetailPage = {
     const meta = [company.website, company.billing_email].filter(Boolean).join(" · ");
     document.getElementById("companyMeta").textContent = meta || "No details";
     
-    const planColors = { starter: "#8E8D8A", growth: "#767DFB", enterprise: "#2ABC53" };
+    const planColors = { starter: "#8E8D8A", growth: "#E7B400", enterprise: "#2ABC53" };
     const badge = document.getElementById("companyPlanBadge");
     badge.textContent = company.plan.toUpperCase();
     badge.style.background = (planColors[company.plan] || "#666") + "20";
@@ -145,7 +145,7 @@ const CompanyDetailPage = {
     document.getElementById("companyAdminsBody").innerHTML = adminProfiles.map(a => `<tr>
       <td style="color:#F5F1EB">${escHtml(a?.first_name || '')} ${escHtml(a?.last_name || '')}</td>
       <td style="color:#8E8D8A">${escHtml(a?.email || '—')}</td>
-      <td><span class="tier" style="background:${a?.role === 'owner' ? '#767DFB' : '#8E8D8A'}20;color:${a?.role === 'owner' ? '#767DFB' : '#8E8D8A'}">${a?.role || 'admin'}</span></td>
+      <td><span class="tier" style="background:${a?.role === 'owner' ? '#E7B400' : '#8E8D8A'}20;color:${a?.role === 'owner' ? '#E7B400' : '#8E8D8A'}">${a?.role || 'admin'}</span></td>
       <td style="color:#666;font-size:12px">${timeAgo(a?.admin_created)}</td>
       <td><button class="btn-secondary" onclick="CompanyDetailPage.removeAdmin('${a?.id}')">Remove</button></td>
     </tr>`).join("") || `<tr><td colspan="5" style="text-align:center;color:#666;padding:16px">No admins</td></tr>`;
@@ -259,7 +259,7 @@ const CompanyDetailPage = {
         const statusText = !c.is_active ? "Disabled" : isExpired ? "Expired" : isMaxed ? "Maxed Out" : "Active";
         
         return `<tr>
-          <td><code style="background:#242424;padding:4px 10px;border-radius:4px;color:#767DFB;font-size:13px;font-weight:600;letter-spacing:1px">${escHtml(c.code)}</code></td>
+          <td><code style="background:#242424;padding:4px 10px;border-radius:4px;color:#E7B400;font-size:13px;font-weight:600;letter-spacing:1px">${escHtml(c.code)}</code></td>
           <td style="color:#8E8D8A">${escHtml(c.label || '—')}</td>
           <td style="color:#F5F1EB;font-weight:600">${c.current_uses}</td>
           <td style="color:#666">${c.max_uses || '∞'}</td>

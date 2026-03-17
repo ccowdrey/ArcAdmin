@@ -58,8 +58,6 @@ const UserDetailPage = {
       // Vehicle
       const vehicles = await supa(`vehicles?user_id=eq.${this.userId}`);
       const v = vehicles[0];
-      this._vehicleId = v?.id || null;
-      this._companyId = v ? (await supa(`profiles?id=eq.${this.userId}&select=company_id`).then(r => r[0]?.company_id)) : null;
       document.getElementById('userVehicleInfo').innerHTML = v ? `
         ${infoRow("Nickname", v.nickname || "—")}
         ${infoRow("Vehicle", `${v.year || ""} ${v.make || ""} ${v.model || ""}`.trim() || "—")}
@@ -80,9 +78,6 @@ const UserDetailPage = {
       document.getElementById('userLogsContent').innerHTML = '<div class="logs-empty">Select a date range and click Load Logs</div>';
       document.getElementById('userAiCard').style.display = 'none';
       
-      // Load user documents
-      this.loadUserDocs();
-      
       // Load user trips
       this.loadUserTrips();
       
@@ -91,180 +86,6 @@ const UserDetailPage = {
     }
   },
   
-  // ── User Documents ──
-  _vehicleId: null,
-  _companyId: null,
-
-  async loadUserDocs() {
-    const container = document.getElementById('userDocsContent');
-    const countEl = document.getElementById('userDocsCount');
-    
-    if (!this._vehicleId) {
-      container.innerHTML = '<div class="logs-empty">No vehicle registered — documents require a vehicle</div>';
-      if (countEl) countEl.textContent = '';
-      return;
-    }
-
-    container.innerHTML = '<div style="color:#8E8D8A;font-size:13px;text-align:center;padding:16px">Loading documents...</div>';
-
-    try {
-      // Fetch docs for this vehicle (company_id may be null for direct users)
-      let query = `vehicle_documents?vehicle_id=eq.${this._vehicleId}&select=*&order=uploaded_at.desc`;
-      if (this._companyId) {
-        query = `vehicle_documents?vehicle_id=eq.${this._vehicleId}&company_id=eq.${this._companyId}&select=*&order=uploaded_at.desc`;
-      }
-      const docs = await supa(query);
-      if (countEl) countEl.textContent = docs.length > 0 ? `${docs.length} file${docs.length !== 1 ? 's' : ''}` : '';
-      this.renderUserDocs(docs);
-    } catch (e) {
-      console.error('Failed to load user docs:', e);
-      container.innerHTML = '<div style="color:#FF6565;font-size:13px;padding:16px">Failed to load documents</div>';
-    }
-  },
-
-  renderUserDocs(docs) {
-    const container = document.getElementById('userDocsContent');
-    const vehicleId = this._vehicleId;
-    const companyId = this._companyId;
-
-    const statusColors = {
-      pending: { bg: '#767DFB20', color: '#767DFB', label: 'Pending' },
-      processing: { bg: '#4A9FD920', color: '#4A9FD9', label: 'Processing' },
-      ready: { bg: '#2ABC5320', color: '#2ABC53', label: 'Ready' },
-      failed: { bg: '#FF656520', color: '#FF6565', label: 'Failed' }
-    };
-
-    const typeLabels = {
-      manual: 'Manual', wiring: 'Wiring Diagram', appliance: 'Appliance Spec', warranty: 'Warranty', other: 'Other'
-    };
-
-    const fileList = docs.length > 0 ? `
-      <div class="table-wrap" style="border:none;margin-bottom:16px">
-        <table>
-          <thead><tr>
-            <th>Document</th>
-            <th>Type</th>
-            <th>Size</th>
-            <th>AI Status</th>
-            <th>Chunks</th>
-            <th>Uploaded</th>
-            <th></th>
-          </tr></thead>
-          <tbody>
-            ${docs.map(d => {
-              const st = statusColors[d.processing_status] || statusColors.pending;
-              return `<tr style="cursor:default">
-                <td>
-                  <div style="display:flex;align-items:center;gap:8px">
-                    <div style="width:32px;height:32px;background:#FF656515;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
-                      <span style="font-size:11px;font-weight:700;color:#FF6565">PDF</span>
-                    </div>
-                    <div>
-                      <div style="color:#F5F1EB;font-size:13px;font-weight:500">${escHtml(d.file_name)}</div>
-                      ${d.description ? `<div style="color:#666;font-size:11px">${escHtml(d.description)}</div>` : ''}
-                    </div>
-                  </div>
-                </td>
-                <td><span style="color:#8E8D8A;font-size:12px">${typeLabels[d.document_type] || d.document_type}</span></td>
-                <td style="color:#666;font-size:12px">${Documents.formatSize(d.file_size)}</td>
-                <td>
-                  <span style="background:${st.bg};color:${st.color};padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600${d.processing_status === 'processing' ? ';animation:pulse 1.5s ease-in-out infinite' : ''}">
-                    ${st.label}
-                  </span>
-                  ${d.error_message ? `<div style="color:#FF6565;font-size:10px;margin-top:2px">${escHtml(d.error_message)}</div>` : ''}
-                </td>
-                <td style="color:#666;font-size:12px">${d.chunk_count || '—'}</td>
-                <td style="color:#666;font-size:12px">${timeAgo(d.uploaded_at)}</td>
-                <td>
-                  <div style="display:flex;gap:4px">
-                    <button class="btn-secondary" style="font-size:11px;padding:4px 10px" onclick="Documents.preview('${d.id}','${d.file_url}')">View</button>
-                    <button class="btn-delete" style="font-size:11px;padding:4px 10px" onclick="UserDetailPage.removeUserDoc('${d.id}')">Delete</button>
-                  </div>
-                </td>
-              </tr>`;
-            }).join("")}
-          </tbody>
-        </table>
-      </div>
-    ` : '';
-
-    // Upload zone
-    container.innerHTML = `
-      ${fileList}
-      <div class="doc-upload-zone" id="docUploadZone_user_${vehicleId}"
-           ondragover="Documents.handleDragOver(event)"
-           ondragleave="Documents.handleDragLeave(event)"
-           ondrop="UserDetailPage.handleUserDocDrop(event)"
-           onclick="document.getElementById('docFileInput_user_${vehicleId}').click()">
-        <input type="file" id="docFileInput_user_${vehicleId}" accept=".pdf" style="display:none"
-               onchange="UserDetailPage.handleUserDocSelect(event)">
-        <div class="doc-upload-icon">
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#767DFB" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="12" y2="12"/><line x1="15" y1="15" x2="12" y2="12"/>
-          </svg>
-        </div>
-        <div style="color:#F5F1EB;font-size:13px;font-weight:500">Drop PDF here or click to browse</div>
-        <div style="color:#666;font-size:12px;margin-top:4px">Max 50MB · PDF files only</div>
-      </div>
-      <div id="docUploadProgress_user_${vehicleId}" style="display:none"></div>
-    `;
-  },
-
-  handleUserDocDrop(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    e.currentTarget.classList.remove('doc-upload-zone-active');
-    const files = e.dataTransfer.files;
-    if (files.length > 0 && this._vehicleId) {
-      Documents._pendingFile = files[0];
-      Documents._pendingVehicleId = this._vehicleId;
-      Documents._pendingCompanyId = this._companyId;
-      // Reuse the existing upload modal
-      document.getElementById('docUploadFileName').textContent = files[0].name;
-      document.getElementById('docUploadFileSize').textContent = Documents.formatSize(files[0].size);
-      document.getElementById('docUploadType').value = 'manual';
-      document.getElementById('docUploadDesc').value = '';
-      document.getElementById('docUploadError').classList.add('hidden');
-      // Override confirmUpload to reload user docs after
-      Documents._userDetailReload = true;
-      openModal('docUploadModal');
-    }
-  },
-
-  handleUserDocSelect(e) {
-    const files = e.target.files;
-    if (files.length > 0 && this._vehicleId) {
-      Documents._pendingFile = files[0];
-      Documents._pendingVehicleId = this._vehicleId;
-      Documents._pendingCompanyId = this._companyId;
-      document.getElementById('docUploadFileName').textContent = files[0].name;
-      document.getElementById('docUploadFileSize').textContent = Documents.formatSize(files[0].size);
-      document.getElementById('docUploadType').value = 'manual';
-      document.getElementById('docUploadDesc').value = '';
-      document.getElementById('docUploadError').classList.add('hidden');
-      Documents._userDetailReload = true;
-      openModal('docUploadModal');
-    }
-    e.target.value = '';
-  },
-
-  async removeUserDoc(docId) {
-    if (!confirm('Delete this document? This will also remove all AI-processed chunks.')) return;
-    try {
-      const docs = await supa(`vehicle_documents?id=eq.${docId}&select=file_url`);
-      const doc = docs[0];
-      await supaDelete(`vehicle_documents?id=eq.${docId}`);
-      if (doc?.file_url) {
-        const path = doc.file_url.split('/van-manuals/')[1];
-        if (path) await Storage.remove('van-manuals', path);
-      }
-      this.loadUserDocs();
-    } catch (e) {
-      console.error('Delete document failed:', e);
-      alert('Failed to delete document: ' + e.message);
-    }
-  },
-
   // ── User Trips ──
   userTrips: [],
   selectedUserTrip: null,
@@ -405,7 +226,7 @@ const UserDetailPage = {
     L.marker(coords[coords.length - 1], { icon: endIcon }).addTo(this.userTripMap)
       .bindPopup(`<b>End</b><br>${formatDateTime(points[points.length - 1].timestamp)}<br>Battery: ${points[points.length - 1].battery_soc?.toFixed(0) || '—'}%`);
     
-    this.userTripHoverMarker = L.circleMarker([0, 0], { radius: 7, fillColor: '#767DFB', fillOpacity: 1, color: '#fff', weight: 2 });
+    this.userTripHoverMarker = L.circleMarker([0, 0], { radius: 7, fillColor: '#E7B400', fillOpacity: 1, color: '#fff', weight: 2 });
     
     this.userTripMap.fitBounds(L.latLngBounds(coords), { padding: [30, 30] });
   },
@@ -622,7 +443,7 @@ const UserDetailPage = {
               <td>${l.shore_connected ? '<span class="shore-on">●</span>' : '<span style="color:#333">○</span>'}</td>
               <td>${l.engine_running ? '<span class="engine-on">●</span>' : '<span style="color:#333">○</span>'}</td>
               <td style="color:#A8A7A7">${l.outside_temp != null ? l.outside_temp.toFixed(0) + '°' : '—'}</td>
-              <td style="color:#767DFB">${l.ruuvi_indoor_temp_f != null ? l.ruuvi_indoor_temp_f.toFixed(1) + '°F' : '—'}</td>
+              <td style="color:#E7B400">${l.ruuvi_indoor_temp_f != null ? l.ruuvi_indoor_temp_f.toFixed(1) + '°F' : '—'}</td>
               <td style="color:#2ABC53">${l.ruuvi_outdoor_temp_f != null ? l.ruuvi_outdoor_temp_f.toFixed(1) + '°F' : '—'}</td>
               <td style="color:#A8A7A7;font-size:11px">${l.ruuvi_indoor_humidity != null ? l.ruuvi_indoor_humidity.toFixed(0) + '%' : '—'}${l.ruuvi_outdoor_humidity != null ? ' / ' + l.ruuvi_outdoor_humidity.toFixed(0) + '%' : ''}</td>
               <td style="color:#666;font-size:11px">${l.latitude ? l.latitude.toFixed(3) + ',' + l.longitude.toFixed(3) : '—'}</td>

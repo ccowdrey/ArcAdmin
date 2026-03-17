@@ -30,7 +30,7 @@ const Documents = {
 
   render(docs, vehicleId, companyId, containerEl) {
     const statusColors = {
-      pending: { bg: '#767DFB20', color: '#767DFB', label: 'Pending' },
+      pending: { bg: '#E7B40020', color: '#E7B400', label: 'Pending' },
       processing: { bg: '#4A9FD920', color: '#4A9FD9', label: 'Processing' },
       ready: { bg: '#2ABC5320', color: '#2ABC53', label: 'Ready' },
       failed: { bg: '#FF656520', color: '#FF6565', label: 'Failed' }
@@ -104,7 +104,7 @@ const Documents = {
         <input type="file" id="docFileInput_${vehicleId}" accept=".pdf" style="display:none"
                onchange="Documents.handleFileSelect(event, '${vehicleId}', '${companyId}')">
         <div class="doc-upload-icon">
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#767DFB" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#E7B400" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="12" y2="12"/><line x1="15" y1="15" x2="12" y2="12"/>
           </svg>
         </div>
@@ -190,8 +190,8 @@ const Documents = {
     closeModals();
 
     // Show progress
-    const progressEl = document.getElementById(`docUploadProgress_${vehicleId}`) || document.getElementById(`docUploadProgress_user_${vehicleId}`);
-    const uploadZone = document.getElementById(`docUploadZone_${vehicleId}`) || document.getElementById(`docUploadZone_user_${vehicleId}`);
+    const progressEl = document.getElementById(`docUploadProgress_${vehicleId}`);
+    const uploadZone = document.getElementById(`docUploadZone_${vehicleId}`);
     if (uploadZone) uploadZone.style.display = 'none';
     if (progressEl) {
       progressEl.style.display = 'block';
@@ -209,7 +209,7 @@ const Documents = {
 
     try {
       // 1. Upload file to storage
-      const storagePath = `${companyId || 'direct'}/${vehicleId}/${Date.now()}_${file.name}`;
+      const storagePath = `${companyId}/${vehicleId}/${Date.now()}_${file.name}`;
       const { url, error: uploadError } = await Storage.upload('van-manuals', storagePath, file, (pct) => {
         const fill = document.getElementById(`docProgressFill_${vehicleId}`);
         const text = document.getElementById(`docProgressText_${vehicleId}`);
@@ -232,7 +232,7 @@ const Documents = {
         },
         body: JSON.stringify({
           vehicle_id: vehicleId,
-          company_id: companyId || null,
+          company_id: companyId,
           document_type: docType,
           file_name: file.name,
           file_url: `${SUPA_URL}/storage/v1/object/van-manuals/${storagePath}`,
@@ -257,14 +257,9 @@ const Documents = {
       }
 
       // 4. Reload documents list (shows "Processing" status immediately)
-      if (this._userDetailReload) {
-        this._userDetailReload = false;
-        UserDetailPage.loadUserDocs();
-      } else {
-        const container = progressEl?.parentElement;
-        if (container) {
-          await this.loadForVehicle(vehicleId, companyId, container);
-        }
+      const container = progressEl?.parentElement;
+      if (container) {
+        await this.loadForVehicle(vehicleId, companyId, container);
       }
 
     } catch (e) {
@@ -401,10 +396,6 @@ const Documents = {
       // Reload
       const container = document.getElementById(`docsContainer_${vehicleId}`);
       if (container) this.loadForVehicle(vehicleId, companyId, container);
-      // Also reload user detail docs if on that page
-      if (document.getElementById('pageUserDetail')?.classList.contains('active')) {
-        UserDetailPage.loadUserDocs();
-      }
 
     } catch (e) {
       console.error('Processing failed:', e);
@@ -416,9 +407,6 @@ const Documents = {
       } catch (_) {}
       const container = document.getElementById(`docsContainer_${vehicleId}`);
       if (container) this.loadForVehicle(vehicleId, companyId, container);
-      if (document.getElementById('pageUserDetail')?.classList.contains('active')) {
-        UserDetailPage.loadUserDocs();
-      }
     }
   }
 };
