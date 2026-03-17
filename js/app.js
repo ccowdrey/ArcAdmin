@@ -232,10 +232,10 @@ async function handleForgotPassword() {
   btn.textContent = "Sending...";
 
   try {
-    const res = await fetch(`${SUPA_URL}/auth/v1/otp`, {
+    const res = await fetch(`${SUPA_URL}/auth/v1/recover`, {
       method: "POST",
       headers: { apikey: SUPA_KEY, "Content-Type": "application/json" },
-      body: JSON.stringify({ email, type: "recovery", create_user: false })
+      body: JSON.stringify({ email })
     });
 
     if (!res.ok) {
