@@ -251,9 +251,9 @@ const Documents = {
       const insertedDocs = await insertRes.json();
       const documentId = insertedDocs[0]?.id;
 
-      // 3. Process the PDF client-side (no Edge Function timeout limits)
+      // 3. Process: Vercel extracts text (no timeout), Edge Function embeds+stores (fast)
       if (documentId) {
-        this.processClientSide(file, documentId, vehicleId, companyId, docType);
+        this.processViaVercel(documentId, vehicleId, companyId, docType);
       }
 
       // 4. Reload documents list (shows "Processing" status immediately)
@@ -343,128 +343,57 @@ const Documents = {
     }
   },
 
-  // ── Client-Side AI Processing ──
-  // Claude extraction runs in the browser (no timeout limits).
-  // Only the embed+store step uses the Edge Function (fast, <30s).
+  // ── Vercel + Edge Function Processing ──
+  // Vercel handles Claude extraction (5 min timeout, no limits)
+  // Edge Function handles embed+store (fast, <30s)
 
-  // NOTE: The Anthropic API key is used client-side here.
-  // This is acceptable because the admin site is behind auth
-  // and only used by you and builder admins — not public.
-  ANTHROPIC_KEY: null,
+  VERCEL_PROCESS_URL: 'https://arcnode-processor.vercel.app',
 
-  async processClientSide(file, documentId, vehicleId, companyId, docType) {
+  async processViaVercel(documentId, vehicleId, companyId, docType) {
     try {
-      // Get the Anthropic key (prompt once per session)
-      if (!this.ANTHROPIC_KEY) {
-        this.ANTHROPIC_KEY = prompt('Enter your Anthropic API key for document processing:');
-        if (!this.ANTHROPIC_KEY) throw new Error('Anthropic API key required');
-      }
+      console.log('🚀 Starting Vercel processing...');
 
-      console.log('🚀 Processing client-side...');
-
-      // Step 1: Upload PDF to Anthropic Files API
-      console.log('📤 Uploading to Anthropic...');
-      const formData = new FormData();
-      formData.append('file', file, file.name);
-
-      const upRes = await fetch('https://api.anthropic.com/v1/files', {
+      // Step 1: Vercel downloads PDF, uploads to Anthropic, Claude extracts
+      const extractRes = await fetch(this.VERCEL_PROCESS_URL, {
         method: 'POST',
-        headers: {
-          'x-api-key': this.ANTHROPIC_KEY,
-          'anthropic-version': '2023-06-01',
-          'anthropic-beta': 'files-api-2025-04-14',
-        },
-        body: formData,
-      });
-
-      if (!upRes.ok) {
-        const err = await upRes.text();
-        throw new Error(`Anthropic upload failed: ${err.slice(0, 200)}`);
-      }
-
-      const fileId = (await upRes.json()).id;
-      console.log(`✅ Uploaded: ${fileId}`);
-
-      // Step 2: Claude extracts full text (no timeout in browser!)
-      console.log('🧠 Claude extracting text... (this may take a few minutes)');
-      const docCtx = { manual: "van/RV owner's manual", wiring: "wiring diagram", appliance: "appliance spec sheet", warranty: "warranty document" }[docType] || "vehicle document";
-
-      const cRes = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'x-api-key': this.ANTHROPIC_KEY,
-          'anthropic-version': '2023-06-01',
-          'anthropic-beta': 'files-api-2025-04-14',
-          'content-type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-6',
-          max_tokens: 64000,
-          messages: [{
-            role: 'user',
-            content: [
-              { type: 'document', source: { type: 'file', file_id: fileId } },
-              { type: 'text', text: `Extract ALL text content from this ${docCtx}. This will be used for a searchable knowledge base so completeness is critical.
-
-Rules:
-- Extract every heading, paragraph, list, table, spec, warning, and note
-- Use markdown: # for main headings, ## for sub-headings, ### for sub-sub-headings
-- Preserve numbered lists and bullet points
-- For tables, use markdown table format
-- Preserve all model numbers, measurements, specs, and values
-- For wiring diagrams, describe connections, wire colors, gauges, component names
-- Include "--- Page N ---" separators between pages
-- Do NOT summarize — extract verbatim content
-- Do NOT add commentary — output only the document text
-- If text is partially illegible, note [illegible]` },
-            ],
-          }],
+          document_id: documentId,
+          supabase_url: SUPA_URL,
+          supabase_key: SUPA_KEY,
         }),
       });
 
-      if (!cRes.ok) {
-        const err = await cRes.text();
-        throw new Error(`Claude extraction failed: ${err.slice(0, 300)}`);
+      if (!extractRes.ok) {
+        const err = await extractRes.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(err.error || `Vercel error (${extractRes.status})`);
       }
 
-      const cData = await cRes.json();
-      const extractedText = cData.content?.[0]?.text || '';
-      console.log(`📝 Extracted ${extractedText.length} chars`);
+      const { extracted_text, vehicle_id, document_type } = await extractRes.json();
+      console.log(`📝 Extracted ${extracted_text.length} chars`);
 
-      if (extractedText.trim().length < 50) {
-        throw new Error('Claude returned insufficient text');
-      }
-
-      // Step 3: Cleanup Anthropic file
-      try {
-        await fetch(`https://api.anthropic.com/v1/files/${fileId}`, {
-          method: 'DELETE',
-          headers: { 'x-api-key': this.ANTHROPIC_KEY, 'anthropic-version': '2023-06-01', 'anthropic-beta': 'files-api-2025-04-14' },
-        });
-      } catch (_) {}
-
-      // Step 4: Send extracted text to Edge Function for embed+store (fast)
-      console.log('🔢 Embedding and storing chunks...');
+      // Step 2: Send text to Edge Function for embed+store
+      console.log('🔢 Embedding and storing...');
       const embedRes = await fetch(`${SUPA_URL}/functions/v1/process-document`, {
         method: 'POST',
         headers: { apikey: SUPA_KEY, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           document_id: documentId,
-          vehicle_id: vehicleId,
-          document_type: docType,
-          extracted_text: extractedText,
+          vehicle_id: vehicle_id || vehicleId,
+          document_type: document_type || docType,
+          extracted_text: extracted_text,
         }),
       });
 
       if (!embedRes.ok) {
         const err = await embedRes.text();
-        throw new Error(`Embed+store failed: ${err.slice(0, 200)}`);
+        throw new Error(`Embed failed: ${err.slice(0, 200)}`);
       }
 
       const result = await embedRes.json();
       console.log(`✅ Done: ${result.chunk_count} chunks`);
 
-      // Reload docs list
+      // Reload
       const container = document.getElementById(`docsContainer_${vehicleId}`);
       if (container) this.loadForVehicle(vehicleId, companyId, container);
 
