@@ -219,23 +219,64 @@ const Documents = {
 
       if (uploadError) throw new Error(uploadError);
 
-      // 2. Insert record into vehicle_documents
-      // Determine the uploader's email
+      // 2. Insert record into vehicle_documents (with return=representation to get the ID)
       const uploaderEmail = document.getElementById('navEmail')?.textContent || 'unknown';
 
-      await supaPost('vehicle_documents', {
-        vehicle_id: vehicleId,
-        company_id: companyId,
-        document_type: docType,
-        file_name: file.name,
-        file_url: `${SUPA_URL}/storage/v1/object/van-manuals/${storagePath}`,
-        file_size: file.size,
-        uploaded_by: uploaderEmail,
-        processing_status: 'pending',
-        description: description || null
+      const insertRes = await fetch(`${SUPA_URL}/rest/v1/vehicle_documents`, {
+        method: "POST",
+        headers: {
+          apikey: SUPA_KEY,
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+          "Prefer": "return=representation"
+        },
+        body: JSON.stringify({
+          vehicle_id: vehicleId,
+          company_id: companyId,
+          document_type: docType,
+          file_name: file.name,
+          file_url: `${SUPA_URL}/storage/v1/object/van-manuals/${storagePath}`,
+          file_size: file.size,
+          uploaded_by: uploaderEmail,
+          processing_status: 'pending',
+          description: description || null
+        })
       });
 
-      // 3. Reload documents list
+      if (!insertRes.ok) {
+        const errText = await insertRes.text();
+        throw new Error(errText);
+      }
+
+      const insertedDocs = await insertRes.json();
+      const documentId = insertedDocs[0]?.id;
+
+      // 3. Trigger processing Edge Function directly (bypasses webhook auth issues)
+      if (documentId) {
+        // Update progress UI
+        const textEl = document.getElementById(`docProgressText_${vehicleId}`);
+        if (textEl) textEl.textContent = 'Processing with AI...';
+
+        // Fire and forget — don't block the UI
+        fetch(`${SUPA_URL}/functions/v1/process-document`, {
+          method: "POST",
+          headers: {
+            apikey: SUPA_KEY,
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ document_id: documentId })
+        }).then(res => {
+          console.log("Process-document response:", res.status);
+          // Reload docs list after processing completes
+          const container = document.getElementById(`docsContainer_${vehicleId}`);
+          if (container) Documents.loadForVehicle(vehicleId, companyId, container);
+        }).catch(err => {
+          console.error("Process-document call failed:", err);
+        });
+      }
+
+      // 4. Reload documents list (shows "Pending" status immediately)
       const container = progressEl?.parentElement;
       if (container) {
         await this.loadForVehicle(vehicleId, companyId, container);
