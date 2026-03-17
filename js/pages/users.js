@@ -53,7 +53,7 @@ const UsersPage = {
         return (Date.now() - lastLogin.getTime()) < 7 * 86400000;
       }).length;
       document.getElementById('statPaidUsers').textContent = subs.filter(s => s.tier !== 'base_camp' && s.status === 'active').length;
-      document.getElementById('statAdmins').textContent = this.allAdmins.length;
+      const adminsEl = document.getElementById('statAdmins'); if (adminsEl) adminsEl.textContent = this.allAdmins.length;
 
       this.render(this.allUsers);
       this.renderAdmins(this.allAdmins);
