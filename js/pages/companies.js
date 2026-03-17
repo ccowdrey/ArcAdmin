@@ -86,23 +86,46 @@ const CompanyDetailPage = {
     
     // Ensure we have company data
     if (allCompanies.length === 0) {
-      const [companies, profiles, subs, admins] = await Promise.all([
-        supa("companies?select=*&order=created_at.desc"),
-        supa("profiles?select=id,company_id,first_name,last_name,email,last_login_at,created_at"),
-        supa("subscriptions?select=user_id,tier,status"),
-        supa("company_admins?select=*")
-      ]);
-      allCompanies = companies.map(c => {
-        const clients = profiles.filter(p => p.company_id === c.id);
-        const clientSubs = clients.map(cl => subs.find(s => s.user_id === cl.id)).filter(Boolean);
-        const companyAdmins = admins.filter(a => a.company_id === c.id);
-        Router.registerSlug(c.id, c.name);
-        clients.forEach(cl => {
-          const name = `${cl.first_name || ''} ${cl.last_name || ''}`.trim() || cl.email.split('@')[0];
-          Router.registerSlug(cl.id, name);
+      if (Auth.isSuper()) {
+        // Super admin: fetch everything unscoped
+        const [companies, profiles, subs, admins] = await Promise.all([
+          supa("companies?select=*&order=created_at.desc"),
+          supa("profiles?select=id,company_id,first_name,last_name,email,last_login_at,created_at"),
+          supa("subscriptions?select=user_id,tier,status"),
+          supa("company_admins?select=*")
+        ]);
+        allCompanies = companies.map(c => {
+          const clients = profiles.filter(p => p.company_id === c.id);
+          const clientSubs = clients.map(cl => subs.find(s => s.user_id === cl.id)).filter(Boolean);
+          const companyAdmins = admins.filter(a => a.company_id === c.id);
+          Router.registerSlug(c.id, c.name);
+          clients.forEach(cl => {
+            const name = `${cl.first_name || ''} ${cl.last_name || ''}`.trim() || cl.email.split('@')[0];
+            Router.registerSlug(cl.id, name);
+          });
+          return { ...c, clients, clientSubs, admins: companyAdmins };
         });
-        return { ...c, clients, clientSubs, admins: companyAdmins };
-      });
+      } else {
+        // Company admin: fetch only their company's data (RLS will scope automatically)
+        const companyId = this.companyId;
+        const [companies, profiles, subs, admins] = await Promise.all([
+          supa(`companies?id=eq.${companyId}&select=*`),
+          supa(`profiles?company_id=eq.${companyId}&select=id,company_id,first_name,last_name,email,last_login_at,created_at`),
+          supa(`subscriptions?select=user_id,tier,status`),
+          supa(`company_admins?company_id=eq.${companyId}&select=*`)
+        ]);
+        allCompanies = companies.map(c => {
+          const clients = profiles.filter(p => p.company_id === c.id);
+          const clientSubs = clients.map(cl => subs.find(s => s.user_id === cl.id)).filter(Boolean);
+          const companyAdmins = admins.filter(a => a.company_id === c.id);
+          Router.registerSlug(c.id, c.name);
+          clients.forEach(cl => {
+            const name = `${cl.first_name || ''} ${cl.last_name || ''}`.trim() || cl.email.split('@')[0];
+            Router.registerSlug(cl.id, name);
+          });
+          return { ...c, clients, clientSubs, admins: companyAdmins };
+        });
+      }
     }
     
     const company = allCompanies.find(c => c.id === this.companyId);
