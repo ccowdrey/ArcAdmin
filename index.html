@@ -179,7 +179,7 @@
       </div>
       <div class="table-wrap" style="border:none">
         <table>
-          <thead><tr><th>Name</th><th>Email</th><th>Vehicle</th><th>Tier</th><th>Last Active</th><th>Change Tier</th><th></th></tr></thead>
+          <thead><tr><th>Name</th><th>Email</th><th>Vehicle</th><th>Tier</th><th>Last Active</th><th>Docs</th><th>Change Tier</th><th></th></tr></thead>
           <tbody id="companyClientsBody"></tbody>
         </table>
       </div>
@@ -272,15 +272,45 @@
   </div>
 </div>
 
+<!-- Document Upload Modal -->
+<div class="modal-overlay" id="docUploadModal">
+  <div class="modal-box">
+    <div class="modal-header"><h3>Upload Document</h3><button class="modal-close" onclick="closeModals()">✕</button></div>
+    <div class="error-box hidden" id="docUploadError"></div>
+    <div style="background:#242424;border-radius:8px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:12px">
+      <div style="width:40px;height:40px;background:#FF656515;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+        <span style="font-size:13px;font-weight:700;color:#FF6565">PDF</span>
+      </div>
+      <div>
+        <div style="color:#F5F1EB;font-size:13px;font-weight:500" id="docUploadFileName">file.pdf</div>
+        <div style="color:#666;font-size:12px" id="docUploadFileSize">0 KB</div>
+      </div>
+    </div>
+    <div class="field"><label>Document Type</label>
+      <select id="docUploadType" style="width:100%;padding:10px 14px;background:#242424;border:1px solid #333;border-radius:8px;color:#F5F1EB;font-size:14px;font-family:inherit">
+        <option value="manual">Owner's Manual</option>
+        <option value="wiring">Wiring Diagram</option>
+        <option value="appliance">Appliance Spec</option>
+        <option value="warranty">Warranty Document</option>
+        <option value="other">Other</option>
+      </select>
+    </div>
+    <div class="field"><label>Description (optional)</label><input id="docUploadDesc" placeholder="e.g. MaxxFan installation guide"></div>
+    <button class="btn-primary" onclick="Documents.confirmUpload()">Upload & Process</button>
+  </div>
+</div>
+
 <!-- JavaScript Modules -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="js/api.js"></script>
+<script src="js/storage.js"></script>
 <script src="js/router.js"></script>
 <script src="js/utils.js"></script>
 <script src="js/auth.js"></script>
 <script src="js/analysis.js"></script>
 <script src="js/pages/users.js"></script>
 <script src="js/pages/user-detail.js"></script>
+<script src="js/pages/documents.js"></script>
 <script src="js/pages/companies.js"></script>
 <script src="js/pages/trips.js"></script>
 <script src="js/app.js"></script>

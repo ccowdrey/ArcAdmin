@@ -53,7 +53,7 @@ const TripsPage = {
     const uniqueUsers = new Set(trips.map(t => t.user_id)).size;
     
     document.getElementById('statTotalTrips').textContent = trips.length;
-    document.getElementById('statTotalDistance').textContent = totalKm.toFixed(0) + ' km';
+    document.getElementById('statTotalDistance').textContent = (totalKm * 0.621371).toFixed(0) + ' mi';
     document.getElementById('statTotalDriveTime').textContent = this.formatDuration(totalDuration);
     document.getElementById('statUniqueDrivers').textContent = uniqueUsers;
   },

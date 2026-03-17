@@ -168,12 +168,18 @@ const CompanyDetailPage = {
     const companySlug = Router.getSlug(selectedCompanyId);
     document.getElementById("companyClientsBody").innerHTML = clients.map(cl => {
       const clientSlug = Router.getSlug(cl.id);
+      const vehicleId = cl.vehicle?.id || '';
       return `<tr onclick="Router.navigate('/companies/${companySlug}/clients/${clientSlug}')">
         <td style="color:#F5F1EB">${escHtml(cl.first_name || '')} ${escHtml(cl.last_name || '')}</td>
         <td style="color:#8E8D8A">${escHtml(cl.email)}</td>
         <td style="color:#666;font-size:12px">${cl.vehicle ? escHtml(cl.vehicle.make + ' ' + cl.vehicle.model) : '—'}</td>
         <td>${tierBadge(cl.tier)}</td>
         <td style="color:#666;font-size:12px">${timeAgo(cl.last_login_at)}</td>
+        <td>
+          ${vehicleId ? `<button class="btn-secondary" style="font-size:11px;padding:4px 10px" onclick="event.stopPropagation();CompanyDetailPage.toggleDocs('${vehicleId}','${selectedCompanyId}')">
+            <span style="margin-right:4px">📄</span>Docs
+          </button>` : '<span style="color:#444;font-size:11px">No vehicle</span>'}
+        </td>
         <td>
           <select onclick="event.stopPropagation()" onchange="CompanyDetailPage.changeTier('${cl.id}', this.value)" style="background:#242424;border:1px solid #333;border-radius:4px;color:#F5F1EB;font-size:12px;padding:4px 8px;font-family:inherit">
             <option value="base_camp" ${cl.tier === 'base_camp' ? 'selected' : ''}>Base Camp</option>
@@ -182,8 +188,28 @@ const CompanyDetailPage = {
           </select>
         </td>
         <td><button class="btn-delete" onclick="event.stopPropagation();UserDetailPage.userId='${cl.id}';UserDetailPage.userName='${escHtml(cl.first_name || '')}';UserDetailPage.deleteUser()" style="font-size:11px">Delete</button></td>
+      </tr>
+      <tr class="doc-expand-row" id="docRow_${vehicleId}" style="display:none" onclick="event.stopPropagation()">
+        <td colspan="8" style="padding:0;background:#161616;border-bottom:1px solid #2A2A2A">
+          <div style="padding:16px 24px" id="docsContainer_${vehicleId}">
+            <div style="color:#8E8D8A;font-size:13px">Loading documents...</div>
+          </div>
+        </td>
       </tr>`;
-    }).join("") || `<tr><td colspan="7" style="text-align:center;color:#666;padding:16px">No clients</td></tr>`;
+    }).join("") || `<tr><td colspan="8" style="text-align:center;color:#666;padding:16px">No clients</td></tr>`;
+  },
+
+  toggleDocs(vehicleId, companyId) {
+    const row = document.getElementById(`docRow_${vehicleId}`);
+    if (!row) return;
+    const isOpen = row.style.display !== 'none';
+    // Close all other doc rows
+    document.querySelectorAll('.doc-expand-row').forEach(r => r.style.display = 'none');
+    if (!isOpen) {
+      row.style.display = '';
+      const container = document.getElementById(`docsContainer_${vehicleId}`);
+      Documents.loadForVehicle(vehicleId, companyId, container);
+    }
   },
   
   filterClients() {
