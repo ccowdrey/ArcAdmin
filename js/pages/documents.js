@@ -366,20 +366,57 @@ const Documents = {
         const endPage = Math.min(page + PAGE_BATCH - 1, total_pages);
         console.log(`📖 Extracting pages ${page}-${endPage}...`);
 
-        const extractRes = await this.callProcessFn({
-          action: "extract",
-          document_id: documentId,
-          file_id,
-          start_page: page,
-          end_page: endPage,
-          document_type: docType,
-        });
+        // Rate limit: wait 5s between extract calls to stay under token/min limits
+        if (page > 1) {
+          console.log('⏳ Waiting 5s for rate limit...');
+          await new Promise(r => setTimeout(r, 5000));
+        }
 
-        if (extractRes.text) {
-          allText += (allText ? "\n\n" : "") + extractRes.text;
-          console.log(`✅ Pages ${page}-${endPage}: ${extractRes.chars} chars`);
-        } else {
-          console.warn(`⚠️ No text from pages ${page}-${endPage}`);
+        try {
+          const extractRes = await this.callProcessFn({
+            action: "extract",
+            document_id: documentId,
+            file_id,
+            start_page: page,
+            end_page: endPage,
+            document_type: docType,
+          });
+
+          if (extractRes.text && extractRes.text.trim().length > 20) {
+            allText += (allText ? "\n\n" : "") + extractRes.text;
+            console.log(`✅ Pages ${page}-${endPage}: ${extractRes.chars} chars`);
+          } else {
+            // No meaningful text — we've probably passed the end of the document
+            console.log(`📄 Pages ${page}-${endPage}: minimal text — likely end of document`);
+            break;
+          }
+        } catch (e) {
+          // If rate limited, wait longer and retry once
+          if (e.message && e.message.includes('rate_limit')) {
+            console.log('⏳ Rate limited — waiting 30s and retrying...');
+            await new Promise(r => setTimeout(r, 30000));
+            try {
+              const retryRes = await this.callProcessFn({
+                action: "extract",
+                document_id: documentId,
+                file_id,
+                start_page: page,
+                end_page: endPage,
+                document_type: docType,
+              });
+              if (retryRes.text && retryRes.text.trim().length > 20) {
+                allText += (allText ? "\n\n" : "") + retryRes.text;
+                console.log(`✅ Retry pages ${page}-${endPage}: ${retryRes.chars} chars`);
+              }
+            } catch (retryErr) {
+              console.warn(`⚠️ Retry failed for pages ${page}-${endPage}: ${retryErr.message}`);
+              // Continue with what we have
+              break;
+            }
+          } else {
+            console.warn(`⚠️ Extract failed for pages ${page}-${endPage}: ${e.message}`);
+            break;
+          }
         }
       }
 
