@@ -14,6 +14,11 @@ document.addEventListener("DOMContentLoaded", () => {
       token = accessToken;
       hide('loginPage');
       hide('appShell');
+      // Update subtitle based on flow type
+      const subEl = document.querySelector('#setPasswordPage .sub');
+      if (subEl) subEl.textContent = type === 'recovery' ? 'Set New Password' : 'Set Your Password';
+      const descEl = document.querySelector('#setPasswordPage .login-box > div[style*="13px"]');
+      if (descEl && type === 'recovery') descEl.textContent = "Enter a new password for your account.";
       show('setPasswordPage');
       // Clear the hash from the URL
       history.replaceState(null, '', window.location.pathname);
@@ -181,4 +186,65 @@ async function handleSetPassword() {
   
   btn.disabled = false;
   btn.textContent = 'Set Password';
+}
+// ── Forgot Password Handlers ──
+function showForgotPassword(e) {
+  e.preventDefault();
+  document.getElementById('forgotEmail').value = document.getElementById('loginEmail').value;
+  document.getElementById('forgotError').classList.add('hidden');
+  document.getElementById('forgotSuccess').classList.add('hidden');
+  hide('loginPage');
+  show('forgotPasswordPage');
+  setTimeout(() => document.getElementById('forgotEmail').focus(), 100);
+}
+
+function showLogin(e) {
+  e.preventDefault();
+  hide('forgotPasswordPage');
+  show('loginPage');
+  setTimeout(() => document.getElementById('loginEmail').focus(), 100);
+}
+
+async function handleForgotPassword() {
+  const email = document.getElementById('forgotEmail').value.trim();
+  const errEl = document.getElementById('forgotError');
+  const successEl = document.getElementById('forgotSuccess');
+  const btn = document.getElementById('forgotBtn');
+
+  errEl.classList.add('hidden');
+  successEl.classList.add('hidden');
+
+  if (!email) {
+    errEl.textContent = 'Please enter your email address';
+    errEl.classList.remove('hidden');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Sending...';
+
+  try {
+    const res = await fetch(`${SUPA_URL}/auth/v1/recover`, {
+      method: 'POST',
+      headers: {
+        apikey: SUPA_KEY,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        email,
+        gotrue_meta_security: {}
+      })
+    });
+
+    // Supabase always returns 200 for this endpoint (even if email not found)
+    // to prevent email enumeration
+    successEl.textContent = 'Check your email for a password reset link.';
+    successEl.classList.remove('hidden');
+    btn.textContent = 'Email Sent';
+  } catch (e) {
+    errEl.textContent = e.message || 'Failed to send reset email';
+    errEl.classList.remove('hidden');
+    btn.disabled = false;
+    btn.textContent = 'Send Reset Email';
+  }
 }
