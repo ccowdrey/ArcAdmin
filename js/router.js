@@ -4,7 +4,7 @@
 const Router = {
   routes: {},
   currentPath: '',
-  basePath: '/ArcAdmin',
+  basePath: '',
   
   // Slug maps: id→slug and slug→id
   slugMap: {},
