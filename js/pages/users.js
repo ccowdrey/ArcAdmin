@@ -10,11 +10,12 @@ const UsersPage = {
     setActiveTab('tabUsers');
 
     try {
-      const [users, subs, companyAdmins, companies] = await Promise.all([
+      const [users, subs, companyAdmins, companies, vehicles] = await Promise.all([
         supa('profiles?select=*&order=created_at.desc'),
         supa('subscriptions?select=user_id,tier,status'),
         supa('company_admins?select=user_id,company_id,role'),
-        supa('companies?select=id,name')
+        supa('companies?select=id,name'),
+        supa('vehicles?select=user_id')
       ]);
 
       const subMap = {};
@@ -23,8 +24,9 @@ const UsersPage = {
       const companyMap = {};
       companies.forEach(c => { companyMap[c.id] = c.name; });
 
-      // Set of all company admin user IDs
+      // Set of all company admin user IDs and users with vehicles
       const adminUserIds = new Set(companyAdmins.map(a => a.user_id));
+      const vehicleUserIds = new Set(vehicles.map(v => v.user_id));
 
       const enriched = users.map(u => {
         const name = `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.email.split('@')[0];
@@ -32,10 +34,11 @@ const UsersPage = {
         return { ...u, tier: subMap[u.id]?.tier || 'base_camp' };
       });
 
-      // Split: regular users vs company admins
-      this.allUsers = enriched.filter(u => !adminUserIds.has(u.id) && !u.is_admin);
+      // Admin-only = in company_admins AND no vehicle AND not super admin
+      // If they have a vehicle, they're a real user who also happens to be an admin
+      this.allUsers = enriched.filter(u => !adminUserIds.has(u.id) || vehicleUserIds.has(u.id) || u.is_admin);
       this.allAdmins = enriched
-        .filter(u => adminUserIds.has(u.id))
+        .filter(u => adminUserIds.has(u.id) && !vehicleUserIds.has(u.id) && !u.is_admin)
         .map(u => {
           const adminEntry = companyAdmins.find(a => a.user_id === u.id);
           return {
