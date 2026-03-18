@@ -377,6 +377,9 @@ const CompanyDetailPage = {
   },
 
   showDeleteModal() {
+    const company = allCompanies.find(c => c.id === selectedCompanyId);
+    const hint = document.getElementById('deleteCompanyNameHint');
+    if (hint && company) hint.textContent = company.name;
     document.getElementById('deleteCompanyConfirm').value = '';
     document.getElementById('deleteCompanyError').classList.add('hidden');
     document.getElementById('deleteCompanyBtn').disabled = true;

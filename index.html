@@ -306,8 +306,9 @@
       </div>
       <p style="color:#8E8D8A;font-size:13px;margin-bottom:20px;line-height:1.6">This will permanently delete the company and remove all associated admins and invite codes. Client profiles will be unlinked but not deleted.</p>
       <div class="field">
-        <label style="color:#FF6565">Type the company name to confirm</label>
-        <input type="text" id="deleteCompanyConfirm" placeholder="" oninput="CompanyDetailPage.checkDeleteConfirm()" onkeydown="if(event.key==='Enter')CompanyDetailPage.deleteCompany()">
+        <label style="color:#8E8D8A">Type the company name to confirm</label>
+        <div id="deleteCompanyNameHint" style="font-size:13px;color:#F5F1EB;font-weight:600;background:#242526;border-radius:6px;padding:8px 12px;margin-bottom:8px;letter-spacing:0.01em"></div>
+        <input type="text" id="deleteCompanyConfirm" placeholder="Type company name..." oninput="CompanyDetailPage.checkDeleteConfirm()" onkeydown="if(event.key==='Enter')CompanyDetailPage.deleteCompany()">
       </div>
       <div class="error-box hidden" id="deleteCompanyError"></div>
       <button class="btn-delete" id="deleteCompanyBtn" style="width:100%;padding:12px;font-size:14px;opacity:0.4;cursor:not-allowed" disabled onclick="CompanyDetailPage.deleteCompany()">Delete Company</button>
