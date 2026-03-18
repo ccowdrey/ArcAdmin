@@ -63,7 +63,6 @@ const CompaniesPage = {
         <td><span class="tier" style="background:${planColors[c.plan] || '#666'}20;color:${planColors[c.plan] || '#666'}">${c.plan}</span></td>
         <td style="color:#F5F1EB;font-weight:600">${c.clients.length}</td>
         <td style="color:#666">${c.max_clients}</td>
-        <td style="color:#2ABC53">${c.monthly_rate ? '$' + Number(c.monthly_rate).toFixed(0) + '/mo' : '—'}</td>
         <td>${c.is_active ? '<span style="color:#2ABC53">Active</span>' : '<span style="color:#FF6565">Inactive</span>'}</td>
         <td style="color:#666;font-size:12px">${timeAgo(c.created_at)}</td>
         <td><span style="color:#767DFB;font-size:12px">View →</span></td>
@@ -86,46 +85,23 @@ const CompanyDetailPage = {
     
     // Ensure we have company data
     if (allCompanies.length === 0) {
-      if (Auth.isSuper()) {
-        // Super admin: fetch everything unscoped
-        const [companies, profiles, subs, admins] = await Promise.all([
-          supa("companies?select=*&order=created_at.desc"),
-          supa("profiles?select=id,company_id,first_name,last_name,email,last_login_at,created_at"),
-          supa("subscriptions?select=user_id,tier,status"),
-          supa("company_admins?select=*")
-        ]);
-        allCompanies = companies.map(c => {
-          const clients = profiles.filter(p => p.company_id === c.id);
-          const clientSubs = clients.map(cl => subs.find(s => s.user_id === cl.id)).filter(Boolean);
-          const companyAdmins = admins.filter(a => a.company_id === c.id);
-          Router.registerSlug(c.id, c.name);
-          clients.forEach(cl => {
-            const name = `${cl.first_name || ''} ${cl.last_name || ''}`.trim() || cl.email.split('@')[0];
-            Router.registerSlug(cl.id, name);
-          });
-          return { ...c, clients, clientSubs, admins: companyAdmins };
+      const [companies, profiles, subs, admins] = await Promise.all([
+        supa("companies?select=*&order=created_at.desc"),
+        supa("profiles?select=id,company_id,first_name,last_name,email,last_login_at,created_at"),
+        supa("subscriptions?select=user_id,tier,status"),
+        supa("company_admins?select=*")
+      ]);
+      allCompanies = companies.map(c => {
+        const clients = profiles.filter(p => p.company_id === c.id);
+        const clientSubs = clients.map(cl => subs.find(s => s.user_id === cl.id)).filter(Boolean);
+        const companyAdmins = admins.filter(a => a.company_id === c.id);
+        Router.registerSlug(c.id, c.name);
+        clients.forEach(cl => {
+          const name = `${cl.first_name || ''} ${cl.last_name || ''}`.trim() || cl.email.split('@')[0];
+          Router.registerSlug(cl.id, name);
         });
-      } else {
-        // Company admin: fetch only their company's data (RLS will scope automatically)
-        const companyId = this.companyId;
-        const [companies, profiles, subs, admins] = await Promise.all([
-          supa(`companies?id=eq.${companyId}&select=*`),
-          supa(`profiles?company_id=eq.${companyId}&select=id,company_id,first_name,last_name,email,last_login_at,created_at`),
-          supa(`subscriptions?select=user_id,tier,status`),
-          supa(`company_admins?company_id=eq.${companyId}&select=*`)
-        ]);
-        allCompanies = companies.map(c => {
-          const clients = profiles.filter(p => p.company_id === c.id);
-          const clientSubs = clients.map(cl => subs.find(s => s.user_id === cl.id)).filter(Boolean);
-          const companyAdmins = admins.filter(a => a.company_id === c.id);
-          Router.registerSlug(c.id, c.name);
-          clients.forEach(cl => {
-            const name = `${cl.first_name || ''} ${cl.last_name || ''}`.trim() || cl.email.split('@')[0];
-            Router.registerSlug(cl.id, name);
-          });
-          return { ...c, clients, clientSubs, admins: companyAdmins };
-        });
-      }
+        return { ...c, clients, clientSubs, admins: companyAdmins };
+      });
     }
     
     const company = allCompanies.find(c => c.id === this.companyId);
@@ -394,7 +370,7 @@ const CompanyDetailPage = {
   
   showAddCompanyModal() {
     document.getElementById("addCompanyError").classList.add("hidden");
-    ['newCompanyName', 'newCompanyAdminName', 'newCompanyAdminEmail', 'newCompanyBillingEmail', 'newCompanyWebsite', 'newCompanyRate'].forEach(id => {
+    ['newCompanyName', 'newCompanyAdminName', 'newCompanyAdminEmail', 'newCompanyBillingEmail', 'newCompanyWebsite'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.value = '';
     });
@@ -407,7 +383,6 @@ const CompanyDetailPage = {
     const billingEmail = document.getElementById("newCompanyBillingEmail").value.trim();
     const website = document.getElementById("newCompanyWebsite").value.trim();
     const plan = document.getElementById("newCompanyPlan").value;
-    const rate = document.getElementById("newCompanyRate").value;
     const errEl = document.getElementById("addCompanyError");
     
     if (!name || !adminEmail) { errEl.textContent = "Company name and admin email are required"; errEl.classList.remove("hidden"); return; }
@@ -416,7 +391,7 @@ const CompanyDetailPage = {
     const slug = slugify(name);
     
     try {
-      await supaPost("companies", { name, slug, plan, max_clients: maxClients, monthly_rate: rate || null, billing_email: billingEmail || null, website: website || null });
+      await supaPost("companies", { name, slug, plan, max_clients: maxClients, billing_email: billingEmail || null, website: website || null });
       
       const profiles = await supa(`profiles?email=eq.${encodeURIComponent(adminEmail)}&select=*`);
       if (profiles.length > 0) {
