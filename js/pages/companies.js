@@ -112,8 +112,12 @@ const CompanyDetailPage = {
     const bc = document.getElementById('companyDetailBreadcrumb');
     if (Auth.isSuper()) {
       bc.innerHTML = `<a data-route href="/companies">Companies</a><span class="sep">›</span><span class="current">${escHtml(company.name)}</span>`;
+      const delSection = document.getElementById('deleteCompanySection');
+      if (delSection) delSection.style.display = '';
     } else {
       bc.innerHTML = `<span class="current">${escHtml(company.name)}</span>`;
+      const delSection = document.getElementById('deleteCompanySection');
+      if (delSection) delSection.style.display = 'none';
     }
     
     // Header
@@ -368,6 +372,57 @@ const CompanyDetailPage = {
     }
   },
   
+  showDeleteModal() {
+    document.getElementById('deleteCompanyConfirm').value = '';
+    document.getElementById('deleteCompanyError').classList.add('hidden');
+    document.getElementById('deleteCompanyBtn').disabled = true;
+    document.getElementById('deleteCompanyBtn').style.opacity = '0.4';
+    document.getElementById('deleteCompanyBtn').style.cursor = 'not-allowed';
+    const modal = document.getElementById('deleteCompanyModal');
+    modal.style.display = 'flex';
+  },
+
+  checkDeleteConfirm() {
+    const val = document.getElementById('deleteCompanyConfirm').value;
+    const company = allCompanies.find(c => c.id === selectedCompanyId);
+    const match = company && val === company.name;
+    const btn = document.getElementById('deleteCompanyBtn');
+    btn.disabled = !match;
+    btn.style.opacity = match ? '1' : '0.4';
+    btn.style.cursor = match ? 'pointer' : 'not-allowed';
+  },
+
+  async deleteCompany() {
+    if (!Auth.isSuper()) return;
+    const company = allCompanies.find(c => c.id === selectedCompanyId);
+    const val = document.getElementById('deleteCompanyConfirm').value;
+    if (!company || val !== company.name) return;
+
+    const errEl = document.getElementById('deleteCompanyError');
+    const btn = document.getElementById('deleteCompanyBtn');
+    btn.disabled = true;
+    btn.textContent = 'Deleting...';
+    errEl.classList.add('hidden');
+
+    try {
+      // Unlink client profiles
+      await supaPatch(`profiles?company_id=eq.${selectedCompanyId}`, { company_id: null });
+      // Delete company_admins, company_codes, then company
+      await supaDelete(`company_admins?company_id=eq.${selectedCompanyId}`);
+      await supaDelete(`company_codes?company_id=eq.${selectedCompanyId}`);
+      await supaDelete(`companies?id=eq.${selectedCompanyId}`);
+
+      closeModals();
+      allCompanies = [];
+      Router.navigate('/companies');
+    } catch (e) {
+      errEl.textContent = e.message;
+      errEl.classList.remove('hidden');
+      btn.disabled = false;
+      btn.textContent = 'Delete Company';
+    }
+  },
+
   showAddCompanyModal() {
     document.getElementById("addCompanyError").classList.add("hidden");
     ['newCompanyName', 'newCompanyAdminName', 'newCompanyAdminEmail', 'newCompanyBillingEmail', 'newCompanyWebsite'].forEach(id => {
