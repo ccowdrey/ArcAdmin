@@ -64,7 +64,7 @@ const Auth = {
     hide('appShell');
     show('loginPage');
     document.getElementById('loginError').classList.add('hidden');
-    Router.navigate('/login', false);
+    window.history.replaceState({}, '', '/login');
   },
   
   isSuper() { return userRole === 'super_admin'; },
