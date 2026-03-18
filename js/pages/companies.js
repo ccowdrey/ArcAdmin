@@ -372,6 +372,10 @@ const CompanyDetailPage = {
     }
   },
   
+  closeDeleteModal() {
+    document.getElementById('deleteCompanyModal').style.display = 'none';
+  },
+
   showDeleteModal() {
     document.getElementById('deleteCompanyConfirm').value = '';
     document.getElementById('deleteCompanyError').classList.add('hidden');
