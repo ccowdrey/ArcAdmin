@@ -15,7 +15,13 @@ const Router = {
   },
   
   registerSlug(id, name) {
-    const slug = this.slugify(name);
+    let slug = this.slugify(name);
+    // Handle collisions: if slug already maps to a different id, append a counter
+    if (this.idMap[slug] && this.idMap[slug] !== id) {
+      let counter = 2;
+      while (this.idMap[slug + '-' + counter] && this.idMap[slug + '-' + counter] !== id) counter++;
+      slug = slug + '-' + counter;
+    }
     this.slugMap[id] = slug;
     this.idMap[slug] = id;
   },

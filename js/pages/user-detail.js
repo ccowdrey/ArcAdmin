@@ -638,17 +638,48 @@ const UserDetailPage = {
     if (!confirm('Are you SURE? All data will be permanently deleted.')) return;
     
     try {
-      // Delete trip points first (foreign key on trips)
+      // Delete app data (foreign keys first)
       const userTrips = await supa(`trips?user_id=eq.${this.userId}&select=id`);
       for (const t of userTrips) {
         await supaDelete(`trip_points?trip_id=eq.${t.id}`);
       }
       await supaDelete(`trips?user_id=eq.${this.userId}`);
+      await supaDelete(`chat_messages?session_id=in.(${
+        (await supa(`chat_sessions?user_id=eq.${this.userId}&select=id`)).map(s => s.id).join(',') || '00000000-0000-0000-0000-000000000000'
+      })`);
+      await supaDelete(`chat_sessions?user_id=eq.${this.userId}`);
+      await supaDelete(`document_chunks?document_id=in.(${
+        (await supa(`vehicle_documents?vehicle_id=in.(${
+          (await supa(`vehicles?user_id=eq.${this.userId}&select=id`)).map(v => v.id).join(',') || '00000000-0000-0000-0000-000000000000'
+        })&select=id`)).map(d => d.id).join(',') || '00000000-0000-0000-0000-000000000000'
+      })`);
+      await supaDelete(`vehicle_documents?vehicle_id=in.(${
+        (await supa(`vehicles?user_id=eq.${this.userId}&select=id`)).map(v => v.id).join(',') || '00000000-0000-0000-0000-000000000000'
+      })`);
       await supaDelete(`system_logs?user_id=eq.${this.userId}`);
+      await supaDelete(`daily_summaries?user_id=eq.${this.userId}`);
+      await supaDelete(`energy_profiles?user_id=eq.${this.userId}`);
       await supaDelete(`vehicles?user_id=eq.${this.userId}`);
       await supaDelete(`subscriptions?user_id=eq.${this.userId}`);
       await supaDelete(`company_admins?user_id=eq.${this.userId}`);
       await supaDelete(`profiles?id=eq.${this.userId}`);
+      
+      // Delete from auth.users via Edge Function (requires service_role key)
+      const res = await fetch(`${SUPA_URL}/functions/v1/delete-user`, {
+        method: "POST",
+        headers: {
+          apikey: SUPA_KEY,
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ user_id: this.userId })
+      });
+      
+      if (!res.ok) {
+        const err = await res.json();
+        console.warn("Auth delete failed (user data already removed):", err.error);
+      }
+      
       Router.navigate('/users');
     } catch (e) {
       alert('Delete failed: ' + e.message);
