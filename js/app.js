@@ -85,6 +85,11 @@ document.addEventListener("DOMContentLoaded", () => {
     UserDetailPage.load({ userId: Router.resolveId(params.clientId) });
   });
   
+  Router.on('/companies/:companyId/builds/:buildLineId', (params) => {
+    if (!token) { Router.navigate('/login'); return; }
+    BuildLineDetailPage.load(params);
+  });
+  
   Router.on('/', () => {
     if (!token) { Router.navigate('/login'); return; }
     if (Auth.isSuper()) Router.navigate('/users');

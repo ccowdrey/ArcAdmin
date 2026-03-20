@@ -9,7 +9,7 @@ const Documents = {
    * Render the documents card for a vehicle within a company
    * @param {string} vehicleId - Vehicle UUID
    * @param {string} companyId - Company UUID
-   * @param {string} containerEl - DOM element to render into
+   * @param {HTMLElement} containerEl - DOM element to render into
    */
   async loadForVehicle(vehicleId, companyId, containerEl) {
     if (!vehicleId || !companyId) {
@@ -24,6 +24,29 @@ const Documents = {
       this.render(docs, vehicleId, companyId, containerEl);
     } catch (e) {
       console.error("Load documents failed:", e);
+      containerEl.innerHTML = '<div style="color:#FF6565;font-size:13px;padding:16px">Failed to load documents</div>';
+    }
+  },
+
+  /**
+   * Render documents for a build line (shared across all vehicles of that type)
+   * @param {string} buildLineId - Build Line UUID
+   * @param {string} companyId - Company UUID
+   * @param {HTMLElement} containerEl - DOM element to render into
+   */
+  async loadForBuildLine(buildLineId, companyId, containerEl) {
+    if (!buildLineId) {
+      containerEl.innerHTML = '<div style="color:#444;font-size:13px;padding:16px;text-align:center">No build line specified</div>';
+      return;
+    }
+
+    containerEl.innerHTML = '<div style="color:#8E8D8A;font-size:13px;padding:16px;text-align:center">Loading documents...</div>';
+
+    try {
+      const docs = await supa(`vehicle_documents?build_line_id=eq.${buildLineId}&select=*&order=uploaded_at.desc`);
+      this.renderBuildLineDocs(docs, buildLineId, companyId, containerEl);
+    } catch (e) {
+      console.error("Load build line documents failed:", e);
       containerEl.innerHTML = '<div style="color:#FF6565;font-size:13px;padding:16px">Failed to load documents</div>';
     }
   },
@@ -115,6 +138,137 @@ const Documents = {
     `;
   },
 
+  // ── Build Line Document Rendering ──
+  renderBuildLineDocs(docs, buildLineId, companyId, containerEl) {
+    const statusColors = {
+      pending: { bg: '#767DFB20', color: '#767DFB', label: 'Pending' },
+      processing: { bg: '#4A9FD920', color: '#4A9FD9', label: 'Processing' },
+      ready: { bg: '#2ABC5320', color: '#2ABC53', label: 'Ready' },
+      failed: { bg: '#FF656520', color: '#FF6565', label: 'Failed' }
+    };
+
+    const typeLabels = {
+      manual: 'Manual', wiring: 'Wiring Diagram', appliance: 'Appliance Spec',
+      warranty: 'Warranty', other: 'Other'
+    };
+
+    const fileList = docs.length > 0 ? `
+      <div class="table-wrap" style="border:none;margin-bottom:16px">
+        <table>
+          <thead><tr><th>Document</th><th>Type</th><th>Size</th><th>AI Status</th><th>Chunks</th><th>Uploaded</th><th></th></tr></thead>
+          <tbody>
+            ${docs.map(d => {
+              const st = statusColors[d.processing_status] || statusColors.pending;
+              return `<tr style="cursor:default">
+                <td>
+                  <div style="display:flex;align-items:center;gap:8px">
+                    <div style="width:32px;height:32px;background:#FF656515;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+                      <span style="font-size:11px;font-weight:700;color:#FF6565">PDF</span>
+                    </div>
+                    <div>
+                      <div style="color:#F5F1EB;font-size:13px;font-weight:500">${escHtml(d.file_name)}</div>
+                      ${d.description ? `<div style="color:#666;font-size:11px">${escHtml(d.description)}</div>` : ''}
+                    </div>
+                  </div>
+                </td>
+                <td><span style="color:#8E8D8A;font-size:12px">${typeLabels[d.document_type] || d.document_type}</span></td>
+                <td style="color:#666;font-size:12px">${this.formatSize(d.file_size)}</td>
+                <td>
+                  <span style="background:${st.bg};color:${st.color};padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600${d.processing_status === 'processing' ? ';animation:pulse 1.5s ease-in-out infinite' : ''}">
+                    ${st.label}
+                  </span>
+                  ${d.error_message ? `<div style="color:#FF6565;font-size:10px;margin-top:2px">${escHtml(d.error_message)}</div>` : ''}
+                </td>
+                <td style="color:#666;font-size:12px">${d.chunk_count || '—'}</td>
+                <td style="color:#666;font-size:12px">${timeAgo(d.uploaded_at)}</td>
+                <td>
+                  <div style="display:flex;gap:4px">
+                    <button class="btn-secondary" style="font-size:11px;padding:4px 10px" onclick="Documents.preview('${d.id}','${d.file_url}')">View</button>
+                    <button class="btn-delete" style="font-size:11px;padding:4px 10px" onclick="Documents.removeBuildLineDoc('${d.id}','${buildLineId}','${companyId}')">Delete</button>
+                  </div>
+                </td>
+              </tr>`;
+            }).join("")}
+          </tbody>
+        </table>
+      </div>
+    ` : '<div style="color:#666;font-size:13px;padding:8px 0 16px">No documents uploaded for this build line yet.</div>';
+
+    const zoneId = `bl_${buildLineId}`;
+    containerEl.innerHTML = `
+      ${fileList}
+      <div class="doc-upload-zone" id="docUploadZone_${zoneId}"
+           ondragover="Documents.handleDragOver(event)"
+           ondragleave="Documents.handleDragLeave(event)"
+           ondrop="Documents.handleDropBuildLine(event, '${buildLineId}', '${companyId}')"
+           onclick="document.getElementById('docFileInput_${zoneId}').click()">
+        <input type="file" id="docFileInput_${zoneId}" accept=".pdf" style="display:none"
+               onchange="Documents.handleFileSelectBuildLine(event, '${buildLineId}', '${companyId}')">
+        <div class="doc-upload-icon">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#767DFB" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="12" y2="12"/><line x1="15" y1="15" x2="12" y2="12"/>
+          </svg>
+        </div>
+        <div style="color:#F5F1EB;font-size:13px;font-weight:500">Drop PDF here or click to browse</div>
+        <div style="color:#666;font-size:12px;margin-top:4px">Shared across all vehicles of this build · Max 50MB · PDF only</div>
+      </div>
+      <div id="docUploadProgress_${zoneId}" style="display:none"></div>
+    `;
+  },
+
+  // Build-line-specific drop/select handlers
+  handleDropBuildLine(e, buildLineId, companyId) {
+    e.preventDefault();
+    e.stopPropagation();
+    e.currentTarget.classList.remove('doc-upload-zone-active');
+    if (e.dataTransfer.files.length > 0) {
+      this.startUploadBuildLine(e.dataTransfer.files[0], buildLineId, companyId);
+    }
+  },
+
+  handleFileSelectBuildLine(e, buildLineId, companyId) {
+    if (e.target.files.length > 0) {
+      this.startUploadBuildLine(e.target.files[0], buildLineId, companyId);
+    }
+    e.target.value = '';
+  },
+
+  startUploadBuildLine(file, buildLineId, companyId) {
+    if (this._uploading) return;
+    if (file.type !== 'application/pdf') { alert('Only PDF files are supported'); return; }
+    if (file.size > 52428800) { alert('File is too large. Maximum size is 50MB.'); return; }
+
+    this._pendingFile = file;
+    this._pendingBuildLineId = buildLineId;
+    this._pendingCompanyId = companyId;
+    this._pendingVehicleId = null; // No vehicle — this is a build-line upload
+    this._isBuildLineUpload = true;
+    document.getElementById('docUploadFileName').textContent = file.name;
+    document.getElementById('docUploadFileSize').textContent = this.formatSize(file.size);
+    document.getElementById('docUploadType').value = 'manual';
+    document.getElementById('docUploadDesc').value = '';
+    document.getElementById('docUploadError').classList.add('hidden');
+    openModal('docUploadModal');
+  },
+
+  async removeBuildLineDoc(docId, buildLineId, companyId) {
+    if (!confirm('Delete this document? This will also remove all AI-processed chunks.')) return;
+    try {
+      const docs = await supa(`vehicle_documents?id=eq.${docId}&select=file_url`);
+      const doc = docs[0];
+      await supaDelete(`vehicle_documents?id=eq.${docId}`);
+      if (doc?.file_url) {
+        const path = doc.file_url.split('/van-manuals/')[1];
+        if (path) await Storage.remove('van-manuals', path);
+      }
+      const container = document.getElementById('buildLineDocsContainer');
+      if (container) await this.loadForBuildLine(buildLineId, companyId, container);
+    } catch (e) {
+      console.error("Delete build line document failed:", e);
+      alert("Failed to delete document: " + e.message);
+    }
+  },
+
   // ── Drag & Drop Handlers ──
 
   handleDragOver(e) {
@@ -167,6 +321,8 @@ const Documents = {
     this._pendingFile = file;
     this._pendingVehicleId = vehicleId;
     this._pendingCompanyId = companyId;
+    this._pendingBuildLineId = null;
+    this._isBuildLineUpload = false;
     document.getElementById('docUploadFileName').textContent = file.name;
     document.getElementById('docUploadFileSize').textContent = this.formatSize(file.size);
     document.getElementById('docUploadType').value = 'manual';
@@ -182,6 +338,8 @@ const Documents = {
     const file = this._pendingFile;
     const vehicleId = this._pendingVehicleId;
     const companyId = this._pendingCompanyId;
+    const buildLineId = this._pendingBuildLineId;
+    const isBuildLine = this._isBuildLineUpload;
     const docType = document.getElementById('docUploadType').value;
     const description = document.getElementById('docUploadDesc').value.trim();
     const errEl = document.getElementById('docUploadError');
@@ -189,9 +347,10 @@ const Documents = {
 
     closeModals();
 
-    // Show progress
-    const progressEl = document.getElementById(`docUploadProgress_${vehicleId}`) || document.getElementById(`docUploadProgress_user_${vehicleId}`);
-    const uploadZone = document.getElementById(`docUploadZone_${vehicleId}`) || document.getElementById(`docUploadZone_user_${vehicleId}`);
+    // Determine progress element IDs based on upload type
+    const zoneKey = isBuildLine ? `bl_${buildLineId}` : vehicleId;
+    const progressEl = document.getElementById(`docUploadProgress_${zoneKey}`) || document.getElementById(`docUploadProgress_user_${zoneKey}`);
+    const uploadZone = document.getElementById(`docUploadZone_${zoneKey}`) || document.getElementById(`docUploadZone_user_${zoneKey}`);
     if (uploadZone) uploadZone.style.display = 'none';
     if (progressEl) {
       progressEl.style.display = 'block';
@@ -201,26 +360,47 @@ const Documents = {
             <div class="ai-loading"><div class="spinner"></div></div>
             <span style="color:#F5F1EB;font-size:13px">Uploading ${escHtml(file.name)}...</span>
           </div>
-          <div class="doc-progress-bar"><div class="doc-progress-fill" id="docProgressFill_${vehicleId}"></div></div>
-          <div style="color:#666;font-size:12px;margin-top:6px" id="docProgressText_${vehicleId}">0%</div>
+          <div class="doc-progress-bar"><div class="doc-progress-fill" id="docProgressFill_${zoneKey}"></div></div>
+          <div style="color:#666;font-size:12px;margin-top:6px" id="docProgressText_${zoneKey}">0%</div>
         </div>
       `;
     }
 
     try {
       // 1. Upload file to storage
-      const storagePath = `${companyId || 'direct'}/${vehicleId}/${Date.now()}_${file.name}`;
+      const storageFolder = isBuildLine ? `${companyId || 'direct'}/build_lines/${buildLineId}` : `${companyId || 'direct'}/${vehicleId}`;
+      const storagePath = `${storageFolder}/${Date.now()}_${file.name}`;
       const { url, error: uploadError } = await Storage.upload('van-manuals', storagePath, file, (pct) => {
-        const fill = document.getElementById(`docProgressFill_${vehicleId}`);
-        const text = document.getElementById(`docProgressText_${vehicleId}`);
+        const fill = document.getElementById(`docProgressFill_${zoneKey}`);
+        const text = document.getElementById(`docProgressText_${zoneKey}`);
         if (fill) fill.style.width = pct + '%';
         if (text) text.textContent = pct + '%';
       });
 
       if (uploadError) throw new Error(uploadError);
 
-      // 2. Insert record into vehicle_documents (with return=representation to get the ID)
+      // 2. Insert record into vehicle_documents
       const uploaderEmail = document.getElementById('navEmail')?.textContent || 'unknown';
+
+      const docRecord = {
+        company_id: companyId || null,
+        document_type: docType,
+        file_name: file.name,
+        file_url: `${SUPA_URL}/storage/v1/object/van-manuals/${storagePath}`,
+        file_size: file.size,
+        uploaded_by: uploaderEmail,
+        processing_status: 'pending',
+        description: description || null
+      };
+
+      // Set either vehicle_id or build_line_id
+      if (isBuildLine) {
+        docRecord.build_line_id = buildLineId;
+        docRecord.vehicle_id = null;
+      } else {
+        docRecord.vehicle_id = vehicleId;
+        docRecord.build_line_id = null;
+      }
 
       const insertRes = await fetch(`${SUPA_URL}/rest/v1/vehicle_documents`, {
         method: "POST",
@@ -230,17 +410,7 @@ const Documents = {
           "Content-Type": "application/json",
           "Prefer": "return=representation"
         },
-        body: JSON.stringify({
-          vehicle_id: vehicleId,
-          company_id: companyId || null,
-          document_type: docType,
-          file_name: file.name,
-          file_url: `${SUPA_URL}/storage/v1/object/van-manuals/${storagePath}`,
-          file_size: file.size,
-          uploaded_by: uploaderEmail,
-          processing_status: 'pending',
-          description: description || null
-        })
+        body: JSON.stringify(docRecord)
       });
 
       if (!insertRes.ok) {
@@ -251,13 +421,16 @@ const Documents = {
       const insertedDocs = await insertRes.json();
       const documentId = insertedDocs[0]?.id;
 
-      // 3. Process: Vercel extracts text (no timeout), Edge Function embeds+stores (fast)
+      // 3. Process: Vercel extracts text, Edge Function embeds+stores
       if (documentId) {
-        this.processViaVercel(documentId, vehicleId, companyId, docType);
+        this.processViaVercel(documentId, vehicleId || buildLineId, companyId, docType);
       }
 
-      // 4. Reload documents list (shows "Processing" status immediately)
-      if (this._userDetailReload) {
+      // 4. Reload documents list
+      if (isBuildLine) {
+        const container = document.getElementById('buildLineDocsContainer');
+        if (container) await this.loadForBuildLine(buildLineId, companyId, container);
+      } else if (this._userDetailReload) {
         this._userDetailReload = false;
         UserDetailPage.loadUserDocs();
       } else {
@@ -281,6 +454,8 @@ const Documents = {
     } finally {
       this._uploading = false;
       this._pendingFile = null;
+      this._isBuildLineUpload = false;
+      this._pendingBuildLineId = null;
     }
   },
 

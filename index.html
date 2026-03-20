@@ -278,6 +278,21 @@
       </div>
     </div>
     
+    <!-- Build Lines -->
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div class="card-title" style="margin-bottom:0">Build Lines</div>
+        <button class="btn-load" style="font-size:11px;padding:4px 12px" onclick="BuildLinesPage.showAddModal()">+ Add Build Line</button>
+      </div>
+      <div style="color:#666;font-size:12px;margin-bottom:12px">Product lineup — each build line gets its own manuals, default vehicle info, and aerial schematic. Users who enter this company's invite code will choose from these builds during onboarding.</div>
+      <div class="table-wrap" style="border:none">
+        <table>
+          <thead><tr><th>Build Line</th><th>Make</th><th>Model</th><th>Year</th><th>Schematic</th><th>Created</th><th></th></tr></thead>
+          <tbody id="buildLinesBody"></tbody>
+        </table>
+      </div>
+    </div>
+    
     <!-- Invite Codes -->
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
@@ -436,6 +451,50 @@
     <div id="tripDetailPanel" class="card" style="display:none;margin-top:24px"></div>
   </div>
 
+  <!-- ═══════════════ BUILD LINE DETAIL PAGE ═══════════════ -->
+  <div id="pageBuildLineDetail" class="page content">
+    <div class="breadcrumb" id="buildLineDetailBreadcrumb"></div>
+    <div class="company-header">
+      <div>
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:4px">
+          <div style="width:40px;height:40px;background:#767DFB15;border-radius:10px;display:flex;align-items:center;justify-content:center">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#767DFB" stroke-width="1.5"><path d="M7 17m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"/><path d="M17 17m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"/><path d="M5 17h-2v-6l2-5h9l4 5h1a2 2 0 0 1 2 2v4h-2m-4 0h-6m-6-6h15m-6 0v-5"/></svg>
+          </div>
+          <h1 class="detail-name" id="buildLineDetailName"></h1>
+        </div>
+        <div class="detail-email" id="buildLineDetailDesc"></div>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats">
+      <div class="stat-card"><div class="stat-label">Vehicles</div><div class="stat-value" id="buildLineVehicleCount">—</div></div>
+      <div class="stat-card"><div class="stat-label">Documents</div><div class="stat-value" id="buildLineDocCount">—</div></div>
+    </div>
+
+    <!-- Info -->
+    <div class="card">
+      <div class="card-title">Build Line Details</div>
+      <div id="buildLineDetailInfo"></div>
+    </div>
+
+    <!-- Aerial Schematic -->
+    <div class="card">
+      <div class="card-title">Aerial Schematic</div>
+      <div style="color:#666;font-size:12px;margin-bottom:12px">Used as the van overlay in the Lights tab for all vehicles of this build.</div>
+      <div id="buildLineSchematicSection"></div>
+    </div>
+
+    <!-- Documents -->
+    <div class="card">
+      <div class="card-title">Manuals & Documents</div>
+      <div style="color:#666;font-size:12px;margin-bottom:12px">Documents uploaded here are shared across all vehicles of this build line. Users see them in their Manuals tab and can ask the AI assistant about them.</div>
+      <div id="buildLineDocsContainer">
+        <div style="color:#8E8D8A;font-size:13px">Loading...</div>
+      </div>
+    </div>
+  </div>
+
 </div><!-- /appShell -->
 
 <!-- ═══════════════════════════════════ MODALS ═══════════════════════════════════ -->
@@ -492,6 +551,27 @@
   </div>
 </div>
 
+<!-- Build Line Modal (Add / Edit) -->
+<div class="modal-overlay" id="buildLineModal">
+  <div class="modal-box">
+    <div class="modal-header"><h3 id="buildLineModalTitle">Add Build Line</h3><button class="modal-close" onclick="closeModals()">✕</button></div>
+    <input type="hidden" id="buildLineId">
+    <div class="error-box hidden" id="buildLineError"></div>
+    <div class="field"><label>Build Line Name</label><input id="buildLineName" placeholder="e.g. Ethos, Odyssey, Havn"></div>
+    <div class="field"><label>Description (optional)</label><input id="buildLineDesc" placeholder="e.g. Off-grid adventure van"></div>
+    <div style="display:flex;gap:12px">
+      <div class="field" style="flex:1"><label>Default Make</label><input id="buildLineMake" placeholder="e.g. Mercedes-Benz"></div>
+      <div class="field" style="flex:1"><label>Default Model</label><input id="buildLineModel" placeholder="e.g. Sprinter 2500"></div>
+    </div>
+    <div style="display:flex;gap:12px">
+      <div class="field" style="flex:1"><label>Default Year</label><input id="buildLineYear" placeholder="e.g. 2026"></div>
+      <div class="field" style="flex:1"><label>Sort Order</label><input id="buildLineSortOrder" type="number" value="0" placeholder="0"></div>
+    </div>
+    <div style="color:#666;font-size:12px;margin-bottom:16px">Default make/model/year will pre-fill the user's vehicle info when they select this build during onboarding.</div>
+    <button class="btn-primary" id="buildLineSaveBtn" onclick="BuildLinesPage.saveLine()">Add Build Line</button>
+  </div>
+</div>
+
 <!-- Document Upload Modal -->
 <div class="modal-overlay" id="docUploadModal">
   <div class="modal-box">
@@ -531,6 +611,7 @@
 <script src="js/pages/users.js"></script>
 <script src="js/pages/user-detail.js"></script>
 <script src="js/pages/documents.js"></script>
+<script src="js/pages/build-lines.js"></script>
 <script src="js/pages/companies.js"></script>
 <script src="js/pages/trips.js"></script>
 <script src="js/pages/firmware.js"></script>

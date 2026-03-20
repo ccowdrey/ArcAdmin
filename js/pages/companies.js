@@ -165,6 +165,9 @@ const CompanyDetailPage = {
     
     // Invite codes
     await this.loadCodes();
+    
+    // Build lines
+    await BuildLinesPage.loadForCompany(this.companyId, company.name);
   },
   
   renderClients(clients) {
