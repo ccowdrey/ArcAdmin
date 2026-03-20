@@ -56,13 +56,31 @@ const UserDetailPage = {
       ` : '<div style="color:#444;font-size:13px">No subscription</div>';
       
       // Vehicle
-      const vehicles = await supa(`vehicles?user_id=eq.${this.userId}`);
+      const vehicles = await supa(`vehicles?user_id=eq.${this.userId}&select=*`);
       const v = vehicles[0];
       this._vehicleId = v?.id || null;
       this._companyId = v ? (await supa(`profiles?id=eq.${this.userId}&select=company_id`).then(r => r[0]?.company_id)) : null;
+      
+      // Look up build line name if vehicle has one
+      let buildLineName = null;
+      if (v?.build_line_id) {
+        try {
+          const bls = await supa(`build_lines?id=eq.${v.build_line_id}&select=name,company_id`);
+          if (bls[0]) {
+            buildLineName = bls[0].name;
+            // Also get company name for context
+            try {
+              const cos = await supa(`companies?id=eq.${bls[0].company_id}&select=name`);
+              if (cos[0]) buildLineName = `${cos[0].name} — ${bls[0].name}`;
+            } catch (_) {}
+          }
+        } catch (_) {}
+      }
+      
       document.getElementById('userVehicleInfo').innerHTML = v ? `
         ${infoRow("Nickname", v.nickname || "—")}
         ${infoRow("Vehicle", `${v.year || ""} ${v.make || ""} ${v.model || ""}`.trim() || "—")}
+        ${buildLineName ? infoRow("Build Line", `<span style="color:#767DFB;font-weight:500">${escHtml(buildLineName)}</span>`) : ''}
         ${infoRow("Cerbo IP", `<span class="mono">${v.cerbo_ip || "—"}</span>`)}
       ` : '<div style="color:#444;font-size:13px">No vehicle registered</div>';
       
