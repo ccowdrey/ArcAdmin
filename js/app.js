@@ -74,6 +74,12 @@ document.addEventListener("DOMContentLoaded", () => {
     TripsPage.load();
   });
   
+  Router.on('/firmware', () => {
+    if (!token) { Router.navigate('/login'); return; }
+    if (!Auth.isSuper()) { Router.navigate('/'); return; }
+    FirmwarePage.load();
+  });
+  
   Router.on('/companies/:companyId/clients/:clientId', (params) => {
     if (!token) { Router.navigate('/login'); return; }
     UserDetailPage.load({ userId: Router.resolveId(params.clientId) });
@@ -124,6 +130,7 @@ async function handleLogin() {
 function navUsers() { Router.navigate('/users'); }
 function navCompanies() { Router.navigate('/companies'); }
 function navTrips() { Router.navigate('/trips'); }
+function navFirmware() { Router.navigate('/firmware'); }
 function handleSignout() { Auth.signout(); }
 
 // ── Set Password Handler (invite flow) ──

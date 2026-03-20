@@ -110,6 +110,7 @@ const Auth = {
     document.getElementById('navEmail').textContent = email;
     show('tabUsers');
     show('tabCompanies');
+    show('tabFirmware');
     show('navTabs');
     hide('loginPage');
     show('appShell');
@@ -122,6 +123,7 @@ const Auth = {
     document.getElementById('navEmail').textContent = email;
     hide('tabUsers');
     hide('tabCompanies');
+    hide('tabFirmware');
     hide('navTabs');
     hide('loginPage');
     show('appShell');
