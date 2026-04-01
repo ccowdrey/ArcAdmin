@@ -280,7 +280,7 @@ const BuildLineDetailPage = {
     try {
       const ext = file.name.split('.').pop();
       const path = `schematics/${this.companyId}/${this.lineId}.${ext}`;
-      const { url, error } = await Storage.upload('van-manuals', path, file);
+      const { url, error } = await Storage.upload('schematics', path, file);
       if (error) throw new Error(error);
 
       // Update build line with schematic URL
@@ -296,8 +296,8 @@ const BuildLineDetailPage = {
     if (!confirm('Remove aerial schematic?')) return;
     try {
       if (this.lineData.schematic_url) {
-        const path = this.lineData.schematic_url.split('/van-manuals/')[1];
-        if (path) await Storage.remove('van-manuals', path);
+        const path = this.lineData.schematic_url.split('/schematics/')[1];
+        if (path) await Storage.remove('schematics', path);
       }
       await supaPatch(`build_lines?id=eq.${this.lineId}`, { schematic_url: null });
       this.lineData.schematic_url = null;
