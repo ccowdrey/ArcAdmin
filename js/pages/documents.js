@@ -423,7 +423,7 @@ const Documents = {
 
       // 3. Process: Vercel extracts text, Edge Function embeds+stores
       if (documentId) {
-        this.processViaVercel(documentId, vehicleId || buildLineId, companyId, docType);
+        this.processViaVercel(documentId, vehicleId, buildLineId, companyId, docType);
       }
 
       // 4. Reload documents list
@@ -529,7 +529,7 @@ const Documents = {
 
   VERCEL_PROCESS_URL: 'https://arcnode-processor.vercel.app/api/process-pdf',
 
-  async processViaVercel(documentId, vehicleId, companyId, docType) {
+  async processViaVercel(documentId, vehicleId, buildLineId, companyId, docType) {
     try {
       console.log('🚀 Starting Vercel processing...');
 
@@ -554,15 +554,22 @@ const Documents = {
 
       // Step 2: Send text to Edge Function for embed+store
       console.log('🔢 Embedding and storing...');
+      const embedPayload = {
+        document_id: documentId,
+        document_type: document_type || docType,
+        extracted_text: extracted_text,
+      };
+      // Pass vehicle_id or build_line_id — not both
+      if (vehicleId) {
+        embedPayload.vehicle_id = vehicle_id || vehicleId;
+      } else if (buildLineId) {
+        embedPayload.build_line_id = buildLineId;
+      }
+
       const embedRes = await fetch(`${SUPA_URL}/functions/v1/process-document`, {
         method: 'POST',
         headers: { apikey: SUPA_KEY, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          document_id: documentId,
-          vehicle_id: vehicle_id || vehicleId,
-          document_type: document_type || docType,
-          extracted_text: extracted_text,
-        }),
+        body: JSON.stringify(embedPayload),
       });
 
       if (!embedRes.ok) {
@@ -574,8 +581,13 @@ const Documents = {
       console.log(`✅ Done: ${result.chunk_count} chunks`);
 
       // Reload
-      const container = document.getElementById(`docsContainer_${vehicleId}`);
-      if (container) this.loadForVehicle(vehicleId, companyId, container);
+      if (buildLineId) {
+        const container = document.getElementById('buildLineDocsContainer');
+        if (container) this.loadForBuildLine(buildLineId, companyId, container);
+      } else {
+        const container = document.getElementById(`docsContainer_${vehicleId}`);
+        if (container) this.loadForVehicle(vehicleId, companyId, container);
+      }
       // Also reload user detail docs if on that page
       if (document.getElementById('pageUserDetail')?.classList.contains('active')) {
         UserDetailPage.loadUserDocs();
@@ -589,8 +601,13 @@ const Documents = {
           error_message: e.message || 'Processing failed'
         });
       } catch (_) {}
-      const container = document.getElementById(`docsContainer_${vehicleId}`);
-      if (container) this.loadForVehicle(vehicleId, companyId, container);
+      if (buildLineId) {
+        const container = document.getElementById('buildLineDocsContainer');
+        if (container) this.loadForBuildLine(buildLineId, companyId, container);
+      } else {
+        const container = document.getElementById(`docsContainer_${vehicleId}`);
+        if (container) this.loadForVehicle(vehicleId, companyId, container);
+      }
       if (document.getElementById('pageUserDetail')?.classList.contains('active')) {
         UserDetailPage.loadUserDocs();
       }
