@@ -317,36 +317,6 @@
       </div>
     </div>
 
-    <!-- MANUAL UPLOAD MODAL -->
-  <div id="manualUploadModal" class="modal" style="display:none">
-    <div class="modal-backdrop" onclick="closeModals()"></div>
-    <div class="modal-content" style="width:480px;max-width:90vw">
-      <div class="modal-header">
-        <h3>Add Manual to Library</h3>
-        <button class="modal-close" onclick="closeModals()">×</button>
-      </div>
-      <div class="modal-body">
-        <div style="background:#242424;border:1px solid #333;border-radius:8px;padding:12px;margin-bottom:16px">
-          <div style="color:#F5F1EB;font-size:13px;font-weight:500" id="manualUploadFileName"></div>
-          <div style="color:#8E8D8A;font-size:12px" id="manualUploadFileSize"></div>
-        </div>
-        <div class="field">
-          <label>Device this manual covers</label>
-          <select id="manualUploadDevice" style="width:100%"></select>
-        </div>
-        <div class="field">
-          <label>Description (optional)</label>
-          <textarea id="manualUploadDesc" rows="2" placeholder="e.g. Installation manual, revised 2024" style="width:100%;resize:vertical"></textarea>
-        </div>
-        <div id="manualUploadError" class="error-box hidden"></div>
-      </div>
-      <div class="modal-footer">
-        <button class="btn-secondary" onclick="closeModals()">Cancel</button>
-        <button class="btn-primary" onclick="ManualsLibrary.confirmUpload()">Upload</button>
-      </div>
-    </div>
-  </div>
-
     <!-- Delete Company — super admin only -->
     <div id="deleteCompanySection" style="display:none;margin-top:40px;padding-top:32px;border-top:1px solid #2A2A2A">
       <div style="color:#8E8D8A;font-size:13px;margin-bottom:12px">Danger Zone</div>

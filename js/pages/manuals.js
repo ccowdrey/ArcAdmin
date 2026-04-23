@@ -296,7 +296,10 @@ const ManualsLibrary = {
       }
 
       // Step 3: Update the row with the file_url now that it's known.
-      const fileUrl = `${SUPA_URL}/storage/v1/object/public/van-manuals/${storagePath}`;
+      // NOTE: URL uses the non-public path (/object/van-manuals/...) to match
+      // the existing documents.js pattern. The van-manuals bucket is NOT public;
+      // downloads authenticate via service role key. Using /public/... would 400.
+      const fileUrl = `${SUPA_URL}/storage/v1/object/van-manuals/${storagePath}`;
       await supaPatch(`company_manuals?id=eq.${manualId}`, { file_url: fileUrl });
 
       // Step 4: Kick off Vercel → Edge Function processing pipeline.
