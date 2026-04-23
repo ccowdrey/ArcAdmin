@@ -1,13 +1,5 @@
 // supabase/functions/process-document/index.ts
 // Receives extracted text from Vercel, cleans PDF artifacts, chunks + embeds + stores.
-//
-// Accepts three mutually-exclusive scope identifiers:
-//   - vehicle_id         → chunks scoped to one vehicle (legacy)
-//   - build_line_id      → chunks scoped to a build line (legacy)
-//   - company_manual_id  → chunks scoped to a company manual (NEW for library feature)
-//
-// When company_manual_id is set, status updates go to company_manuals instead of
-// vehicle_documents. Exactly one scope ID must be provided.
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
@@ -25,18 +17,11 @@ serve(async (req) => {
     let body: any = {};
     try { const t = await req.text(); if (t.length > 0) body = JSON.parse(t); } catch (_) { return resp({ error: "Invalid body" }, 400); }
 
-    const { document_id, vehicle_id, build_line_id, company_manual_id, document_type, extracted_text } = body;
+    const { document_id, vehicle_id, build_line_id, document_type, extracted_text } = body;
     if (!document_id || !extracted_text) return resp({ error: "document_id and extracted_text required" }, 400);
+    if (!vehicle_id && !build_line_id) return resp({ error: "vehicle_id or build_line_id required" }, 400);
 
-    // Exactly one scope id required
-    const scopes = [vehicle_id, build_line_id, company_manual_id].filter(Boolean);
-    if (scopes.length !== 1) {
-      return resp({ error: "exactly one of vehicle_id, build_line_id, or company_manual_id required" }, 400);
-    }
-    const isCompanyManual = !!company_manual_id;
-    const statusTable = isCompanyManual ? "company_manuals" : "vehicle_documents";
-
-    console.log(`📄 Embedding ${document_id} (${extracted_text.length} chars) — scope: ${isCompanyManual ? 'company_manual' : (vehicle_id ? 'vehicle' : 'build_line')}`);
+    console.log(`📄 Embedding ${document_id} (${extracted_text.length} chars)`);
 
     // Basic whitespace normalization
     let text = extracted_text.replace(/\r\n/g, "\n").replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "").trim();
@@ -49,49 +34,31 @@ serve(async (req) => {
     // Chunk
     const chunks = chunk(text, document_type || "manual");
     console.log(`🧩 ${chunks.length} chunks`);
-    if (chunks.length === 0) { await fail(document_id, "No chunks", statusTable); return resp({ error: "No chunks" }, 422); }
+    if (chunks.length === 0) { await fail(document_id, "No chunks"); return resp({ error: "No chunks" }, 422); }
 
     // Embed
     console.log(`🔢 Embedding...`);
     const embs = await embed(chunks.map(c => c.content));
 
-    // Store — delete existing chunks for this document first (supports reprocessing)
-    if (isCompanyManual) {
-      await supabase.from("document_chunks").delete().eq("company_manual_id", company_manual_id);
-    } else {
-      await supabase.from("document_chunks").delete().eq("document_id", document_id);
-    }
-
+    // Store
+    await supabase.from("document_chunks").delete().eq("document_id", document_id);
     const rows = chunks.map((c, i) => {
       const row: any = {
         document_id, chunk_index: i, content: c.content,
         metadata: { ...c.metadata, extraction_method: "claude_vercel" },
         embedding: `[${embs[i].join(",")}]`, token_count: Math.ceil(c.content.length / 4),
       };
-      // Exactly one of these three scope columns gets set (check constraint enforces this).
+      // Set vehicle_id OR build_line_id — one will be null for build-line uploads
       if (vehicle_id) row.vehicle_id = vehicle_id;
-      else if (build_line_id) row.build_line_id = build_line_id;
-      else if (company_manual_id) row.company_manual_id = company_manual_id;
+      if (build_line_id) row.build_line_id = build_line_id;
       return row;
     });
     for (let i = 0; i < rows.length; i += 50) {
       const { error } = await supabase.from("document_chunks").insert(rows.slice(i, i + 50));
-      if (error) { console.error("Insert error:", error); await fail(document_id, error.message, statusTable); return resp({ error: "Insert failed: " + error.message }, 500); }
+      if (error) { console.error("Insert error:", error); await fail(document_id, error.message); return resp({ error: "Insert failed: " + error.message }, 500); }
     }
 
-    // Update status in the appropriate table.
-    // company_manuals uses processing_status values: pending | processing | completed | failed
-    // vehicle_documents uses: pending | processing | ready | failed (legacy)
-    if (isCompanyManual) {
-      await supabase.from("company_manuals")
-        .update({ processing_status: "completed", error_message: null })
-        .eq("id", company_manual_id);
-    } else {
-      await supabase.from("vehicle_documents")
-        .update({ processing_status: "ready", chunk_count: chunks.length, error_message: null })
-        .eq("id", document_id);
-    }
-
+    await supabase.from("vehicle_documents").update({ processing_status: "ready", chunk_count: chunks.length, error_message: null }).eq("id", document_id);
     console.log(`✅ ${chunks.length} chunks stored`);
     return resp({ success: true, chunk_count: chunks.length });
   } catch (err) { console.error("Err:", err); return resp({ error: err.message }, 500); }
@@ -284,10 +251,6 @@ async function embed(texts: string[]): Promise<number[][]> {
 // HELPERS
 // ════════════════════════════════════════════════
 
-async function fail(id: string, m: string, table: string) {
-  // For company_manuals, id IS the manual_id (and also the document_id from the caller's perspective).
-  // For vehicle_documents, id is the vehicle_documents row id.
-  await supabase.from(table).update({ processing_status: "failed", error_message: m }).eq("id", id);
-}
+async function fail(id: string, m: string) { await supabase.from("vehicle_documents").update({ processing_status: "failed", error_message: m }).eq("id", id); }
 function cors() { return { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "POST, OPTIONS", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type" }; }
 function resp(d: any, s = 200) { return new Response(JSON.stringify(d), { status: s, headers: { "Content-Type": "application/json", ...cors() } }); }

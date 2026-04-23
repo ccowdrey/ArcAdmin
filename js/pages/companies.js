@@ -168,6 +168,7 @@ const CompanyDetailPage = {
     
     // Build lines
     await BuildLinesPage.loadForCompany(this.companyId, company.name);
+    await ManualsLibrary.loadForCompany(this.companyId, company.name);
   },
   
   renderClients(clients) {
