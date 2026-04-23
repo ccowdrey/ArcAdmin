@@ -158,14 +158,16 @@ async function supa(path) {
   return res.json();
 }
 
-async function supaPost(table, data) {
+async function supaPost(table, data, options = {}) {
+  const preferParts = ['return=minimal'];
+  if (options.upsert) preferParts.push('resolution=merge-duplicates');
   const res = await withAuthRetry(() => fetch(`${SUPA_URL}/rest/v1/${table}`, {
     method: 'POST',
     headers: {
       apikey: SUPA_KEY,
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
-      Prefer: 'return=minimal',
+      Prefer: preferParts.join(','),
     },
     body: JSON.stringify(data),
   }));

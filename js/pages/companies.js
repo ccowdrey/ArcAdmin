@@ -354,34 +354,81 @@ const CompaniesPage = {
 
     await withBtnLoading(event, async () => {
       try {
-        // Try the invite function first (handles creating the auth user if needed)
         const [firstName, ...rest] = name.split(' ');
         const lastName = rest.join(' ');
-        await supaInvite(email, { first_name: firstName, last_name: lastName });
 
-        // Then link them to this company as an admin
-        // Need to fetch the profile id by email
-        const profiles = await supa(`profiles?email=eq.${encodeURIComponent(email)}&select=id`);
-        if (!profiles[0]) throw new Error('Invite sent, but profile not found yet. Try refreshing.');
+        // 1. Send the invite. The edge function creates the auth user (if new)
+        //    and sends the Loops email. The response MAY include the user id.
+        const inviteResult = await supaInvite(email, { first_name: firstName, last_name: lastName });
 
-        await supaPost('company_admins', {
-          user_id: profiles[0].id,
-          company_id: this.companyId,
-          role: role || 'admin',
-        });
+        // 2. Resolve the user id. Try (in order):
+        //    a) the id from the invite response
+        //    b) the id from an existing profile by email
+        //    c) retry profile lookup up to 5x with short backoff (the auth
+        //       user may have been created but the profiles trigger might
+        //       not have committed yet).
+        let userId =
+          inviteResult?.user_id ||
+          inviteResult?.user?.id ||
+          inviteResult?.id ||
+          null;
+
+        if (!userId) {
+          for (let attempt = 0; attempt < 5; attempt++) {
+            const rows = await supa(`profiles?email=eq.${encodeURIComponent(email)}&select=id`);
+            if (rows[0]?.id) { userId = rows[0].id; break; }
+            await new Promise((r) => setTimeout(r, 400));
+          }
+        }
+
+        if (!userId) {
+          throw new Error(
+            'The invite email was sent, but we could not locate the user record. ' +
+            'Ask the user to confirm their email, then try adding them again.'
+          );
+        }
+
+        // 3. Ensure a profiles row exists with the provided name. The invite
+        //    edge function should create this via a trigger, but some environments
+        //    don't have the trigger installed — upsert as a safety net.
+        try {
+          await supaPost('profiles', {
+            id: userId,
+            email,
+            first_name: firstName || '',
+            last_name: lastName || '',
+          }, { upsert: true });
+        } catch (_) {
+          // Non-fatal: the profile row likely already exists
+        }
+
+        // 4. Link to this company as an admin. Duplicate insert will be
+        //    rejected by the unique constraint, so catch and continue.
+        try {
+          await supaPost('company_admins', {
+            user_id: userId,
+            company_id: this.companyId,
+            role: role || 'admin',
+          });
+        } catch (linkErr) {
+          // If they're already an admin of this company, that's fine —
+          // only re-throw if it's a different error.
+          if (!String(linkErr.message || linkErr).toLowerCase().includes('duplicate')) {
+            throw linkErr;
+          }
+        }
 
         closeModals();
         document.getElementById('newAdminName').value = '';
         document.getElementById('newAdminEmail').value = '';
 
-        // Refresh whichever page we were on. The dashboard and companies
-        // detail page both call into this modal, so refresh both if present.
         if (Auth.isCompanyAdmin() && window.DashboardPage && window.location.pathname.includes('dashboard')) {
           await DashboardPage.load();
         } else {
           await this.loadDetail({ companyId: this.companyId });
         }
       } catch (e) {
+        console.error('[Companies] confirmAddAdmin failed:', e);
         errBox.textContent = e.message || 'Failed to add admin.';
         errBox.classList.remove('hidden');
       }
