@@ -12,6 +12,14 @@ const DashboardPage = {
 
   async load() {
     this._renderGreeting();
+
+    // Company admins get a completely different dashboard — their own company,
+    // their invite codes, their admin list, their clients.
+    if (Auth.isCompanyAdmin()) {
+      await this._loadCompanyAdminDashboard();
+      return;
+    }
+
     this._renderTilesLoading();
     this._renderListLoading();
 
@@ -230,6 +238,239 @@ const DashboardPage = {
   // ── Search ──
   filter() {
     this._renderList();
+  },
+
+  // ════════════════════════════════════════════════════════════════════
+  // COMPANY ADMIN DASHBOARD
+  // Different layout: company-scoped stats, admins card, invite codes card,
+  // and their own client list.
+  // ════════════════════════════════════════════════════════════════════
+
+  async _loadCompanyAdminDashboard() {
+    const pageEl = document.getElementById('pageDashboard');
+    if (!pageEl) return;
+    if (!userCompanyId) {
+      pageEl.innerHTML = '<div class="data-empty">No company associated with this account.</div>';
+      return;
+    }
+
+    pageEl.innerHTML = `
+      <div class="page-greeting" id="dashGreeting"></div>
+      <div class="t-muted" style="margin-bottom:24px" id="dashCompanyLine">${escHtml(userCompanyName || 'Your company')}</div>
+
+      <div class="stat-grid" id="dashStatsCA">
+        <div class="stat-tile"><div class="stat-tile-top"><span class="stat-tile-value">—</span><span class="stat-tile-label t-muted">Clients</span></div></div>
+        <div class="stat-tile"><div class="stat-tile-top"><span class="stat-tile-value">—</span><span class="stat-tile-label t-muted">Explorers</span></div></div>
+        <div class="stat-tile"><div class="stat-tile-top"><span class="stat-tile-value">—</span><span class="stat-tile-label t-muted">Build Lines</span></div></div>
+        <div class="stat-tile"><div class="stat-tile-top"><span class="stat-tile-value">—</span><span class="stat-tile-label t-muted">Active Codes</span></div></div>
+      </div>
+
+      <div class="card" style="margin-top:24px">
+        <div class="flex items-center justify-between" style="margin-bottom:8px">
+          <div>
+            <div class="card-title" style="margin-bottom:4px">Admins</div>
+            <div class="t-muted t-detail">People who can manage this company in ArcAdmin.</div>
+          </div>
+          <button class="btn btn-secondary btn-sm" onclick="openModal('addAdminModal')">+ Add Admin</button>
+        </div>
+        <div id="dashAdminsList" style="margin-top:16px">
+          <div class="t-muted t-detail">Loading admins...</div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:24px">
+        <div class="flex items-center justify-between" style="margin-bottom:8px">
+          <div>
+            <div class="card-title" style="margin-bottom:4px">Invite codes</div>
+            <div class="t-muted t-detail">Clients enter these codes during onboarding to join your company.</div>
+          </div>
+          <button class="btn btn-secondary btn-sm" onclick="openModal('addCodeModal')">+ New invite code</button>
+        </div>
+        <div id="dashCodesList" style="margin-top:16px">
+          <div class="t-muted t-detail">Loading codes...</div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:24px">
+        <div class="card-title">Your clients</div>
+        <div class="t-muted t-detail" style="margin-bottom:16px">All clients who've onboarded with your company.</div>
+        <div id="dashClientsList">
+          <div class="t-muted t-detail">Loading clients...</div>
+        </div>
+      </div>
+    `;
+
+    this._renderGreeting();
+
+    try {
+      // Ensure CompaniesPage's overflow-less methods (addAdmin, createCode, etc.) know our company
+      if (window.CompaniesPage) {
+        CompaniesPage.companyId = userCompanyId;
+        CompaniesPage.company = { id: userCompanyId, name: userCompanyName };
+      }
+
+      const [buildLines, companyAdmins, codes] = await Promise.all([
+        supa(`build_lines?company_id=eq.${userCompanyId}&is_active=eq.true&select=id`),
+        supa(`company_admins?company_id=eq.${userCompanyId}&select=user_id,role,created_at`),
+        supa(`company_codes?company_id=eq.${userCompanyId}&select=*&order=created_at.desc`),
+      ]);
+
+      const buildLineIds = buildLines.map((b) => b.id);
+
+      // Fetch clients via vehicles.build_line_id
+      let clients = [];
+      if (buildLineIds.length > 0) {
+        const vehicles = await supa(
+          `vehicles?build_line_id=in.(${buildLineIds.join(',')})&select=id,user_id,make,model,year`
+        );
+        const userIds = [...new Set(vehicles.map((v) => v.user_id).filter(Boolean))];
+        if (userIds.length > 0) {
+          const [profiles, subs] = await Promise.all([
+            supa(`profiles?id=in.(${userIds.join(',')})&select=*`),
+            supa(`subscriptions?user_id=in.(${userIds.join(',')})&select=user_id,tier,status`),
+          ]);
+          clients = profiles.map((p) => {
+            const name = `${p.first_name || ''} ${p.last_name || ''}`.trim() || (p.email || '').split('@')[0];
+            Router.registerSlug(p.id, name);
+            const v = vehicles.find((x) => x.user_id === p.id);
+            const sub = subs.find((s) => s.user_id === p.id);
+            return {
+              id: p.id,
+              displayName: name,
+              email: p.email,
+              vehicleLabel: v ? [v.year, v.make, v.model].filter(Boolean).join(' ') : '',
+              tier: sub?.tier || 'base_camp',
+              lastLogin: p.last_login_at,
+            };
+          });
+        }
+      }
+
+      // Admins — enrich with profile info
+      let adminRows = [];
+      if (companyAdmins.length > 0) {
+        const adminIds = companyAdmins.map((a) => a.user_id);
+        const adminProfiles = await supa(`profiles?id=in.(${adminIds.join(',')})&select=id,first_name,last_name,email`);
+        adminRows = companyAdmins.map((a) => {
+          const p = adminProfiles.find((pp) => pp.id === a.user_id) || {};
+          return {
+            id: a.user_id,
+            role: a.role || 'admin',
+            createdAt: a.created_at,
+            name: `${p.first_name || ''} ${p.last_name || ''}`.trim() || p.email || '—',
+            email: p.email || '',
+          };
+        });
+      }
+
+      // Stats
+      const explorerCount = clients.filter((c) => c.tier === 'explore' || c.tier === 'explorer').length;
+      const activeCodes = codes.filter((c) => {
+        const expired = c.expires_at && new Date(c.expires_at) < new Date();
+        const exhausted = c.max_uses != null && (c.current_uses ?? 0) >= c.max_uses;
+        return c.is_active && !expired && !exhausted;
+      }).length;
+
+      const statsEl = document.getElementById('dashStatsCA');
+      if (statsEl) {
+        statsEl.innerHTML = `
+          <div class="stat-tile"><div class="stat-tile-top"><span class="stat-tile-value">${clients.length}</span><span class="stat-tile-label t-muted">Clients</span></div></div>
+          <div class="stat-tile"><div class="stat-tile-top"><span class="stat-tile-value">${explorerCount}</span><span class="stat-tile-label t-muted">Explorers</span></div></div>
+          <div class="stat-tile"><div class="stat-tile-top"><span class="stat-tile-value">${buildLines.length}</span><span class="stat-tile-label t-muted">Build Lines</span></div></div>
+          <div class="stat-tile"><div class="stat-tile-top"><span class="stat-tile-value">${activeCodes}</span><span class="stat-tile-label t-muted">Active Codes</span></div></div>
+        `;
+      }
+
+      // Admins list
+      const adminsEl = document.getElementById('dashAdminsList');
+      if (adminsEl) {
+        if (adminRows.length === 0) {
+          adminsEl.innerHTML = '<div class="t-muted t-detail">No admins yet.</div>';
+        } else {
+          adminsEl.innerHTML = adminRows.map((a) => `
+            <div class="data-table-row data-table-row--static" style="padding:12px 14px">
+              <div class="data-table-cell data-table-cell--bold" style="flex:1 1 200px;min-width:150px">${escHtml(a.name)}</div>
+              <div class="data-table-cell t-muted" style="flex:1 1 220px;min-width:150px">${escHtml(a.email)}</div>
+              <div class="data-table-cell" style="width:100px">
+                <span class="badge ${a.role === 'owner' ? 'badge--tier-explorer' : 'badge--tier-base-camp'}">${escHtml(a.role)}</span>
+              </div>
+            </div>
+          `).join('');
+        }
+      }
+
+      // Codes list
+      const codesEl = document.getElementById('dashCodesList');
+      if (codesEl) {
+        if (codes.length === 0) {
+          codesEl.innerHTML = '<div class="t-muted t-detail">No invite codes yet.</div>';
+        } else {
+          codesEl.innerHTML = codes.map((c) => {
+            const isExpired = c.expires_at && new Date(c.expires_at) < new Date();
+            const isExhausted = c.max_uses != null && (c.current_uses ?? 0) >= c.max_uses;
+            let statusBadge;
+            if (!c.is_active)       statusBadge = '<span class="badge badge--tier-base-camp">Disabled</span>';
+            else if (isExpired)     statusBadge = '<span class="badge badge--danger">Expired</span>';
+            else if (isExhausted)   statusBadge = '<span class="badge badge--danger">Exhausted</span>';
+            else                    statusBadge = '<span class="badge badge--success">Active</span>';
+            const usageText = c.max_uses != null
+              ? `${c.current_uses || 0} / ${c.max_uses} uses`
+              : `${c.current_uses || 0} uses`;
+            const expiryText = c.expires_at
+              ? `Expires ${formatDate(c.expires_at)}`
+              : 'No expiry';
+            return `
+              <div class="data-table-row data-table-row--static" style="padding:12px 14px;gap:12px">
+                <div style="flex:1 1 180px;min-width:140px">
+                  <div class="t-body" style="font-weight:600;font-family:ui-monospace,monospace;letter-spacing:1px">${escHtml(c.code)}</div>
+                  ${c.label ? `<div class="t-muted" style="font-size:11px;margin-top:2px">${escHtml(c.label)}</div>` : ''}
+                </div>
+                <div class="t-muted t-detail" style="width:140px">${escHtml(usageText)}</div>
+                <div class="t-muted t-detail" style="width:160px">${escHtml(expiryText)}</div>
+                <div style="width:100px">${statusBadge}</div>
+                <div style="display:flex;gap:6px">
+                  <button class="btn btn-ghost btn-sm" onclick="CompaniesPage.toggleCode('${escHtml(c.id)}', ${!c.is_active}).then(() => DashboardPage.load());">${c.is_active ? 'Disable' : 'Enable'}</button>
+                  <button class="btn btn-ghost btn-sm t-danger" onclick="CompaniesPage.deleteCode('${escHtml(c.id)}').then(() => DashboardPage.load());">Delete</button>
+                </div>
+              </div>
+            `;
+          }).join('');
+        }
+      }
+
+      // Clients list
+      const clientsEl = document.getElementById('dashClientsList');
+      if (clientsEl) {
+        if (clients.length === 0) {
+          clientsEl.innerHTML = '<div class="t-muted t-detail">No clients yet. Share an invite code to bring vans online.</div>';
+        } else {
+          clientsEl.innerHTML = `
+            <div class="data-table">
+              <div class="data-table-headers">
+                <div class="data-table-header col-name">Name</div>
+                <div class="data-table-header col-email">Email</div>
+                <div class="data-table-header col-vehicle">Vehicle</div>
+                <div class="data-table-header col-tier">Tier</div>
+                <div class="data-table-header col-last-active">Last active</div>
+              </div>
+              ${clients.map((c) => `
+                <button class="data-table-row" onclick="Router.navigate('/clients/${escHtml(Router.getSlug(c.id))}')">
+                  <div class="data-table-cell data-table-cell--bold col-name">${escHtml(c.displayName)}</div>
+                  <div class="data-table-cell col-email t-muted">${escHtml(c.email || '')}</div>
+                  <div class="data-table-cell col-vehicle t-muted">${escHtml(c.vehicleLabel || '—')}</div>
+                  <div class="data-table-cell col-tier">${tierBadge(c.tier)}</div>
+                  <div class="data-table-cell col-last-active t-muted">${escHtml(c.lastLogin ? timeAgo(c.lastLogin) : '—')}</div>
+                </button>
+              `).join('')}
+            </div>
+          `;
+        }
+      }
+    } catch (e) {
+      console.error('[Dashboard/CA] load failed:', e);
+      const codesEl = document.getElementById('dashCodesList');
+      if (codesEl) codesEl.innerHTML = `<div class="t-danger t-detail">Failed to load — ${escHtml(e.message || '')}</div>`;
+    }
   },
 };
 

@@ -1,13 +1,14 @@
 // supabase/functions/process-document/index.ts
 // Receives extracted text from Vercel, cleans PDF artifacts, chunks + embeds + stores.
 //
-// Accepts three mutually-exclusive scope identifiers:
+// Accepts four mutually-exclusive scope identifiers:
 //   - vehicle_id         → chunks scoped to one vehicle (legacy)
-//   - build_line_id      → chunks scoped to a build line (legacy)
-//   - company_manual_id  → chunks scoped to a company manual (NEW for library feature)
+//   - build_line_id      → chunks scoped to a build line
+//   - company_manual_id  → chunks scoped to a company manual
+//   - global_manual_id   → chunks scoped to a global manual (Arc-maintained library)
 //
-// When company_manual_id is set, status updates go to company_manuals instead of
-// vehicle_documents. Exactly one scope ID must be provided.
+// When company_manual_id or global_manual_id is set, status updates go to that
+// table instead of vehicle_documents. Exactly one scope ID must be provided.
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
@@ -25,18 +26,25 @@ serve(async (req) => {
     let body: any = {};
     try { const t = await req.text(); if (t.length > 0) body = JSON.parse(t); } catch (_) { return resp({ error: "Invalid body" }, 400); }
 
-    const { document_id, vehicle_id, build_line_id, company_manual_id, document_type, extracted_text } = body;
+    const { document_id, vehicle_id, build_line_id, company_manual_id, global_manual_id, document_type, extracted_text } = body;
     if (!document_id || !extracted_text) return resp({ error: "document_id and extracted_text required" }, 400);
 
     // Exactly one scope id required
-    const scopes = [vehicle_id, build_line_id, company_manual_id].filter(Boolean);
+    const scopes = [vehicle_id, build_line_id, company_manual_id, global_manual_id].filter(Boolean);
     if (scopes.length !== 1) {
-      return resp({ error: "exactly one of vehicle_id, build_line_id, or company_manual_id required" }, 400);
+      return resp({ error: "exactly one of vehicle_id, build_line_id, company_manual_id, or global_manual_id required" }, 400);
     }
     const isCompanyManual = !!company_manual_id;
-    const statusTable = isCompanyManual ? "company_manuals" : "vehicle_documents";
+    const isGlobalManual = !!global_manual_id;
+    const statusTable = isGlobalManual ? "global_manuals"
+      : isCompanyManual ? "company_manuals"
+      : "vehicle_documents";
 
-    console.log(`📄 Embedding ${document_id} (${extracted_text.length} chars) — scope: ${isCompanyManual ? 'company_manual' : (vehicle_id ? 'vehicle' : 'build_line')}`);
+    console.log(`📄 Embedding ${document_id} (${extracted_text.length} chars) — scope: ${
+      isGlobalManual ? 'global_manual' :
+      isCompanyManual ? 'company_manual' :
+      (vehicle_id ? 'vehicle' : 'build_line')
+    }`);
 
     // Basic whitespace normalization
     let text = extracted_text.replace(/\r\n/g, "\n").replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "").trim();
@@ -56,7 +64,9 @@ serve(async (req) => {
     const embs = await embed(chunks.map(c => c.content));
 
     // Store — delete existing chunks for this document first (supports reprocessing)
-    if (isCompanyManual) {
+    if (isGlobalManual) {
+      await supabase.from("document_chunks").delete().eq("global_manual_id", global_manual_id);
+    } else if (isCompanyManual) {
       await supabase.from("document_chunks").delete().eq("company_manual_id", company_manual_id);
     } else {
       await supabase.from("document_chunks").delete().eq("document_id", document_id);
@@ -68,14 +78,15 @@ serve(async (req) => {
         metadata: { ...c.metadata, extraction_method: "claude_vercel" },
         embedding: `[${embs[i].join(",")}]`, token_count: Math.ceil(c.content.length / 4),
       };
-      // document_id FK points to vehicle_documents.id — only set it for
-      // vehicle_documents-scoped uploads. Company manuals live in a separate
-      // table and use company_manual_id for scoping; document_id stays NULL.
-      if (!isCompanyManual) row.document_id = document_id;
-      // Exactly one of these three scope columns gets set (check constraint enforces this).
+      // document_id FK points to vehicle_documents.id — only set for
+      // vehicle_documents-scoped uploads. Other scopes live in separate
+      // tables and use their own scope column; document_id stays NULL.
+      if (!isCompanyManual && !isGlobalManual) row.document_id = document_id;
+      // Exactly one of these four scope columns gets set (check constraint enforces this).
       if (vehicle_id) row.vehicle_id = vehicle_id;
       else if (build_line_id) row.build_line_id = build_line_id;
       else if (company_manual_id) row.company_manual_id = company_manual_id;
+      else if (global_manual_id) row.global_manual_id = global_manual_id;
       return row;
     });
     for (let i = 0; i < rows.length; i += 50) {
@@ -84,9 +95,13 @@ serve(async (req) => {
     }
 
     // Update status in the appropriate table.
-    // company_manuals uses processing_status values: pending | processing | completed | failed
+    // global_manuals + company_manuals use: pending | processing | completed | failed
     // vehicle_documents uses: pending | processing | ready | failed (legacy)
-    if (isCompanyManual) {
+    if (isGlobalManual) {
+      await supabase.from("global_manuals")
+        .update({ processing_status: "completed", error_message: null })
+        .eq("id", global_manual_id);
+    } else if (isCompanyManual) {
       await supabase.from("company_manuals")
         .update({ processing_status: "completed", error_message: null })
         .eq("id", company_manual_id);

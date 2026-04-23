@@ -57,15 +57,23 @@ document.addEventListener('DOMContentLoaded', () => {
   }));
 
   Router.on('/companies', requireAuth(() => {
-    if (!Auth.isSuper() && !Auth.isCompanyAdmin()) { Router.navigate('dashboard'); return; }
+    // Super admin only. Company admins are redirected to their own build lines.
+    if (Auth.isCompanyAdmin()) { Router.navigate('models'); return; }
+    if (!Auth.isSuper()) { Router.navigate('dashboard'); return; }
     Router.showPage('pageCompanies');
     if (window.CompaniesPage) CompaniesPage.load();
   }));
 
   Router.on('/companies/:companyId', requireAuth((params) => {
+    // Company admins can only view their OWN company
+    const resolvedId = Router.resolveId(params.companyId);
+    if (Auth.isCompanyAdmin() && resolvedId !== userCompanyId) {
+      Router.navigate('models');
+      return;
+    }
     Router.showPage('pageCompanyDetail');
     if (window.CompaniesPage && CompaniesPage.loadDetail) {
-      CompaniesPage.loadDetail({ companyId: Router.resolveId(params.companyId) });
+      CompaniesPage.loadDetail({ companyId: resolvedId });
     }
   }));
 
@@ -79,6 +87,28 @@ document.addEventListener('DOMContentLoaded', () => {
     if (window.BuildLinesPage && BuildLinesPage.loadDetail) {
       BuildLinesPage.loadDetail({
         companyId: Router.resolveId(params.companyId),
+        buildLineId: Router.resolveId(params.buildLineId),
+      });
+    }
+  }));
+
+  // Company admin's view of their own build lines. Renders the same
+  // per-company build-line list UI that super admins see inside a company tab,
+  // but as a standalone page scoped to the user's own company.
+  Router.on('/models', requireAuth(() => {
+    if (!Auth.isCompanyAdmin() && !Auth.isSuper()) { Router.navigate('dashboard'); return; }
+    Router.showPage('pageModels');
+    if (window.ModelsPage) ModelsPage.load();
+  }));
+
+  Router.on('/models/:buildLineId', requireAuth((params) => {
+    if (!Auth.isCompanyAdmin() && !Auth.isSuper()) { Router.navigate('dashboard'); return; }
+    const companyId = Auth.isCompanyAdmin() ? userCompanyId : null;
+    if (!companyId) { Router.navigate('dashboard'); return; }
+    Router.showPage('pageBuildLineDetail');
+    if (window.BuildLinesPage && BuildLinesPage.loadDetail) {
+      BuildLinesPage.loadDetail({
+        companyId,
         buildLineId: Router.resolveId(params.buildLineId),
       });
     }

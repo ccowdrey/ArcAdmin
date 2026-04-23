@@ -132,7 +132,7 @@ const Router = {
     company_admin: [
       { id: 'dashboard', label: 'Dashboard', icon: 'home' },
       { id: 'clients',   label: 'Clients',   icon: 'users' },
-      { id: 'companies', label: 'My Company', icon: 'luggage' },
+      { id: 'models',    label: 'Models',    icon: 'luggage' },
     ],
   },
 
