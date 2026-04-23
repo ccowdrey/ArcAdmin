@@ -389,7 +389,7 @@ const DashboardPage = {
                 <span class="badge ${a.role === 'owner' ? 'badge--tier-explorer' : 'badge--tier-base-camp'}">${escHtml(a.role)}</span>
               </div>
               <div class="data-table-cell" style="width:100px;text-align:right">
-                <button class="btn btn-ghost btn-sm t-danger" onclick="DashboardPage.removeAdmin('${escHtml(a.adminRowId)}', '${escHtml(a.name)}')">Remove</button>
+                <button class="btn btn-ghost btn-sm t-danger" onclick="DashboardPage.removeAdmin('${escHtml(a.adminRowId)}', '${escHtml(a.name)}', event)">Remove</button>
               </div>
             </div>
           `).join('');
@@ -442,21 +442,23 @@ const DashboardPage = {
   },
 
   // Remove a company admin from the current company
-  async removeAdmin(adminRowId, name) {
+  async removeAdmin(adminRowId, name, event) {
     if (!confirm(`Remove ${name || 'this admin'} from the company? They'll lose access to ArcAdmin for this company.`)) return;
-    try {
-      const res = await supaDelete(`company_admins?id=eq.${adminRowId}`);
-      if (!res.ok) {
-        const body = await res.text().catch(() => '');
-        const msg = body ? ` — ${body.slice(0, 200)}` : '';
-        alert(`Failed to remove admin (HTTP ${res.status})${msg}\n\nThis usually means a Row-Level Security policy is blocking the delete. Check Supabase → Authentication → Policies on the company_admins table.`);
-        return;
+    await withBtnLoading(event, async () => {
+      try {
+        const res = await supaDelete(`company_admins?id=eq.${adminRowId}`);
+        if (!res.ok) {
+          const body = await res.text().catch(() => '');
+          const msg = body ? ` — ${body.slice(0, 200)}` : '';
+          alert(`Failed to remove admin (HTTP ${res.status})${msg}\n\nThis usually means a Row-Level Security policy is blocking the delete. Check Supabase → Authentication → Policies on the company_admins table.`);
+          return;
+        }
+        await this.load();
+      } catch (e) {
+        console.error('[Dashboard] removeAdmin failed:', e);
+        alert(`Failed to remove admin: ${e.message || e}`);
       }
-      await this.load();
-    } catch (e) {
-      console.error('[Dashboard] removeAdmin failed:', e);
-      alert(`Failed to remove admin: ${e.message || e}`);
-    }
+    });
   },
 };
 

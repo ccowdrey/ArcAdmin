@@ -339,7 +339,7 @@ const CompaniesPage = {
   // ADMIN MANAGEMENT
   // ═══════════════════════════════════════════════════════════════════════
 
-  async confirmAddAdmin() {
+  async confirmAddAdmin(event) {
     const name = document.getElementById('newAdminName').value.trim();
     const email = document.getElementById('newAdminEmail').value.trim();
     const role = document.getElementById('newAdminRole').value;
@@ -352,31 +352,40 @@ const CompaniesPage = {
       return;
     }
 
-    try {
-      // Try the invite function first (handles creating the auth user if needed)
-      const [firstName, ...rest] = name.split(' ');
-      const lastName = rest.join(' ');
-      await supaInvite(email, { first_name: firstName, last_name: lastName });
+    await withBtnLoading(event, async () => {
+      try {
+        // Try the invite function first (handles creating the auth user if needed)
+        const [firstName, ...rest] = name.split(' ');
+        const lastName = rest.join(' ');
+        await supaInvite(email, { first_name: firstName, last_name: lastName });
 
-      // Then link them to this company as an admin
-      // Need to fetch the profile id by email
-      const profiles = await supa(`profiles?email=eq.${encodeURIComponent(email)}&select=id`);
-      if (!profiles[0]) throw new Error('Invite sent, but profile not found yet. Try refreshing.');
+        // Then link them to this company as an admin
+        // Need to fetch the profile id by email
+        const profiles = await supa(`profiles?email=eq.${encodeURIComponent(email)}&select=id`);
+        if (!profiles[0]) throw new Error('Invite sent, but profile not found yet. Try refreshing.');
 
-      await supaPost('company_admins', {
-        user_id: profiles[0].id,
-        company_id: this.companyId,
-        role: role || 'admin',
-      });
+        await supaPost('company_admins', {
+          user_id: profiles[0].id,
+          company_id: this.companyId,
+          role: role || 'admin',
+        });
 
-      closeModals();
-      document.getElementById('newAdminName').value = '';
-      document.getElementById('newAdminEmail').value = '';
-      await this.loadDetail({ companyId: this.companyId });
-    } catch (e) {
-      errBox.textContent = e.message || 'Failed to add admin.';
-      errBox.classList.remove('hidden');
-    }
+        closeModals();
+        document.getElementById('newAdminName').value = '';
+        document.getElementById('newAdminEmail').value = '';
+
+        // Refresh whichever page we were on. The dashboard and companies
+        // detail page both call into this modal, so refresh both if present.
+        if (Auth.isCompanyAdmin() && window.DashboardPage && window.location.pathname.includes('dashboard')) {
+          await DashboardPage.load();
+        } else {
+          await this.loadDetail({ companyId: this.companyId });
+        }
+      } catch (e) {
+        errBox.textContent = e.message || 'Failed to add admin.';
+        errBox.classList.remove('hidden');
+      }
+    });
   },
 
   async removeAdmin(adminRowId) {
@@ -467,7 +476,7 @@ const CompaniesPage = {
     }
   },
 
-  async createCode() {
+  async createCode(event) {
     const value = document.getElementById('newCodeValue').value.trim().toUpperCase();
     const label = document.getElementById('newCodeLabel').value.trim();
     const maxUses = document.getElementById('newCodeMaxUses').value;
@@ -481,25 +490,32 @@ const CompaniesPage = {
       return;
     }
 
-    try {
-      await supaPost('company_codes', {
-        company_id: this.companyId,
-        code: value,
-        label: label || null,
-        max_uses: maxUses ? parseInt(maxUses, 10) : null,
-        expires_at: expires ? localDateToUTCEnd(expires) : null,
-        is_active: true,
-      });
-      closeModals();
-      document.getElementById('newCodeValue').value = '';
-      document.getElementById('newCodeLabel').value = '';
-      document.getElementById('newCodeMaxUses').value = '';
-      document.getElementById('newCodeExpires').value = '';
-      await this.loadCodes();
-    } catch (e) {
-      errBox.textContent = e.message || 'Failed to create code.';
-      errBox.classList.remove('hidden');
-    }
+    await withBtnLoading(event, async () => {
+      try {
+        await supaPost('company_codes', {
+          company_id: this.companyId,
+          code: value,
+          label: label || null,
+          max_uses: maxUses ? parseInt(maxUses, 10) : null,
+          expires_at: expires ? localDateToUTCEnd(expires) : null,
+          is_active: true,
+        });
+        closeModals();
+        document.getElementById('newCodeValue').value = '';
+        document.getElementById('newCodeLabel').value = '';
+        document.getElementById('newCodeMaxUses').value = '';
+        document.getElementById('newCodeExpires').value = '';
+
+        if (Auth.isCompanyAdmin() && window.DashboardPage && window.location.pathname.includes('dashboard')) {
+          await DashboardPage.load();
+        } else {
+          await this.loadCodes();
+        }
+      } catch (e) {
+        errBox.textContent = e.message || 'Failed to create code.';
+        errBox.classList.remove('hidden');
+      }
+    });
   },
 
   // ═══════════════════════════════════════════════════════════════════════

@@ -843,6 +843,33 @@ a { color: inherit; text-decoration: none; }
   line-height: 20px;
 }
 
+/* ── Loading state ── */
+.btn--loading {
+  position: relative;
+  color: transparent !important;
+  pointer-events: none;
+  cursor: wait;
+}
+.btn--loading::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 16px;
+  height: 16px;
+  margin: -8px 0 0 -8px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  color: var(--text-primary);
+  animation: btn-spin 0.7s linear infinite;
+}
+.btn-primary.btn--loading::after { color: #1B1B1B; }
+.btn-danger.btn--loading::after { color: var(--danger); }
+@keyframes btn-spin {
+  to { transform: rotate(360deg); }
+}
+
 
 /* ═══════════════════════════════════════════════════════════════════════════
    12. MODAL

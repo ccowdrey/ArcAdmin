@@ -1,513 +1,1129 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ArcAdmin</title>
-  <link rel="icon" href="favicon.png">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/arcadmin.css">
-</head>
-<body>
+/* ═══════════════════════════════════════════════════════════════════════════
+   ArcAdmin — Design System (VanOS)
+   File: css/arcadmin.css
+   Date: 2026-04-23
+   
+   This replaces the previous dark stylesheet. Based on the VanOS design system
+   from Figma (file ZQ4GfcStk31hHWDLvlFTRe). Light mode, Inter typography,
+   cool neutral grays, #767DFB purple as the single brand accent.
+   
+   Organization:
+     1. Design tokens (custom properties)
+     2. Reset + base
+     3. Typography utilities
+     4. App shell (sidebar + main)
+     5. Page header (greeting, breadcrumbs, title+menu)
+     6. Stat tiles
+     7. Tabs
+     8. Search input + form inputs
+     9. Data tables (card-row style)
+    10. Cards + elevated surfaces
+    11. Buttons
+    12. Modal
+    13. Overflow menu (dropdown)
+    14. Badges + chips
+    15. Login page
+    16. Utility classes
+   ═══════════════════════════════════════════════════════════════════════════ */
 
-<!-- ═══════════════════════════════════════════════════════════════════════ -->
-<!-- LOGIN PAGE                                                              -->
-<!-- ═══════════════════════════════════════════════════════════════════════ -->
-<div class="login-wrap" id="loginPage">
-  <div class="login-box">
-    <div class="login-title">
-      <img src="assets/logo.svg" alt="ArcAdmin" class="login-logo">
-      <div class="sub">Sign in to manage your ArcNode fleet</div>
-    </div>
-    <div class="error-box hidden" id="loginError"></div>
-    <div class="field">
-      <label for="loginEmail">Email</label>
-      <input type="email" id="loginEmail" placeholder="you@company.com" autocomplete="email">
-    </div>
-    <div class="field">
-      <label for="loginPassword">Password</label>
-      <input type="password" id="loginPassword" placeholder="••••••••" autocomplete="current-password">
-    </div>
-    <button class="btn btn-primary" style="width:100%" id="loginBtn" onclick="Auth.login()">Sign in</button>
-    <div style="text-align:center;margin-top:16px">
-      <a href="#" style="color:var(--text-secondary);font-size:13px" onclick="Auth.showSignup();return false">Create account</a>
-    </div>
-  </div>
-</div>
+/* ═══════════════════════════════════════════════════════════════════════════
+   1. DESIGN TOKENS
+   ═══════════════════════════════════════════════════════════════════════════ */
 
-<!-- ═══════════════════════════════════════════════════════════════════════ -->
-<!-- SET PASSWORD PAGE (first-time invite)                                    -->
-<!-- ═══════════════════════════════════════════════════════════════════════ -->
-<div class="login-wrap hidden" id="setPasswordPage">
-  <div class="login-box">
-    <div class="login-title">
-      <img src="assets/logo.svg" alt="ArcAdmin" class="login-logo">
-      <div class="sub">Set your password to continue</div>
-    </div>
-    <div class="error-box hidden" id="setPasswordError"></div>
-    <div class="field">
-      <label>Email</label>
-      <input type="email" id="setPasswordEmail" readonly>
-    </div>
-    <div class="field">
-      <label>New password</label>
-      <input type="password" id="setPasswordNew" placeholder="At least 8 characters" autocomplete="new-password">
-    </div>
-    <div class="field">
-      <label>Confirm password</label>
-      <input type="password" id="setPasswordConfirm" placeholder="Re-enter password" autocomplete="new-password">
-    </div>
-    <button class="btn btn-primary" style="width:100%" onclick="Auth.completeSetPassword()">Set Password &amp; Continue</button>
-  </div>
-</div>
+:root {
+  /* ── Surfaces ── */
+  --bg-app:          #F0F1F7;   /* Page background — cool light gray */
+  --bg-surface:      #FDFDFD;   /* Elevated cards, inputs, data rows */
+  --bg-sidebar:      #FFFFFF;   /* Left navigation background */
+  --bg-hover:        #F5F5F8;   /* Subtle hover state for clickable rows */
+  --bg-muted:        #F0F1F7;   /* Same as app bg — used for placeholder tiles */
+  
+  /* ── Borders ── */
+  --border-default:  #E5E5E5;   /* Inputs, dividers */
+  --border-subtle:   #EEEEEE;   /* Internal table dividers if any */
+  
+  /* ── Text ── */
+  --text-primary:    #000000;   /* Body text, headings */
+  --text-dark:       #38383C;   /* Wordmark, numeric labels */
+  --text-secondary:  #606060;   /* Labels, placeholders, metadata */
+  --text-muted:      #8E8D8A;   /* De-emphasized, hints */
+  
+  /* ── Brand + semantic ── */
+  --brand-primary:     #767DFB;       /* Purple — the single accent color */
+  --brand-primary-2:   #5F66E0;       /* Hover state for primary */
+  --brand-primary-10:  rgba(118, 125, 251, 0.1); /* Tinted backgrounds */
+  --brand-primary-15:  rgba(118, 125, 251, 0.15);
+  --success:           #2ABC53;       /* Positive delta color */
+  --success-bg:        rgba(217, 239, 224, 0.5); /* "+2 this month" pill bg */
+  --danger:            #DD2222;       /* Destructive actions */
+  --danger-bg:         rgba(221, 34, 34, 0.08);
+  --warning:           #E8A33B;
+  
+  /* ── Typography scale ── */
+  --font-family:       'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --fs-display:        32px;     /* Stat tile numbers */
+  --fs-display-lg:     40px;     /* Large display (company admin tiles) */
+  --fs-section-title:  20px;     /* Page headings, greeting */
+  --fs-body:           16px;     /* Body copy, tab labels, row content */
+  --fs-detail:         14px;     /* Delta badges, small labels */
+  --fs-label:          13px;     /* Placeholders, small detail */
+  --fs-meta:           11px;     /* Uppercase table headers */
+  --fs-nav:            15px;     /* Nav items */
+  
+  --lh-tight:  1.0;
+  --lh-normal: 1.2;
+  --lh-body:   1.5;
+  
+  --fw-regular:   400;
+  --fw-semibold:  600;
+  --fw-bold:      700;
+  
+  /* ── Spacing scale ── */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 10px;
+  --space-4: 12px;
+  --space-5: 16px;
+  --space-6: 20px;
+  --space-7: 24px;
+  --space-8: 32px;
+  --space-9: 48px;
+  --space-10: 58px;
+  
+  /* ── Radii ── */
+  --radius-sm:    4px;
+  --radius-md:    6px;
+  --radius-lg:    8px;
+  --radius-xl:    12px;
+  --radius-pill:  76px;
+  
+  /* ── Elevation ── */
+  --shadow-sm:  0 1px 2px rgba(15, 15, 20, 0.04);
+  --shadow-md:  0 2px 8px rgba(15, 15, 20, 0.06);
+  --shadow-lg:  0 8px 24px rgba(15, 15, 20, 0.10);
+  --shadow-menu: 0 4px 16px rgba(15, 15, 20, 0.08), 0 0 0 1px rgba(15, 15, 20, 0.04);
+  
+  /* ── Layout ── */
+  --sidebar-width:       246px;
+  --sidebar-padding-x:   30px;
+  --sidebar-padding-y:   32px;
+  --main-padding:        32px;
+  
+  /* ── Animation ── */
+  --transition-fast:  120ms ease;
+  --transition-base:  180ms ease;
+}
 
-<!-- ═══════════════════════════════════════════════════════════════════════ -->
-<!-- APP SHELL                                                                -->
-<!-- ═══════════════════════════════════════════════════════════════════════ -->
-<div class="app-shell hidden" id="appShell">
 
-  <!-- ── Sidebar ── -->
-  <aside class="sidebar" id="sidebar">
-    <div class="sidebar-brand">
-      <img src="assets/logo.svg" alt="ArcAdmin" class="sidebar-brand-logo-full">
-    </div>
+/* ═══════════════════════════════════════════════════════════════════════════
+   2. RESET + BASE
+   ═══════════════════════════════════════════════════════════════════════════ */
 
-    <nav class="sidebar-menu">
-      <div class="sidebar-section" id="sidebarPrimary">
-        <!-- Items rendered by router.js based on user role -->
-      </div>
-      <div class="sidebar-section sidebar-section--footer" id="sidebarFooter">
-        <!-- User avatar + log out rendered by router.js -->
-      </div>
-    </nav>
-  </aside>
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
 
-  <!-- ── Main content area ── -->
-  <main class="main" id="main">
+html, body {
+  min-height: 100vh;
+  background: var(--bg-app);
+  color: var(--text-primary);
+  font-family: var(--font-family);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
 
-    <!-- ═══════════════ DASHBOARD (super admin) ═══════════════ -->
-    <div class="page" id="pageDashboard">
-      <div class="page-greeting" id="dashboardGreeting">Good morning</div>
+img, svg { display: block; max-width: 100%; }
+button { font-family: inherit; cursor: pointer; }
+input, select, textarea { font-family: inherit; }
+a { color: inherit; text-decoration: none; }
 
-      <div class="stat-grid" id="dashboardStats">
-        <!-- Rendered by dashboard.js -->
-      </div>
 
-      <div class="tabs" id="dashboardTabs">
-        <button class="tab tab--active" data-tab="all-users" onclick="DashboardPage.switchTab('all-users')">All users</button>
-        <button class="tab" data-tab="companies" onclick="DashboardPage.switchTab('companies')">Companies</button>
-      </div>
+/* ═══════════════════════════════════════════════════════════════════════════
+   3. TYPOGRAPHY UTILITIES
+   ═══════════════════════════════════════════════════════════════════════════ */
 
-      <div class="search-input">
-        <input type="text" id="dashboardSearch" placeholder="Search users" oninput="DashboardPage.filter()">
-        <div class="search-input-icon">
-          <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="11" cy="11" r="8"/>
-            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-          </svg>
-        </div>
-      </div>
+.t-display        { font-size: var(--fs-display); line-height: 40px; font-weight: var(--fw-regular); }
+.t-display-lg     { font-size: var(--fs-display-lg); line-height: 40px; font-weight: var(--fw-regular); }
+.t-section-title  { font-size: var(--fs-section-title); line-height: 28px; font-weight: var(--fw-regular); }
+.t-body           { font-size: var(--fs-body); line-height: 24px; font-weight: var(--fw-regular); }
+.t-body-bold      { font-size: var(--fs-body); line-height: 24px; font-weight: var(--fw-bold); }
+.t-detail         { font-size: var(--fs-detail); line-height: 20px; font-weight: var(--fw-regular); }
+.t-label          { font-size: var(--fs-label); line-height: 1.0; font-weight: var(--fw-regular); }
+.t-meta-header    {
+  font-size: var(--fs-detail);
+  line-height: 24px;
+  font-weight: var(--fw-regular);
+  color: var(--text-dark);
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
 
-      <div id="dashboardList" class="w-full">
-        <!-- Rendered by dashboard.js -->
-      </div>
-    </div>
+.t-muted     { color: var(--text-secondary); }
+.t-dim       { color: var(--text-muted); }
+.t-primary   { color: var(--brand-primary); }
+.t-success   { color: var(--success); }
+.t-danger    { color: var(--danger); }
 
-    <!-- ═══════════════ CLIENTS PAGE (was Users) ═══════════════ -->
-    <div class="page" id="pageClients">
-      <div class="page-greeting">Clients</div>
 
-      <div class="search-input">
-        <input type="text" id="clientsSearch" placeholder="Search clients" oninput="ClientsPage.filter()">
-        <div class="search-input-icon">
-          <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="11" cy="11" r="8"/>
-            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-          </svg>
-        </div>
-      </div>
+/* ═══════════════════════════════════════════════════════════════════════════
+   4. APP SHELL (sidebar + main)
+   ═══════════════════════════════════════════════════════════════════════════ */
 
-      <div id="clientsList" class="w-full">
-        <div class="data-empty">Loading clients...</div>
-      </div>
-    </div>
+.app-shell {
+  display: flex;
+  align-items: stretch;
+  min-height: 100vh;
+  width: 100%;
+}
 
-    <!-- ═══════════════ USER DETAIL PAGE ═══════════════ -->
-    <div class="page" id="pageUserDetail">
-      <div class="page-breadcrumb">
-        <button class="page-breadcrumb-back" onclick="Router.navigate('clients')" aria-label="Back">
-          <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="15 18 9 12 15 6"/>
-          </svg>
-        </button>
-        <span>Clients</span>
-      </div>
+/* ── Sidebar ── */
+.sidebar {
+  width: var(--sidebar-width);
+  flex-shrink: 0;
+  background: var(--bg-sidebar);
+  padding: var(--sidebar-padding-y) var(--sidebar-padding-x);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-10);
+  min-height: 100vh;
+  position: sticky;
+  top: 0;
+  overflow-y: auto;
+}
 
-      <div id="userDetailContent" class="w-full flex flex-col gap-5">
-        <div class="data-empty">Loading user...</div>
-      </div>
-    </div>
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  width: 100%;
+}
 
-    <!-- ═══════════════ COMPANIES PAGE ═══════════════ -->
-    <div class="page" id="pageCompanies">
-      <div class="page-title-row">
-        <div class="page-title-block">
-          <div class="page-title">Companies</div>
-          <div class="page-subtitle t-muted">Builders that onboard clients into ArcNode</div>
-        </div>
-        <button class="btn btn-primary" onclick="openModal('addCompanyModal')">+ Add Company</button>
-      </div>
+/* Full ArcAdmin wordmark SVG — fills the sidebar header width.
+   The uploaded SVG is 210×26, so we size by height and let width scale. */
+.sidebar-brand-logo-full {
+  height: 22px;
+  width: auto;
+  max-width: 100%;
+  display: block;
+}
 
-      <div class="search-input">
-        <input type="text" id="companiesSearch" placeholder="Search companies" oninput="CompaniesPage.filter()">
-        <div class="search-input-icon">
-          <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="11" cy="11" r="8"/>
-            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-          </svg>
-        </div>
-      </div>
+/* Legacy stub kept in case another page references it */
+.sidebar-brand-logo {
+  height: 25px;
+  width: 42px;
+  flex-shrink: 0;
+}
 
-      <div id="companiesList" class="w-full">
-        <div class="data-empty">Loading companies...</div>
-      </div>
-    </div>
+.sidebar-brand-name {
+  padding: 0 var(--space-3);
+  font-size: var(--fs-section-title);
+  font-weight: var(--fw-semibold);
+  color: var(--text-dark);
+  letter-spacing: -0.8px;
+  white-space: nowrap;
+}
 
-    <!-- ═══════════════ COMPANY DETAIL PAGE ═══════════════ -->
-    <div class="page" id="pageCompanyDetail">
-      <div class="page-breadcrumb">
-        <button class="page-breadcrumb-back" onclick="Router.navigate('companies')" aria-label="Back">
-          <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="15 18 9 12 15 6"/>
-          </svg>
-        </button>
-        <span>Companies</span>
-      </div>
+.sidebar-menu {
+  flex: 1 0 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 0;
+  width: 100%;
+}
 
-      <div class="page-title-row">
-        <div class="page-title-block">
-          <div class="page-title" id="companyDetailName">Loading...</div>
-          <div class="page-subtitle" id="companyDetailEmail"></div>
-        </div>
-        <div class="overflow-menu-wrapper">
-          <button class="page-action-btn" id="companyOverflowBtn" onclick="CompaniesPage.toggleOverflow(event)" aria-label="More">
-            <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="5" r="1"/>
-              <circle cx="12" cy="12" r="1"/>
-              <circle cx="12" cy="19" r="1"/>
-            </svg>
-          </button>
-          <div class="overflow-menu hidden" id="companyOverflowMenu">
-            <button class="overflow-menu-item" onclick="CompaniesPage.addAdmin()">
-              <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
-                <circle cx="9" cy="7" r="4"/>
-                <line x1="19" y1="8" x2="19" y2="14"/>
-                <line x1="22" y1="11" x2="16" y2="11"/>
-              </svg>
-              Add Admin
-            </button>
-            <button class="overflow-menu-item" onclick="CompaniesPage.addBuildLine()">
-              <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M1 3h15v13H1z"/>
-                <path d="M16 8h4l3 3v5h-7V8z"/>
-                <circle cx="5.5" cy="18.5" r="2.5"/>
-                <circle cx="18.5" cy="18.5" r="2.5"/>
-              </svg>
-              Add Build Line
-            </button>
-            <button class="overflow-menu-item overflow-menu-item--danger" onclick="CompaniesPage.deleteCompany()">
-              <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="12" r="10"/>
-                <line x1="15" y1="9" x2="9" y2="15"/>
-                <line x1="9" y1="9" x2="15" y2="15"/>
-              </svg>
-              Delete Company
-            </button>
-          </div>
-        </div>
-      </div>
+.sidebar-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  width: 100%;
+}
 
-      <div class="tabs">
-        <button class="tab tab--active" data-company-tab="overview" onclick="CompaniesPage.switchTab('overview')">Overview</button>
-        <button class="tab" data-company-tab="build-lines" onclick="CompaniesPage.switchTab('build-lines')">Build Lines</button>
-        <button class="tab" data-company-tab="manuals" onclick="CompaniesPage.switchTab('manuals')">Manuals</button>
-      </div>
+.sidebar-section--footer {
+  gap: var(--space-3);
+}
 
-      <div id="companyDetailContent" class="w-full">
-        <!-- Rendered by companies.js based on active tab -->
-      </div>
-    </div>
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-left: 2px solid transparent;
+  color: var(--text-primary);
+  text-align: left;
+  font-size: var(--fs-nav);
+  font-weight: var(--fw-regular);
+  letter-spacing: -0.3px;
+  transition: color var(--transition-fast), border-color var(--transition-fast);
+  cursor: pointer;
+}
 
-    <!-- ═══════════════ BUILD LINE DETAIL PAGE ═══════════════ -->
-    <div class="page" id="pageBuildLineDetail">
-      <div class="page-breadcrumb">
-        <button class="page-breadcrumb-back" onclick="Router.goBack()" aria-label="Back">
-          <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="15 18 9 12 15 6"/>
-          </svg>
-        </button>
-        <span id="buildLineBreadcrumb">Back</span>
-      </div>
+.sidebar-item:hover {
+  color: var(--brand-primary);
+}
 
-      <div class="page-title-row">
-        <div class="page-title-block">
-          <div class="page-title" id="buildLineDetailName">Loading...</div>
-          <div class="page-subtitle" id="buildLineDetailCompany"></div>
-        </div>
-      </div>
+.sidebar-item--active {
+  color: var(--brand-primary);
+  border-left-color: var(--brand-primary);
+}
 
-      <div class="card">
-        <div class="card-title">Build Line Details</div>
-        <div id="buildLineDetailInfo"></div>
-      </div>
+.sidebar-item-icon {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
 
-      <div class="card">
-        <div class="card-title">Aerial Schematic</div>
-        <div class="t-muted t-detail" style="margin-bottom:12px">Used as the van overlay in the Lights tab for all vehicles of this build.</div>
-        <div id="buildLineSchematicSection"></div>
-      </div>
+.sidebar-item-icon svg {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  fill: none;
+}
 
-      <div class="card">
-        <div class="card-title">Systems</div>
-        <div class="t-muted t-detail" style="margin-bottom:12px">Default devices installed in this build. New vehicles inherit these automatically; builders can customize per-vehicle after onboarding. ArcInsight uses these tags to pick the right manuals for each client.</div>
-        <div id="buildLineSystemsContainer">
-          <div class="t-muted">Loading...</div>
-        </div>
-      </div>
+.sidebar-item-label {
+  white-space: nowrap;
+}
 
-      <div class="card">
-        <div class="card-title">Manuals &amp; Documents</div>
-        <div class="t-muted t-detail" style="margin-bottom:12px">Documents uploaded here are shared across all vehicles of this build line. Users see them in their Manuals tab and can ask the AI assistant about them.</div>
-        <div id="buildLineDocsContainer">
-          <div class="t-muted">Loading...</div>
-        </div>
-      </div>
-    </div>
+.sidebar-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-pill);
+  background: var(--brand-primary);
+  color: #1B1B1B;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--fs-nav);
+  font-weight: var(--fw-regular);
+  flex-shrink: 0;
+  letter-spacing: -0.3px;
+}
 
-    <!-- ═══════════════ TRIPS PAGE ═══════════════ -->
-    <div class="page" id="pageTrips">
-      <div class="page-greeting">Trips</div>
-      <div class="t-muted">Client trip history and route data.</div>
-      <div id="tripsList" class="w-full">
-        <div class="data-empty">Loading trips...</div>
-      </div>
-    </div>
+/* ── Main content ── */
+.main {
+  flex: 1 0 0;
+  min-width: 0;
+  padding: var(--main-padding);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  align-items: flex-start;
+}
 
-    <!-- ═══════════════ FIRMWARE PAGE ═══════════════ -->
-    <div class="page" id="pageFirmware">
-      <div class="page-title-row">
-        <div class="page-title-block">
-          <div class="page-title">Firmware</div>
-          <div class="page-subtitle t-muted">Manage ESP32 firmware releases and OTA updates.</div>
-        </div>
-        <button class="btn btn-primary" onclick="FirmwarePage.openUpload()">+ Upload Firmware</button>
-      </div>
-      <div id="firmwareList" class="w-full">
-        <div class="data-empty">Loading firmware releases...</div>
-      </div>
-    </div>
 
-    <!-- ═══════════════ MODELS PAGE (company admin) ═══════════════ -->
-    <div class="page" id="pageModels">
-      <div class="data-empty">Loading your models...</div>
-    </div>
+/* ═══════════════════════════════════════════════════════════════════════════
+   5. PAGE HEADER
+   ═══════════════════════════════════════════════════════════════════════════ */
 
-  </main>
-</div>
+.page-greeting {
+  font-size: var(--fs-section-title);
+  line-height: 28px;
+  font-weight: var(--fw-regular);
+  color: var(--text-primary);
+  width: 100%;
+}
 
-<!-- ═══════════════════════════════════════════════════════════════════════ -->
-<!-- MODALS                                                                   -->
-<!-- ═══════════════════════════════════════════════════════════════════════ -->
+.page-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  font-size: var(--fs-detail);
+  color: var(--text-primary);
+}
 
-<!-- Add Company -->
-<div class="modal-overlay hidden" id="addCompanyModal">
-  <div class="modal-box">
-    <div class="modal-header">
-      <div class="modal-title">Add Company</div>
-      <button class="modal-close" onclick="closeModals()">✕</button>
-    </div>
-    <div class="modal-body">
-      <div class="error-box hidden" id="addCompanyError"></div>
-      <div class="field"><label>Company Name</label><input id="newCompanyName" placeholder="Rogue Overland"></div>
-      <div class="field"><label>Admin Name</label><input id="newCompanyAdminName" placeholder="John Smith"></div>
-      <div class="field"><label>Admin Email</label><input id="newCompanyAdminEmail" placeholder="admin@company.com"></div>
-      <div class="field"><label>Billing Email</label><input id="newCompanyBillingEmail" placeholder="billing@company.com"></div>
-      <div class="field"><label>Website</label><input id="newCompanyWebsite" placeholder="https://company.com"></div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-secondary" onclick="closeModals()">Cancel</button>
-      <button class="btn btn-primary" onclick="CompaniesPage.createCompany()">Create Company</button>
-    </div>
-  </div>
-</div>
+.page-breadcrumb-back {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--text-primary);
+  transition: color var(--transition-fast);
+}
 
-<!-- Add Admin -->
-<div class="modal-overlay hidden" id="addAdminModal">
-  <div class="modal-box">
-    <div class="modal-header">
-      <div class="modal-title">Add Admin</div>
-      <button class="modal-close" onclick="closeModals()">✕</button>
-    </div>
-    <div class="modal-body">
-      <div class="error-box hidden" id="addAdminError"></div>
-      <div class="field"><label>Name</label><input id="newAdminName" placeholder="Jane Smith"></div>
-      <div class="field"><label>Email</label><input id="newAdminEmail" placeholder="admin@company.com"></div>
-      <div class="t-muted t-detail">If this email doesn't have an ArcNode account, one will be created and a confirmation email sent.</div>
-      <div class="field"><label>Role</label>
-        <select id="newAdminRole">
-          <option value="admin">Admin</option>
-          <option value="owner">Owner</option>
-        </select>
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-secondary" onclick="closeModals()">Cancel</button>
-      <button class="btn btn-primary" onclick="CompaniesPage.confirmAddAdmin()">Add Admin</button>
-    </div>
-  </div>
-</div>
+.page-breadcrumb-back:hover { color: var(--brand-primary); }
 
-<!-- Add Invite Code -->
-<div class="modal-overlay hidden" id="addCodeModal">
-  <div class="modal-box">
-    <div class="modal-header">
-      <div class="modal-title">New Invite Code</div>
-      <button class="modal-close" onclick="closeModals()">✕</button>
-    </div>
-    <div class="modal-body">
-      <div class="error-box hidden" id="addCodeError"></div>
-      <div class="field"><label>Code</label><input id="newCodeValue" placeholder="ROGUE2026" style="text-transform:uppercase;letter-spacing:1px"></div>
-      <div class="field"><label>Label (optional)</label><input id="newCodeLabel" placeholder="Spring promo"></div>
-      <div class="field"><label>Max Uses (optional)</label><input id="newCodeMaxUses" type="number" placeholder="Leave blank for unlimited"></div>
-      <div class="field"><label>Expires (optional)</label><input type="date" id="newCodeExpires"></div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-secondary" onclick="closeModals()">Cancel</button>
-      <button class="btn btn-primary" onclick="CompaniesPage.createCode()">Create Code</button>
-    </div>
-  </div>
-</div>
+.page-breadcrumb-back svg {
+  width: 24px;
+  height: 24px;
+  stroke: currentColor;
+  fill: none;
+}
 
-<!-- Build Line Add/Edit -->
-<div class="modal-overlay hidden" id="buildLineModal">
-  <div class="modal-box">
-    <div class="modal-header">
-      <div class="modal-title" id="buildLineModalTitle">Add Build Line</div>
-      <button class="modal-close" onclick="closeModals()">✕</button>
-    </div>
-    <div class="modal-body">
-      <input type="hidden" id="buildLineId">
-      <div class="error-box hidden" id="buildLineError"></div>
-      <div class="field"><label>Build Line Name</label><input id="buildLineName" placeholder="e.g. Ethos, Odyssey, Havn"></div>
-      <div class="field"><label>Description (optional)</label><input id="buildLineDesc" placeholder="e.g. Off-grid adventure van"></div>
-      <div style="display:flex;gap:12px">
-        <div class="field" style="flex:1"><label>Default Make</label><input id="buildLineMake" placeholder="e.g. Mercedes-Benz"></div>
-        <div class="field" style="flex:1"><label>Default Model</label><input id="buildLineModel" placeholder="e.g. Sprinter 2500"></div>
-      </div>
-      <div style="display:flex;gap:12px">
-        <div class="field" style="flex:1"><label>Default Year</label><input id="buildLineYear" placeholder="e.g. 2026"></div>
-        <div class="field" style="flex:1"><label>Sort Order</label><input id="buildLineSortOrder" type="number" value="0" placeholder="0"></div>
-      </div>
-      <div class="t-muted t-detail">Default make/model/year will pre-fill the user's vehicle info when they select this build during onboarding.</div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-secondary" onclick="closeModals()">Cancel</button>
-      <button class="btn btn-primary" id="buildLineSaveBtn" onclick="BuildLinesPage.saveLine()">Add Build Line</button>
-    </div>
-  </div>
-</div>
+/* Title row — used on detail pages. Name + email/subtitle on left, action button on right. */
+.page-title-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+}
 
-<!-- Manual Upload -->
-<div class="modal-overlay hidden" id="manualUploadModal">
-  <div class="modal-box">
-    <div class="modal-header">
-      <div class="modal-title">Add Manual to Library</div>
-      <button class="modal-close" onclick="closeModals()">✕</button>
-    </div>
-    <div class="modal-body">
-      <div class="error-box hidden" id="manualUploadError"></div>
-      <div style="background:var(--bg-muted);border-radius:8px;padding:12px 16px;display:flex;align-items:center;gap:12px">
-        <div style="width:40px;height:40px;background:var(--danger-bg);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
-          <span style="font-size:13px;font-weight:700;color:var(--danger)">PDF</span>
-        </div>
-        <div style="min-width:0;flex:1;overflow:hidden">
-          <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" id="manualUploadFileName">file.pdf</div>
-          <div class="t-muted" style="font-size:12px" id="manualUploadFileSize">0 KB</div>
-        </div>
-      </div>
-      <div class="field"><label>Device this manual covers</label>
-        <select id="manualUploadDevice"></select>
-      </div>
-      <div class="field"><label>Description (optional)</label><input id="manualUploadDesc" placeholder="e.g. Installation manual, revised 2024"></div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-secondary" onclick="closeModals()">Cancel</button>
-      <button class="btn btn-primary" onclick="ManualsLibrary.confirmUpload()">Upload &amp; Process</button>
-    </div>
-  </div>
-</div>
+.page-title-block {
+  flex: 1 0 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
 
-<!-- Document Upload -->
-<div class="modal-overlay hidden" id="docUploadModal">
-  <div class="modal-box">
-    <div class="modal-header">
-      <div class="modal-title">Upload Document</div>
-      <button class="modal-close" onclick="closeModals()">✕</button>
-    </div>
-    <div class="modal-body">
-      <div class="error-box hidden" id="docUploadError"></div>
-      <div style="background:var(--bg-muted);border-radius:8px;padding:12px 16px;display:flex;align-items:center;gap:12px">
-        <div style="width:40px;height:40px;background:var(--danger-bg);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
-          <span style="font-size:13px;font-weight:700;color:var(--danger)">PDF</span>
-        </div>
-        <div style="min-width:0;flex:1;overflow:hidden">
-          <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" id="docUploadFileName">file.pdf</div>
-          <div class="t-muted" style="font-size:12px" id="docUploadFileSize">0 KB</div>
-        </div>
-      </div>
-      <div class="field"><label>Document Type</label>
-        <select id="docUploadType">
-          <option value="manual">Owner's Manual</option>
-          <option value="wiring">Wiring Diagram</option>
-          <option value="appliance">Appliance Spec</option>
-          <option value="warranty">Warranty Document</option>
-          <option value="other">Other</option>
-        </select>
-      </div>
-      <div class="field"><label>Description (optional)</label><input id="docUploadDesc" placeholder="e.g. MaxxFan installation guide"></div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-secondary" onclick="closeModals()">Cancel</button>
-      <button class="btn btn-primary" onclick="Documents.confirmUpload()">Upload &amp; Process</button>
-    </div>
-  </div>
-</div>
+.page-title {
+  font-size: var(--fs-section-title);
+  line-height: 28px;
+  font-weight: var(--fw-regular);
+  color: var(--text-primary);
+}
 
-<!-- ═══════════════════════════════════════════════════════════════════════ -->
-<!-- Scripts                                                                  -->
-<!-- ═══════════════════════════════════════════════════════════════════════ -->
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="js/api.js"></script>
-<script src="js/storage.js"></script>
-<script src="js/utils.js"></script>
-<script src="js/auth.js"></script>
-<script src="js/router.js"></script>
-<script src="js/analysis.js"></script>
-<script src="js/pages/dashboard.js"></script>
-<script src="js/pages/clients.js"></script>
-<script src="js/pages/user-detail.js"></script>
-<script src="js/pages/documents.js"></script>
-<script src="js/pages/build-lines.js"></script>
-<script src="js/pages/companies.js"></script>
-<script src="js/pages/trips.js"></script>
-<script src="js/pages/firmware.js"></script>
-<script src="js/pages/models.js"></script>
-<script src="js/pages/manuals.js"></script>
-<script src="js/app.js"></script>
+.page-subtitle {
+  font-size: var(--fs-body);
+  line-height: 24px;
+  font-weight: var(--fw-regular);
+  color: var(--text-primary);
+}
 
-</body>
-</html>
+.page-action-btn {
+  width: 48px;
+  height: 48px;
+  background: var(--bg-surface);
+  border: none;
+  border-radius: var(--radius-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  color: var(--text-primary);
+}
+
+.page-action-btn:hover { background: var(--bg-hover); }
+
+.page-action-btn svg {
+  width: 24px;
+  height: 24px;
+  stroke: currentColor;
+  fill: none;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   6. STAT TILES
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.stat-grid {
+  display: flex;
+  gap: var(--space-3);
+  width: 100%;
+  flex-wrap: wrap;
+}
+
+.stat-tile {
+  flex: 1 1 0;
+  min-width: 200px;
+  background: var(--bg-surface);
+  border-radius: var(--radius-xl);
+  padding: var(--space-8);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  justify-content: center;
+  box-shadow: var(--shadow-sm);
+}
+
+.stat-tile-top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  width: 100%;
+}
+
+.stat-tile-value {
+  flex: 1 0 0;
+  min-width: 0;
+  font-size: var(--fs-display);
+  line-height: 40px;
+  font-weight: var(--fw-regular);
+  color: var(--text-primary);
+}
+
+.stat-tile--lg .stat-tile-value {
+  font-size: var(--fs-display-lg);
+  line-height: 40px;
+}
+
+.stat-tile-label {
+  font-size: var(--fs-body);
+  line-height: 24px;
+  font-weight: var(--fw-regular);
+  color: var(--text-primary);
+  white-space: nowrap;
+  text-align: center;
+}
+
+.stat-delta {
+  background: var(--success-bg);
+  padding: var(--space-1);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-detail);
+  line-height: 20px;
+  color: var(--success);
+  align-self: flex-start;
+  white-space: nowrap;
+}
+
+.stat-delta--negative {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.stat-delta--neutral {
+  background: var(--bg-muted);
+  color: var(--text-secondary);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   7. TABS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.tabs {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.tab {
+  padding: var(--space-4) var(--space-2);
+  background: transparent;
+  border: none;
+  font-size: var(--fs-body);
+  line-height: 24px;
+  color: var(--text-primary);
+  cursor: pointer;
+  border-radius: var(--radius-lg);
+  transition: background var(--transition-fast);
+  font-family: inherit;
+}
+
+.tab:hover { background: rgba(255, 255, 255, 0.5); }
+
+.tab--active {
+  background: #FFFFFF;
+  padding: var(--space-4);
+  box-shadow: var(--shadow-sm);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   8. INPUTS — search + form fields
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.search-input {
+  width: 300px;
+  max-width: 100%;
+  height: 48px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: 13px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  transition: border-color var(--transition-fast);
+}
+
+.search-input:focus-within { border-color: var(--brand-primary); }
+
+.search-input input {
+  flex: 1 0 0;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: var(--fs-label);
+  color: var(--text-primary);
+}
+
+.search-input input::placeholder { color: var(--text-secondary); }
+
+.search-input-icon {
+  width: 24px;
+  height: 24px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.search-input-icon svg {
+  width: 100%;
+  height: 100%;
+  stroke: currentColor;
+  fill: none;
+}
+
+/* Form field (generic) */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-bottom: var(--space-5);
+}
+
+.field label {
+  font-size: var(--fs-label);
+  color: var(--text-secondary);
+  margin-bottom: 0;
+}
+
+.field input,
+.field select,
+.field textarea {
+  width: 100%;
+  padding: 12px 14px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  color: var(--text-primary);
+  font-size: var(--fs-body);
+  outline: none;
+  transition: border-color var(--transition-fast);
+}
+
+.field input:focus,
+.field select:focus,
+.field textarea:focus { border-color: var(--brand-primary); }
+
+.field input[disabled],
+.field input[readonly] { background: var(--bg-muted); cursor: not-allowed; color: var(--text-secondary); }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   9. DATA TABLES (card-row style)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.data-table {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.data-table-headers {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 0 var(--space-5);
+  width: 100%;
+}
+
+.data-table-header {
+  font-size: var(--fs-detail);
+  line-height: 24px;
+  font-weight: var(--fw-regular);
+  color: var(--text-dark);
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
+.data-table-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  background: var(--bg-surface);
+  border-radius: var(--radius-lg);
+  width: 100%;
+  font-size: var(--fs-body);
+  line-height: 24px;
+  color: var(--text-dark);
+  box-shadow: var(--shadow-sm);
+  transition: background var(--transition-fast), transform var(--transition-fast);
+  cursor: pointer;
+  border: none;
+  text-align: left;
+  font-family: inherit;
+}
+
+.data-table-row:hover { background: var(--bg-hover); }
+.data-table-row:active { transform: translateY(1px); }
+.data-table-row--static { cursor: default; }
+.data-table-row--static:hover { background: var(--bg-surface); }
+.data-table-row--static:active { transform: none; }
+
+.data-table-cell {
+  font-weight: var(--fw-regular);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.data-table-cell--bold { font-weight: var(--fw-bold); }
+.data-table-cell--center { text-align: center; }
+
+/* Standard column widths — mirrors Figma */
+.col-name        { width: 300px; flex-shrink: 0; }
+.col-email       { width: 300px; flex-shrink: 0; }
+.col-vehicle     { width: 200px; flex-shrink: 0; }
+.col-tier        { width: 100px; flex-shrink: 0; }
+.col-last-active { flex: 1 0 0; min-width: 100px; text-align: center; }
+
+.data-empty {
+  padding: var(--space-8);
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: var(--fs-detail);
+  background: var(--bg-surface);
+  border-radius: var(--radius-lg);
+  width: 100%;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   10. CARDS + ELEVATED SURFACES
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.card {
+  background: var(--bg-surface);
+  border-radius: var(--radius-xl);
+  padding: var(--space-8);
+  box-shadow: var(--shadow-sm);
+  width: 100%;
+}
+
+.card--compact { padding: var(--space-5); }
+
+.card-title {
+  font-size: var(--fs-section-title);
+  line-height: 28px;
+  font-weight: var(--fw-regular);
+  color: var(--text-primary);
+  margin-bottom: var(--space-4);
+}
+
+.card-subtitle {
+  font-size: var(--fs-detail);
+  color: var(--text-secondary);
+  margin-bottom: var(--space-5);
+}
+
+.section-label {
+  font-size: var(--fs-meta);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  margin-bottom: var(--space-2);
+}
+
+/* ── Info grid (detail pages) ──
+   3-column side-by-side info cards, matches Figma node 42:1202.
+   Each card has an uppercase section header and label-left/value-right rows. */
+.info-grid {
+  display: flex;
+  gap: var(--space-3);
+  width: 100%;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.info-card {
+  flex: 1 1 0;
+  min-width: 280px;
+  background: var(--bg-surface);
+  border-radius: var(--radius-xl);
+  padding: var(--space-8);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  align-self: stretch;
+}
+
+.info-card-title {
+  font-size: var(--fs-detail);
+  line-height: 20px;
+  font-weight: var(--fw-regular);
+  color: var(--text-secondary);
+  letter-spacing: 0.04em;
+  margin-bottom: var(--space-2);
+}
+
+.info-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+  font-size: var(--fs-body);
+  line-height: 24px;
+  width: 100%;
+  min-width: 0;
+}
+
+.info-line-label {
+  font-weight: var(--fw-bold);
+  color: var(--text-dark);
+  flex-shrink: 0;
+}
+
+.info-line-value {
+  font-weight: var(--fw-regular);
+  color: var(--text-dark);
+  text-align: right;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   11. BUTTONS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: 12px 20px;
+  border: none;
+  border-radius: var(--radius-lg);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-semibold);
+  line-height: 24px;
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+  font-family: inherit;
+  white-space: nowrap;
+}
+
+.btn-primary {
+  background: var(--brand-primary);
+  color: #1B1B1B;
+}
+
+.btn-primary:hover { background: var(--brand-primary-2); }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-secondary {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  border: 1px solid var(--border-default);
+}
+
+.btn-secondary:hover { background: var(--bg-hover); }
+
+.btn-danger {
+  background: transparent;
+  color: var(--danger);
+  border: 1px solid var(--danger);
+}
+
+.btn-danger:hover { background: var(--danger-bg); }
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-primary);
+}
+
+.btn-ghost:hover { background: var(--bg-hover); }
+
+.btn-sm {
+  padding: 8px 14px;
+  font-size: var(--fs-detail);
+  line-height: 20px;
+}
+
+/* ── Loading state ── */
+.btn--loading {
+  position: relative;
+  color: transparent !important;
+  pointer-events: none;
+  cursor: wait;
+}
+.btn--loading::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 16px;
+  height: 16px;
+  margin: -8px 0 0 -8px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  color: var(--text-primary);
+  animation: btn-spin 0.7s linear infinite;
+}
+.btn-primary.btn--loading::after { color: #1B1B1B; }
+.btn-danger.btn--loading::after { color: var(--danger); }
+@keyframes btn-spin {
+  to { transform: rotate(360deg); }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   12. MODAL
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 15, 20, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: var(--space-5);
+}
+
+.modal-box {
+  background: var(--bg-surface);
+  border-radius: var(--radius-xl);
+  padding: var(--space-8);
+  box-shadow: var(--shadow-lg);
+  max-width: 560px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-5);
+}
+
+.modal-title {
+  font-size: var(--fs-section-title);
+  line-height: 28px;
+  font-weight: var(--fw-semibold);
+  color: var(--text-primary);
+}
+
+.modal-close {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 24px;
+  line-height: 1;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  transition: background var(--transition-fast);
+}
+
+.modal-close:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+.modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.modal-footer {
+  display: flex;
+  gap: var(--space-3);
+  justify-content: flex-end;
+  margin-top: var(--space-7);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   13. OVERFLOW MENU (dropdown)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.overflow-menu {
+  background: #FFFFFF;
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  box-shadow: var(--shadow-menu);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 200px;
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 100;
+}
+
+.overflow-menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-size: var(--fs-body);
+  line-height: 24px;
+  color: var(--text-primary);
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  border-radius: var(--radius-sm);
+  transition: color var(--transition-fast);
+}
+
+.overflow-menu-item:hover { color: var(--brand-primary); }
+
+.overflow-menu-item--danger { color: var(--danger); }
+.overflow-menu-item--danger:hover { color: var(--danger); opacity: 0.75; }
+
+.overflow-menu-item svg {
+  width: 24px;
+  height: 24px;
+  stroke: currentColor;
+  fill: none;
+  flex-shrink: 0;
+}
+
+/* Parent container — used to position the menu relative to the trigger */
+.overflow-menu-wrapper { position: relative; }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   14. BADGES + CHIPS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-detail);
+  line-height: 20px;
+  font-weight: var(--fw-regular);
+  white-space: nowrap;
+}
+
+.badge--tier-explorer { background: var(--brand-primary-10); color: var(--brand-primary); }
+.badge--tier-base     { background: var(--bg-muted); color: var(--text-secondary); }
+.badge--tier-base-camp { background: var(--bg-muted); color: var(--text-secondary); }
+.badge--success       { background: var(--success-bg); color: var(--success); }
+.badge--warning       { background: rgba(232, 163, 59, 0.12); color: var(--warning); }
+.badge--danger        { background: var(--danger-bg); color: var(--danger); }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   15. LOGIN PAGE
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.login-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: var(--bg-app);
+  padding: var(--space-5);
+}
+
+.login-box {
+  width: 380px;
+  max-width: 100%;
+  padding: 40px;
+  background: var(--bg-surface);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-md);
+}
+
+.login-title {
+  text-align: center;
+  margin-bottom: var(--space-8);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.login-logo {
+  height: 28px;
+  width: auto;
+  display: block;
+}
+
+/* Legacy text-wordmark styles kept for backward compatibility */
+.login-title .arc { font-size: 28px; font-weight: var(--fw-bold); color: var(--brand-primary); }
+.login-title .os  { font-size: 28px; font-weight: var(--fw-bold); color: var(--text-dark); }
+.login-title .sub { font-size: var(--fs-detail); color: var(--text-secondary); margin-top: var(--space-1); }
+
+.logo-img { height: 32px; margin: 0 auto; }
+
+.error-box {
+  padding: 10px 14px;
+  background: var(--danger-bg);
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-lg);
+  color: var(--danger);
+  font-size: var(--fs-detail);
+  margin-bottom: var(--space-5);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   16. UTILITY CLASSES
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.page        { display: none; }
+.page.active { display: flex; flex-direction: column; gap: var(--space-8); align-items: flex-start; width: 100%; }
+
+.hidden      { display: none !important; }
+.invisible   { visibility: hidden; }
+
+.flex             { display: flex; }
+.flex-col         { display: flex; flex-direction: column; }
+.items-center     { align-items: center; }
+.items-start      { align-items: flex-start; }
+.justify-between  { justify-content: space-between; }
+.justify-center   { justify-content: center; }
+.gap-1 { gap: var(--space-1); }
+.gap-2 { gap: var(--space-2); }
+.gap-3 { gap: var(--space-3); }
+.gap-4 { gap: var(--space-4); }
+.gap-5 { gap: var(--space-5); }
+.gap-6 { gap: var(--space-6); }
+.gap-8 { gap: var(--space-8); }
+
+.w-full { width: 100%; }
+.mt-auto { margin-top: auto; }
+
+.text-right  { text-align: right; }
+.text-center { text-align: center; }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   17. RESPONSIVE
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Mobile: sidebar becomes top bar. Minimal for now — admin is desktop-first. */
+@media (max-width: 900px) {
+  .app-shell { flex-direction: column; }
+  .sidebar {
+    width: 100%;
+    min-height: auto;
+    padding: var(--space-5);
+    flex-direction: row;
+    align-items: center;
+    gap: var(--space-5);
+    border-bottom: 1px solid var(--border-default);
+    position: sticky;
+  }
+  .sidebar-menu { flex-direction: row; flex: 1; }
+  .sidebar-section { flex-direction: row; gap: var(--space-2); }
+  .sidebar-item { border-left: none; border-bottom: 2px solid transparent; padding-bottom: var(--space-2); }
+  .sidebar-item--active { border-bottom-color: var(--brand-primary); border-left: none; }
+  .sidebar-item-label { display: none; }
+  .main { padding: var(--space-5); }
+  .col-name, .col-email, .col-vehicle { width: auto; flex: 1 1 auto; }
+}

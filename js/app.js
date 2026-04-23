@@ -22,6 +22,24 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('appShell').classList.add('hidden');
       document.getElementById('setPasswordPage').classList.remove('hidden');
 
+      // Fetch the user's email using the invite/recovery token and populate
+      // the read-only email field. This gives the user confidence they're
+      // setting a password for the correct account.
+      fetch(`${SUPA_URL}/auth/v1/user`, {
+        headers: {
+          apikey: SUPA_KEY,
+          Authorization: `Bearer ${accessToken}`,
+        },
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((user) => {
+          if (user && user.email) {
+            const emailEl = document.getElementById('setPasswordEmail');
+            if (emailEl) emailEl.value = user.email;
+          }
+        })
+        .catch(() => {/* non-fatal */});
+
       // Clear the hash from the address bar
       history.replaceState(null, '', window.location.pathname);
       return;

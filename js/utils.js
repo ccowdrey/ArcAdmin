@@ -83,6 +83,27 @@ function escHtml(str) {
   return div.innerHTML;
 }
 
+// Run an async operation with a loading spinner on a button.
+// Button stays disabled while running. Disables pointer-events via CSS.
+// Accepts either a button element or an event-like object with `.currentTarget`.
+async function withBtnLoading(btnOrEvent, asyncFn) {
+  const btn = btnOrEvent && btnOrEvent.currentTarget ? btnOrEvent.currentTarget : btnOrEvent;
+  if (btn && btn.classList) {
+    btn.classList.add('btn--loading');
+    btn.setAttribute('aria-busy', 'true');
+    btn.disabled = true;
+  }
+  try {
+    return await asyncFn();
+  } finally {
+    if (btn && btn.classList) {
+      btn.classList.remove('btn--loading');
+      btn.removeAttribute('aria-busy');
+      btn.disabled = false;
+    }
+  }
+}
+
 window.formatDate = formatDate;
 window.formatTime = formatTime;
 window.formatDateTime = formatDateTime;
@@ -95,3 +116,4 @@ window.localDateToUTCEnd = localDateToUTCEnd;
 window.slugify = slugify;
 window.timeOfDayGreeting = timeOfDayGreeting;
 window.escHtml = escHtml;
+window.withBtnLoading = withBtnLoading;

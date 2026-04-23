@@ -194,9 +194,66 @@ const Auth = {
     }
   },
 
-  completeSetPassword() {
-    // Stub — wired when the set-password flow lands. Not in this cut.
-    console.warn('completeSetPassword not yet wired');
+  async completeSetPassword(event) {
+    const errBox = document.getElementById('setPasswordError');
+    const pw1 = document.getElementById('setPasswordNew').value;
+    const pw2 = document.getElementById('setPasswordConfirm').value;
+    const email = document.getElementById('setPasswordEmail').value;
+
+    if (errBox) errBox.classList.add('hidden');
+
+    if (!pw1 || pw1.length < 8) {
+      if (errBox) {
+        errBox.textContent = 'Password must be at least 8 characters.';
+        errBox.classList.remove('hidden');
+      }
+      return;
+    }
+    if (pw1 !== pw2) {
+      if (errBox) {
+        errBox.textContent = 'Passwords do not match.';
+        errBox.classList.remove('hidden');
+      }
+      return;
+    }
+
+    await withBtnLoading(event, async () => {
+      try {
+        // The invite token is already in `token` (stashed by app.js bootstrap).
+        // Call Supabase's user-update endpoint to set the password.
+        const res = await fetch(`${SUPA_URL}/auth/v1/user`, {
+          method: 'PUT',
+          headers: {
+            apikey: SUPA_KEY,
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ password: pw1 }),
+        });
+        if (!res.ok) {
+          const body = await res.text().catch(() => '');
+          let msg = `Failed to set password (HTTP ${res.status})`;
+          try {
+            const j = JSON.parse(body);
+            if (j.msg) msg = j.msg;
+            else if (j.error_description) msg = j.error_description;
+          } catch (_) {
+            if (body) msg = body.slice(0, 200);
+          }
+          throw new Error(msg);
+        }
+
+        // Sign in with the fresh password to get a proper long-lived session
+        // (the invite token is short-lived). _loginInternal takes the user
+        // all the way into _enterApp() which renders the sidebar + loads dashboard.
+        await this._loginInternal(email, pw1);
+      } catch (e) {
+        if (errBox) {
+          errBox.textContent = e.message || 'Something went wrong setting your password.';
+          errBox.classList.remove('hidden');
+        }
+      }
+    });
   },
 
   isSuper() { return userRole === 'super_admin'; },
@@ -210,6 +267,19 @@ const Auth = {
     if (pw) pw.addEventListener('keydown', (e) => { if (e.key === 'Enter') this.login(); });
     const em = document.getElementById('loginEmail');
     if (em) em.addEventListener('keydown', (e) => { if (e.key === 'Enter') this.login(); });
+
+    // Enter-key on set-password form triggers the submit button so the
+    // spinner wiring stays intact.
+    const spwNew = document.getElementById('setPasswordNew');
+    const spwConfirm = document.getElementById('setPasswordConfirm');
+    const triggerSetPw = (e) => {
+      if (e.key === 'Enter') {
+        const btn = document.querySelector('#setPasswordPage .btn-primary');
+        if (btn) btn.click();
+      }
+    };
+    if (spwNew) spwNew.addEventListener('keydown', triggerSetPw);
+    if (spwConfirm) spwConfirm.addEventListener('keydown', triggerSetPw);
   },
 };
 
