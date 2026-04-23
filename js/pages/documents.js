@@ -369,7 +369,12 @@ const Documents = {
     try {
       // 1. Upload file to storage
       const storageFolder = isBuildLine ? `${companyId || 'direct'}/build_lines/${buildLineId}` : `${companyId || 'direct'}/${vehicleId}`;
-      const storagePath = `${storageFolder}/${Date.now()}_${file.name}`;
+      const safeName = file.name
+  .normalize('NFD')                      // decompose accents: ö → o + combining diaeresis
+  .replace(/[\u0300-\u036f]/g, '')       // strip combining marks
+  .replace(/[^\w.\-]+/g, '_')            // non-word chars (incl. spaces) → _
+  .replace(/_+/g, '_');                  // collapse runs of _
+const storagePath = `${storageFolder}/${Date.now()}_${safeName}`;
       const { url, error: uploadError } = await Storage.upload('van-manuals', storagePath, file, (pct) => {
         const fill = document.getElementById(`docProgressFill_${zoneKey}`);
         const text = document.getElementById(`docProgressText_${zoneKey}`);
