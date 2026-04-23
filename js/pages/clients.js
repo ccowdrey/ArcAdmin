@@ -15,7 +15,7 @@ const ClientsPage = {
         supa('profiles?select=*&order=created_at.desc'),
         supa('subscriptions?select=user_id,tier,status'),
         supa('company_admins?select=user_id,company_id,role'),
-        supa('vehicles?select=user_id,make,model,year'),
+        supa('vehicles?select=user_id,make,model,year,build_line_id'),
       ]);
 
       const subMap = {};
@@ -24,6 +24,26 @@ const ClientsPage = {
       vehicles.forEach((v) => { if (!vehicleMap[v.user_id]) vehicleMap[v.user_id] = v; });
       const adminUserIds = new Set(companyAdmins.map((a) => a.user_id));
       const vehicleUserIds = new Set(vehicles.map((v) => v.user_id));
+
+      // Company-scope filter for company admins: must match either
+      //   (a) profiles.company_id === userCompanyId, OR
+      //   (b) user owns a vehicle whose build_line belongs to this company
+      let companyClientIds = null;
+      if (Auth.isCompanyAdmin() && userCompanyId) {
+        const buildLines = await supa(
+          `build_lines?company_id=eq.${userCompanyId}&is_active=eq.true&select=id`
+        );
+        const buildLineIds = new Set(buildLines.map((b) => b.id));
+        companyClientIds = new Set();
+        users.forEach((u) => {
+          if (u.company_id === userCompanyId) companyClientIds.add(u.id);
+        });
+        vehicles.forEach((v) => {
+          if (v.build_line_id && buildLineIds.has(v.build_line_id) && v.user_id) {
+            companyClientIds.add(v.user_id);
+          }
+        });
+      }
 
       this.allClients = users
         .map((u) => {
@@ -43,7 +63,9 @@ const ClientsPage = {
           };
         })
         // Admin-only rows (company_admins with no vehicle, not super admin) belong on the Companies page
-        .filter((u) => vehicleUserIds.has(u.id) || u.isAdmin || !adminUserIds.has(u.id));
+        .filter((u) => vehicleUserIds.has(u.id) || u.isAdmin || !adminUserIds.has(u.id))
+        // Company admins only see their own clients
+        .filter((u) => !companyClientIds || companyClientIds.has(u.id));
 
       this.render(this.allClients);
     } catch (e) {

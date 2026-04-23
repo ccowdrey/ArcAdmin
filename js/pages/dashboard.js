@@ -290,14 +290,6 @@ const DashboardPage = {
           <div class="t-muted t-detail">Loading codes...</div>
         </div>
       </div>
-
-      <div class="card" style="margin-top:24px">
-        <div class="card-title">Your clients</div>
-        <div class="t-muted t-detail" style="margin-bottom:16px">All clients who've onboarded with your company.</div>
-        <div id="dashClientsList">
-          <div class="t-muted t-detail">Loading clients...</div>
-        </div>
-      </div>
     `;
 
     this._renderGreeting();
@@ -311,39 +303,40 @@ const DashboardPage = {
 
       const [buildLines, companyAdmins, codes] = await Promise.all([
         supa(`build_lines?company_id=eq.${userCompanyId}&is_active=eq.true&select=id`),
-        supa(`company_admins?company_id=eq.${userCompanyId}&select=user_id,role,created_at`),
+        supa(`company_admins?company_id=eq.${userCompanyId}&select=id,user_id,role,created_at`),
         supa(`company_codes?company_id=eq.${userCompanyId}&select=*&order=created_at.desc`),
       ]);
 
       const buildLineIds = buildLines.map((b) => b.id);
 
-      // Fetch clients via vehicles.build_line_id
+      // Clients can be associated TWO ways:
+      //   1. profiles.company_id — direct company link (legacy / some onboarding paths)
+      //   2. vehicles.build_line_id → build_lines.company_id — build-line-based association
+      // Fetch both sets in parallel and union them.
+      const [directProfiles, buildLineVehicles] = await Promise.all([
+        supa(`profiles?company_id=eq.${userCompanyId}&select=id`),
+        buildLineIds.length > 0
+          ? supa(`vehicles?build_line_id=in.(${buildLineIds.join(',')})&select=user_id`)
+          : Promise.resolve([]),
+      ]);
+
+      const clientIdSet = new Set([
+        ...directProfiles.map((p) => p.id),
+        ...buildLineVehicles.map((v) => v.user_id).filter(Boolean),
+      ]);
+      const clientIds = [...clientIdSet];
+
+      // Enrich for tier/explorer count. (We don't render a list in the dashboard
+      // anymore, but we need tier info for the Explorers stat.)
       let clients = [];
-      if (buildLineIds.length > 0) {
-        const vehicles = await supa(
-          `vehicles?build_line_id=in.(${buildLineIds.join(',')})&select=id,user_id,make,model,year`
+      if (clientIds.length > 0) {
+        const subs = await supa(
+          `subscriptions?user_id=in.(${clientIds.join(',')})&select=user_id,tier,status`
         );
-        const userIds = [...new Set(vehicles.map((v) => v.user_id).filter(Boolean))];
-        if (userIds.length > 0) {
-          const [profiles, subs] = await Promise.all([
-            supa(`profiles?id=in.(${userIds.join(',')})&select=*`),
-            supa(`subscriptions?user_id=in.(${userIds.join(',')})&select=user_id,tier,status`),
-          ]);
-          clients = profiles.map((p) => {
-            const name = `${p.first_name || ''} ${p.last_name || ''}`.trim() || (p.email || '').split('@')[0];
-            Router.registerSlug(p.id, name);
-            const v = vehicles.find((x) => x.user_id === p.id);
-            const sub = subs.find((s) => s.user_id === p.id);
-            return {
-              id: p.id,
-              displayName: name,
-              email: p.email,
-              vehicleLabel: v ? [v.year, v.make, v.model].filter(Boolean).join(' ') : '',
-              tier: sub?.tier || 'base_camp',
-              lastLogin: p.last_login_at,
-            };
-          });
-        }
+        clients = clientIds.map((id) => {
+          const sub = subs.find((s) => s.user_id === id);
+          return { id, tier: sub?.tier || 'base_camp' };
+        });
       }
 
       // Admins — enrich with profile info
@@ -355,6 +348,7 @@ const DashboardPage = {
           const p = adminProfiles.find((pp) => pp.id === a.user_id) || {};
           return {
             id: a.user_id,
+            adminRowId: a.id,
             role: a.role || 'admin',
             createdAt: a.created_at,
             name: `${p.first_name || ''} ${p.last_name || ''}`.trim() || p.email || '—',
@@ -393,6 +387,9 @@ const DashboardPage = {
               <div class="data-table-cell t-muted" style="flex:1 1 220px;min-width:150px">${escHtml(a.email)}</div>
               <div class="data-table-cell" style="width:100px">
                 <span class="badge ${a.role === 'owner' ? 'badge--tier-explorer' : 'badge--tier-base-camp'}">${escHtml(a.role)}</span>
+              </div>
+              <div class="data-table-cell" style="width:100px;text-align:right">
+                <button class="btn btn-ghost btn-sm t-danger" onclick="DashboardPage.removeAdmin('${escHtml(a.adminRowId)}', '${escHtml(a.name)}')">Remove</button>
               </div>
             </div>
           `).join('');
@@ -437,39 +434,21 @@ const DashboardPage = {
           }).join('');
         }
       }
-
-      // Clients list
-      const clientsEl = document.getElementById('dashClientsList');
-      if (clientsEl) {
-        if (clients.length === 0) {
-          clientsEl.innerHTML = '<div class="t-muted t-detail">No clients yet. Share an invite code to bring vans online.</div>';
-        } else {
-          clientsEl.innerHTML = `
-            <div class="data-table">
-              <div class="data-table-headers">
-                <div class="data-table-header col-name">Name</div>
-                <div class="data-table-header col-email">Email</div>
-                <div class="data-table-header col-vehicle">Vehicle</div>
-                <div class="data-table-header col-tier">Tier</div>
-                <div class="data-table-header col-last-active">Last active</div>
-              </div>
-              ${clients.map((c) => `
-                <button class="data-table-row" onclick="Router.navigate('/clients/${escHtml(Router.getSlug(c.id))}')">
-                  <div class="data-table-cell data-table-cell--bold col-name">${escHtml(c.displayName)}</div>
-                  <div class="data-table-cell col-email t-muted">${escHtml(c.email || '')}</div>
-                  <div class="data-table-cell col-vehicle t-muted">${escHtml(c.vehicleLabel || '—')}</div>
-                  <div class="data-table-cell col-tier">${tierBadge(c.tier)}</div>
-                  <div class="data-table-cell col-last-active t-muted">${escHtml(c.lastLogin ? timeAgo(c.lastLogin) : '—')}</div>
-                </button>
-              `).join('')}
-            </div>
-          `;
-        }
-      }
     } catch (e) {
       console.error('[Dashboard/CA] load failed:', e);
       const codesEl = document.getElementById('dashCodesList');
       if (codesEl) codesEl.innerHTML = `<div class="t-danger t-detail">Failed to load — ${escHtml(e.message || '')}</div>`;
+    }
+  },
+
+  // Remove a company admin from the current company
+  async removeAdmin(adminRowId, name) {
+    if (!confirm(`Remove ${name || 'this admin'} from the company? They'll lose access to ArcAdmin for this company.`)) return;
+    try {
+      await supaDelete(`company_admins?id=eq.${adminRowId}`);
+      await this.load();
+    } catch (e) {
+      alert(`Failed to remove admin: ${e.message}`);
     }
   },
 };
