@@ -11,19 +11,20 @@ const DashboardPage = {
   stats: null,
 
   async load() {
-    this._renderGreeting();
-
-    // Company admins get a completely different dashboard — their own company,
-    // their invite codes, their admin list, their clients.
-    if (Auth.isCompanyAdmin()) {
-      await this._loadCompanyAdminDashboard();
-      return;
-    }
-
-    this._renderTilesLoading();
-    this._renderListLoading();
-
+    const pageEl = document.getElementById('pageDashboard');
     try {
+      this._renderGreeting();
+
+      // Company admins get a completely different dashboard — their own company,
+      // their invite codes, their admin list, their clients.
+      if (Auth.isCompanyAdmin()) {
+        await this._loadCompanyAdminDashboard();
+        return;
+      }
+
+      this._renderTilesLoading();
+      this._renderListLoading();
+
       const [users, subs, companyAdmins, companies, vehicles] = await Promise.all([
         supa('profiles?select=*&order=created_at.desc'),
         supa('subscriptions?select=user_id,tier,status'),
@@ -96,16 +97,23 @@ const DashboardPage = {
       this._renderList();
     } catch (e) {
       console.error('Dashboard load failed:', e);
-      document.getElementById('dashboardList').innerHTML =
-        `<div class="data-empty">Failed to load dashboard — ${escHtml(e.message || 'unknown error')}</div>`;
+      // Show the error in-page so blank pages don't happen silently.
+      const listEl = document.getElementById('dashboardList');
+      if (listEl) {
+        listEl.innerHTML = `<div class="data-empty">Failed to load dashboard — ${escHtml(e.message || 'unknown error')}</div>`;
+      } else if (pageEl) {
+        pageEl.innerHTML = `<div class="data-empty">Failed to load dashboard — ${escHtml(e.message || 'unknown error')}</div>`;
+      }
     }
   },
 
   // ── Greeting ──
   _renderGreeting() {
     const name = (Auth._userName || 'there').split(' ')[0];
-    const el = document.getElementById('dashboardGreeting');
-    if (el) el.textContent = `${timeOfDayGreeting()}, ${name}`;
+    const text = `${timeOfDayGreeting()}, ${name}`;
+    const el = document.getElementById('dashboardGreeting')
+            || document.getElementById('dashGreeting');
+    if (el) el.textContent = text;
   },
 
   // ── Tiles ──
@@ -346,13 +354,20 @@ const DashboardPage = {
         const adminProfiles = await supa(`profiles?id=in.(${adminIds.join(',')})&select=id,first_name,last_name,email`);
         adminRows = companyAdmins.map((a) => {
           const p = adminProfiles.find((pp) => pp.id === a.user_id) || {};
+          const fullName = `${p.first_name || ''} ${p.last_name || ''}`.trim();
+          // Display hierarchy: full name → email → the profile-less placeholder.
+          // If we have NO profile at all, indicate that explicitly so you can
+          // spot ghost admin rows (auth user deleted, orphan company_admins row).
+          const hasProfile = !!p.id;
+          const displayName = fullName || p.email || (hasProfile ? '(no name set)' : '(profile missing)');
           return {
             id: a.user_id,
             adminRowId: a.id,
             role: a.role || 'admin',
             createdAt: a.created_at,
-            name: `${p.first_name || ''} ${p.last_name || ''}`.trim() || p.email || '—',
+            name: displayName,
             email: p.email || '',
+            hasProfile,
           };
         });
       }

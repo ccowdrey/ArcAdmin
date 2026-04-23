@@ -243,9 +243,24 @@ const Auth = {
           throw new Error(msg);
         }
 
-        // Sign in with the fresh password to get a proper long-lived session
-        // (the invite token is short-lived). _loginInternal takes the user
-        // all the way into _enterApp() which renders the sidebar + loads dashboard.
+        // CRITICAL: clear the invite session completely before signing in.
+        // The invite token is a short-lived "magic link" token whose JWT
+        // claims (aud, role context) sometimes produce subtle RLS mismatches
+        // vs. a clean password-grant token. If we don't clear it first,
+        // the dashboard can render blank on first load because SELECTs
+        // hit policies that evaluate differently against the stale token.
+        // Logging out and in again then works — but the user shouldn't
+        // need to do that.
+        clearSession();
+        // clear any in-memory globals that the bootstrap path might use
+        userRole = null;
+        userCompanyId = null;
+        userCompanyName = null;
+
+        // Sign in fresh with the new password to get a clean session
+        // with proper long-lived refresh token and clean JWT claims.
+        // _loginInternal takes the user all the way into _enterApp() which
+        // renders the sidebar + loads dashboard.
         await this._loginInternal(email, pw1);
       } catch (e) {
         if (errBox) {
