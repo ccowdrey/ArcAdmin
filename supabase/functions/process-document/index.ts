@@ -64,10 +64,14 @@ serve(async (req) => {
 
     const rows = chunks.map((c, i) => {
       const row: any = {
-        document_id, chunk_index: i, content: c.content,
+        chunk_index: i, content: c.content,
         metadata: { ...c.metadata, extraction_method: "claude_vercel" },
         embedding: `[${embs[i].join(",")}]`, token_count: Math.ceil(c.content.length / 4),
       };
+      // document_id FK points to vehicle_documents.id — only set it for
+      // vehicle_documents-scoped uploads. Company manuals live in a separate
+      // table and use company_manual_id for scoping; document_id stays NULL.
+      if (!isCompanyManual) row.document_id = document_id;
       // Exactly one of these three scope columns gets set (check constraint enforces this).
       if (vehicle_id) row.vehicle_id = vehicle_id;
       else if (build_line_id) row.build_line_id = build_line_id;

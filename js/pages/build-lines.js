@@ -231,6 +231,9 @@ const BuildLineDetailPage = {
       const docsContainer = document.getElementById('buildLineDocsContainer');
       await Documents.loadForBuildLine(this.lineId, this.companyId, docsContainer);
 
+      // Load systems picker
+      await this.loadSystems();
+
       // Schematic upload
       this.renderSchematicUpload();
 
@@ -304,6 +307,129 @@ const BuildLineDetailPage = {
       this.renderSchematicUpload();
     } catch (e) {
       alert('Failed to remove: ' + e.message);
+    }
+  },
+
+  // ── Systems picker ──────────────────────────────────────────────────────
+  // Shows a checkbox grid of the device_catalog grouped by category.
+  // Each toggle INSERTs or DELETEs a row in build_line_systems (no save button).
+  // The DB trigger copies these defaults into vehicle_systems on vehicle insert.
+
+  _catalog: [],          // cached device_catalog rows (loaded once per page view)
+  _selectedIds: new Set(), // set of device_catalog_id currently attached
+
+  async loadSystems() {
+    const container = document.getElementById('buildLineSystemsContainer');
+    if (!container) return;
+
+    try {
+      // Load catalog (once) and current selections in parallel
+      const catalogPromise = this._catalog.length
+        ? Promise.resolve(this._catalog)
+        : supa(`device_catalog?is_active=eq.true&select=*&order=category.asc,device_name.asc`);
+      const selectedPromise = supa(`build_line_systems?build_line_id=eq.${this.lineId}&select=device_catalog_id`);
+
+      const [catalog, selected] = await Promise.all([catalogPromise, selectedPromise]);
+      this._catalog = catalog;
+      this._selectedIds = new Set(selected.map(r => r.device_catalog_id));
+
+      this.renderSystems();
+    } catch (e) {
+      console.error('Load systems failed:', e);
+      container.innerHTML = '<div style="color:#FF6565;font-size:13px;padding:16px">Failed to load systems</div>';
+    }
+  },
+
+  renderSystems() {
+    const container = document.getElementById('buildLineSystemsContainer');
+    if (!container) return;
+
+    // Group catalog by category
+    const byCat = {};
+    for (const d of this._catalog) {
+      if (!byCat[d.category]) byCat[d.category] = [];
+      byCat[d.category].push(d);
+    }
+
+    const categoryOrder = ['climate','power','plumbing','lighting','entertainment','exterior','sensors'];
+    const categoryLabels = {
+      climate:'Climate', power:'Power', plumbing:'Plumbing', lighting:'Lighting',
+      entertainment:'Entertainment', exterior:'Awning & Exterior', sensors:'Sensors',
+    };
+
+    const selectedCount = this._selectedIds.size;
+
+    let html = `<div style="color:#8E8D8A;font-size:12px;margin-bottom:16px">${selectedCount} ${selectedCount === 1 ? 'device' : 'devices'} selected</div>`;
+    html += '<div style="display:flex;flex-direction:column;gap:20px">';
+
+    for (const cat of categoryOrder) {
+      if (!byCat[cat]?.length) continue;
+      html += `
+        <div>
+          <div style="color:#8E8D8A;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:8px">${categoryLabels[cat]}</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px">
+            ${byCat[cat].map(d => this.renderSystemCheckbox(d)).join('')}
+          </div>
+        </div>
+      `;
+    }
+    html += '</div>';
+
+    container.innerHTML = html;
+  },
+
+  renderSystemCheckbox(device) {
+    const checked = this._selectedIds.has(device.id);
+    const bgColor = checked ? '#767DFB15' : '#1A1A1A';
+    const borderColor = checked ? '#767DFB40' : '#2A2A2A';
+    const checkBg = checked ? '#767DFB' : 'transparent';
+    const checkBorder = checked ? '#767DFB' : '#444';
+    return `
+      <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:${bgColor};border:1px solid ${borderColor};border-radius:8px;cursor:pointer;transition:background 0.15s,border-color 0.15s"
+             onclick="BuildLineDetailPage.toggleSystem('${device.id}', event)"
+             onmouseover="this.style.borderColor='#767DFB60'"
+             onmouseout="this.style.borderColor='${borderColor}'">
+        <div style="width:18px;height:18px;border-radius:4px;border:1.5px solid ${checkBorder};background:${checkBg};display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all 0.15s">
+          ${checked ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' : ''}
+        </div>
+        <div style="flex:1;min-width:0">
+          <div style="color:#F5F1EB;font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(device.device_name)}</div>
+          ${device.manufacturer ? `<div style="color:#666;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(device.manufacturer)}</div>` : ''}
+        </div>
+      </label>
+    `;
+  },
+
+  async toggleSystem(deviceCatalogId, event) {
+    // The <label> onclick fires; don't let it double-fire via browser default
+    if (event) { event.preventDefault(); event.stopPropagation(); }
+
+    const wasSelected = this._selectedIds.has(deviceCatalogId);
+
+    // Optimistic update — flip the UI immediately
+    if (wasSelected) this._selectedIds.delete(deviceCatalogId);
+    else this._selectedIds.add(deviceCatalogId);
+    this.renderSystems();
+
+    try {
+      if (wasSelected) {
+        // Remove
+        await supaDelete(`build_line_systems?build_line_id=eq.${this.lineId}&device_catalog_id=eq.${deviceCatalogId}`);
+      } else {
+        // Add
+        await supaPost('build_line_systems', {
+          build_line_id: this.lineId,
+          device_catalog_id: deviceCatalogId,
+          is_default: true,
+        });
+      }
+    } catch (e) {
+      // Revert optimistic update on failure
+      console.error('Toggle system failed:', e);
+      if (wasSelected) this._selectedIds.add(deviceCatalogId);
+      else this._selectedIds.delete(deviceCatalogId);
+      this.renderSystems();
+      alert('Failed to update systems: ' + e.message);
     }
   }
 };
