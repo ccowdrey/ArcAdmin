@@ -1,481 +1,539 @@
-// ArcOS Admin — Companies Page
-// ==============================
-
-let allCompanies = [];
-let selectedCompanyId = null;
+// ArcAdmin — Companies Page
+// ==========================
+// Handles BOTH the companies list AND the company detail page.
+// Replaces the legacy two-module split (CompaniesPage + CompanyDetailPage).
+//
+// Detail page is tabbed: Overview | Build Lines | Manuals.
+// The overflow menu (3-dots button) provides: Add Admin, Add Build Line, Delete.
 
 const CompaniesPage = {
+  // ── List state ──
+  all: [],
+
+  // ── Detail state ──
+  companyId: null,
+  company: null,
+  clients: [],
+  admins: [],
+  activeTab: 'overview',
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // LIST
+  // ═══════════════════════════════════════════════════════════════════════
+
   async load() {
-    setActivePage('pageCompanies');
-    setActiveTab('tabCompanies');
-    
+    const listEl = document.getElementById('companiesList');
+    if (listEl) listEl.innerHTML = '<div class="data-empty">Loading companies...</div>';
+
     try {
       const [companies, profiles, subs, admins] = await Promise.all([
-        supa("companies?select=*&order=created_at.desc"),
-        supa("profiles?select=id,company_id,first_name,last_name,email"),
-        supa("subscriptions?select=user_id,tier,status"),
-        supa("company_admins?select=*")
+        supa('companies?select=*&order=created_at.desc'),
+        supa('profiles?select=id,company_id,first_name,last_name,email'),
+        supa('subscriptions?select=user_id,tier,status'),
+        supa('company_admins?select=*'),
       ]);
-      
-      allCompanies = companies.map(c => {
-        const clients = profiles.filter(p => p.company_id === c.id);
-        const clientSubs = clients.map(cl => subs.find(s => s.user_id === cl.id)).filter(Boolean);
-        const companyAdmins = admins.filter(a => a.company_id === c.id);
-        // Register company slug
+
+      this.all = companies.map((c) => {
+        const clients = profiles.filter((p) => p.company_id === c.id);
+        const clientSubs = clients.map((cl) => subs.find((s) => s.user_id === cl.id)).filter(Boolean);
+        const companyAdmins = admins.filter((a) => a.company_id === c.id);
         Router.registerSlug(c.id, c.name);
-        // Register client slugs
-        clients.forEach(cl => {
-          const name = `${cl.first_name || ''} ${cl.last_name || ''}`.trim() || cl.email.split('@')[0];
-          Router.registerSlug(cl.id, name);
-        });
-        return { ...c, clients, clientSubs, admins: companyAdmins };
+        return {
+          ...c,
+          _clientCount: clients.length,
+          _explorerCount: clientSubs.filter((s) => s.tier === 'explore' || s.tier === 'explorer').length,
+        };
       });
-      
-      // Stats
-      const directUsers = profiles.filter(p => !p.company_id).length;
-      const companyClients = profiles.filter(p => p.company_id).length;
-      const paidUsers = subs.filter(s => s.status === "active" && s.tier !== "base_camp").length;
-      
-      document.getElementById("statCompanies").textContent = companies.length;
-      document.getElementById("statCompanyClients").textContent = companyClients;
-      document.getElementById("statDirectUsers").textContent = directUsers;
-      document.getElementById("statTotalPaid").textContent = paidUsers;
-      
-      this.render(allCompanies);
+
+      this.renderList(this.all);
     } catch (e) {
-      console.error("Load companies failed:", e);
+      console.error('Companies load failed:', e);
+      if (listEl) listEl.innerHTML = `<div class="data-empty">Failed to load — ${escHtml(e.message || '')}</div>`;
     }
   },
-  
-  render(companies) {
-    const tbody = document.getElementById("companiesTableBody");
-    if (companies.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:#666;padding:32px">No companies yet</td></tr>`;
+
+  renderList(rows) {
+    const list = document.getElementById('companiesList');
+    if (!list) return;
+
+    if (!rows || rows.length === 0) {
+      list.innerHTML = '<div class="data-empty">No companies yet. Click + Add Company to create one.</div>';
       return;
     }
-    
-    const planColors = { starter: "#8E8D8A", growth: "#767DFB", enterprise: "#2ABC53" };
-    
-    tbody.innerHTML = companies.map(c => {
-      const slug = Router.getSlug(c.id);
-      return `<tr onclick="Router.navigate('/companies/${slug}')">
-        <td style="font-weight:600;color:#F5F1EB">${escHtml(c.name)}</td>
-        <td><span class="tier" style="background:${planColors[c.plan] || '#666'}20;color:${planColors[c.plan] || '#666'}">${c.plan}</span></td>
-        <td style="color:#F5F1EB;font-weight:600">${c.clients.length}</td>
-        <td style="color:#666">${c.max_clients}</td>
-        <td>${c.is_active ? '<span style="color:#2ABC53">Active</span>' : '<span style="color:#FF6565">Inactive</span>'}</td>
-        <td style="color:#666;font-size:12px">${timeAgo(c.created_at)}</td>
-        <td><span style="color:#767DFB;font-size:12px">View →</span></td>
-      </tr>`;
-    }).join("");
-  }
-};
 
-// ── Company Detail ──
-const CompanyDetailPage = {
-  companyId: null,
-  companyName: '',
-  clientsData: [],
-  
-  async load(params) {
-    this.companyId = Router.resolveId(params.companyId);
-    selectedCompanyId = this.companyId;
-    setActivePage('pageCompanyDetail');
-    if (Auth.isSuper()) setActiveTab('tabCompanies');
-    
-    // Ensure we have company data
-    if (allCompanies.length === 0) {
-      const [companies, profiles, subs, admins] = await Promise.all([
-        supa("companies?select=*&order=created_at.desc"),
-        supa("profiles?select=id,company_id,first_name,last_name,email,last_login_at,created_at"),
-        supa("subscriptions?select=user_id,tier,status"),
-        supa("company_admins?select=*")
+    list.innerHTML = `
+      <div class="data-table">
+        <div class="data-table-headers">
+          <div class="data-table-header col-name">Company</div>
+          <div class="data-table-header col-email">Billing email</div>
+          <div class="data-table-header col-vehicle">Clients</div>
+          <div class="data-table-header col-tier">Plan</div>
+          <div class="data-table-header col-last-active">Created</div>
+        </div>
+        ${rows.map((c) => `
+          <button class="data-table-row" onclick="Router.navigate('/companies/${escHtml(Router.getSlug(c.id))}')">
+            <div class="data-table-cell data-table-cell--bold col-name">${escHtml(c.name)}</div>
+            <div class="data-table-cell col-email t-muted">${escHtml(c.billing_email || '—')}</div>
+            <div class="data-table-cell col-vehicle t-muted">${c._clientCount || 0}</div>
+            <div class="data-table-cell col-tier">
+              <span class="badge ${this._planBadgeClass(c.plan)}">${(c.plan || 'starter').toUpperCase()}</span>
+            </div>
+            <div class="data-table-cell col-last-active t-muted">${escHtml(c.created_at ? formatDate(c.created_at) : '—')}</div>
+          </button>
+        `).join('')}
+      </div>
+    `;
+  },
+
+  _planBadgeClass(plan) {
+    switch ((plan || '').toLowerCase()) {
+      case 'enterprise': return 'badge--success';
+      case 'growth':     return 'badge--tier-explorer';
+      default:           return 'badge--tier-base-camp';
+    }
+  },
+
+  filter() {
+    const q = (document.getElementById('companiesSearch')?.value || '').toLowerCase();
+    if (!q) { this.renderList(this.all); return; }
+    const filtered = this.all.filter((c) =>
+      (c.name || '').toLowerCase().includes(q) ||
+      (c.billing_email || '').toLowerCase().includes(q) ||
+      (c.website || '').toLowerCase().includes(q)
+    );
+    this.renderList(filtered);
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // DETAIL
+  // ═══════════════════════════════════════════════════════════════════════
+
+  async loadDetail({ companyId }) {
+    this.companyId = companyId;
+    this.activeTab = 'overview';
+
+    // Reset tab UI to Overview
+    document.querySelectorAll('#pageCompanyDetail .tab[data-company-tab]').forEach((el) => {
+      el.classList.toggle('tab--active', el.getAttribute('data-company-tab') === 'overview');
+    });
+
+    const nameEl = document.getElementById('companyDetailName');
+    const emailEl = document.getElementById('companyDetailEmail');
+    const contentEl = document.getElementById('companyDetailContent');
+    if (nameEl) nameEl.textContent = 'Loading...';
+    if (emailEl) emailEl.textContent = '';
+    if (contentEl) contentEl.innerHTML = '<div class="data-empty">Loading company details...</div>';
+
+    try {
+      const [companyArr, profiles, subs, adminsArr] = await Promise.all([
+        supa(`companies?id=eq.${companyId}&select=*`),
+        supa(`profiles?company_id=eq.${companyId}&select=*`),
+        supa('subscriptions?select=user_id,tier,status'),
+        supa(`company_admins?company_id=eq.${companyId}&select=*`),
       ]);
-      allCompanies = companies.map(c => {
-        const clients = profiles.filter(p => p.company_id === c.id);
-        const clientSubs = clients.map(cl => subs.find(s => s.user_id === cl.id)).filter(Boolean);
-        const companyAdmins = admins.filter(a => a.company_id === c.id);
-        Router.registerSlug(c.id, c.name);
-        clients.forEach(cl => {
-          const name = `${cl.first_name || ''} ${cl.last_name || ''}`.trim() || cl.email.split('@')[0];
-          Router.registerSlug(cl.id, name);
-        });
-        return { ...c, clients, clientSubs, admins: companyAdmins };
-      });
-    }
-    
-    const company = allCompanies.find(c => c.id === this.companyId);
-    if (!company) { Router.navigate('/companies'); return; }
-    this.companyName = company.name;
-    
-    // Breadcrumb
-    const bc = document.getElementById('companyDetailBreadcrumb');
-    if (Auth.isSuper()) {
-      bc.innerHTML = `<a data-route href="/companies">Companies</a><span class="sep">›</span><span class="current">${escHtml(company.name)}</span>`;
-      const delSection = document.getElementById('deleteCompanySection');
-      if (delSection) delSection.style.display = '';
-    } else {
-      bc.innerHTML = `<span class="current">${escHtml(company.name)}</span>`;
-      const delSection = document.getElementById('deleteCompanySection');
-      if (delSection) delSection.style.display = 'none';
-    }
-    
-    // Header
-    document.getElementById("companyName").textContent = company.name;
-    const meta = [company.website, company.billing_email].filter(Boolean).join(" · ");
-    document.getElementById("companyMeta").textContent = meta || "No details";
-    
-    const planColors = { starter: "#8E8D8A", growth: "#767DFB", enterprise: "#2ABC53" };
-    const badge = document.getElementById("companyPlanBadge");
-    badge.textContent = company.plan.toUpperCase();
-    badge.style.background = (planColors[company.plan] || "#666") + "20";
-    badge.style.color = planColors[company.plan] || "#666";
-    
-    // Stats
-    const free = company.clientSubs.filter(s => s.tier === "base_camp").length;
-    const explorer = company.clientSubs.filter(s => s.tier === "explore").length;
-    const adventure = company.clientSubs.filter(s => s.tier === "adventurer").length;
-    document.getElementById("companyStatClients").textContent = company.clients.length;
-    document.getElementById("companyStatFree").textContent = free;
-    document.getElementById("companyStatExplorer").textContent = explorer;
-    document.getElementById("companyStatAdventure").textContent = adventure;
-    
-    // Admins
-    const adminProfiles = await Promise.all(
-      company.admins.map(a => supa(`profiles?id=eq.${a.user_id}&select=*`).then(r => ({ ...r[0], role: a.role, admin_created: a.created_at })))
-    );
-    
-    document.getElementById("companyAdminsBody").innerHTML = adminProfiles.map(a => `<tr>
-      <td style="color:#F5F1EB">${escHtml(a?.first_name || '')} ${escHtml(a?.last_name || '')}</td>
-      <td style="color:#8E8D8A">${escHtml(a?.email || '—')}</td>
-      <td><span class="tier" style="background:${a?.role === 'owner' ? '#767DFB' : '#8E8D8A'}20;color:${a?.role === 'owner' ? '#767DFB' : '#8E8D8A'}">${a?.role || 'admin'}</span></td>
-      <td style="color:#666;font-size:12px">${timeAgo(a?.admin_created)}</td>
-      <td><button class="btn-secondary" onclick="CompanyDetailPage.removeAdmin('${a?.id}')">Remove</button></td>
-    </tr>`).join("") || `<tr><td colspan="5" style="text-align:center;color:#666;padding:16px">No admins</td></tr>`;
-    
-    // Clients
-    this.clientsData = await Promise.all(
-      company.clients.map(async cl => {
-        const vehicles = await supa(`vehicles?user_id=eq.${cl.id}&select=*`);
-        const sub = company.clientSubs.find(s => s.user_id === cl.id);
-        return { ...cl, vehicle: vehicles[0], tier: sub?.tier || 'base_camp' };
-      })
-    );
-    this.renderClients(this.clientsData);
-    
-    // Invite codes
-    await this.loadCodes();
-    
-    // Build lines
-    await BuildLinesPage.loadForCompany(this.companyId, company.name);
-    await ManualsLibrary.loadForCompany(this.companyId, company.name);
-  },
-  
-  renderClients(clients) {
-    const companySlug = Router.getSlug(selectedCompanyId);
-    document.getElementById("companyClientsBody").innerHTML = clients.map(cl => {
-      const clientSlug = Router.getSlug(cl.id);
-      const vehicleId = cl.vehicle?.id || '';
-      return `<tr onclick="Router.navigate('/companies/${companySlug}/clients/${clientSlug}')">
-        <td style="color:#F5F1EB">${escHtml(cl.first_name || '')} ${escHtml(cl.last_name || '')}</td>
-        <td style="color:#8E8D8A">${escHtml(cl.email)}</td>
-        <td style="color:#666;font-size:12px">${cl.vehicle ? escHtml(cl.vehicle.make + ' ' + cl.vehicle.model) : '—'}</td>
-        <td>${tierBadge(cl.tier)}</td>
-        <td style="color:#666;font-size:12px">${timeAgo(cl.last_login_at)}</td>
-        <td>
-          ${vehicleId ? `<button class="btn-secondary" style="font-size:11px;padding:4px 10px" onclick="event.stopPropagation();CompanyDetailPage.toggleDocs('${vehicleId}','${selectedCompanyId}')">
-            <span style="margin-right:4px">📄</span>Docs
-          </button>` : '<span style="color:#444;font-size:11px">No vehicle</span>'}
-        </td>
-        <td>
-          <select onclick="event.stopPropagation()" onchange="CompanyDetailPage.changeTier('${cl.id}', this.value)" style="background:#242424;border:1px solid #333;border-radius:4px;color:#F5F1EB;font-size:12px;padding:4px 8px;font-family:inherit">
-            <option value="base_camp" ${cl.tier === 'base_camp' ? 'selected' : ''}>Base Camp</option>
-            <option value="explore" ${cl.tier === 'explore' ? 'selected' : ''}>Explore</option>
-            <option value="adventurer" ${cl.tier === 'adventurer' ? 'selected' : ''}>Adventurer</option>
-          </select>
-        </td>
-        <td><button class="btn-delete" onclick="event.stopPropagation();UserDetailPage.userId='${cl.id}';UserDetailPage.userName='${escHtml(cl.first_name || '')}';UserDetailPage.deleteUser()" style="font-size:11px">Delete</button></td>
-      </tr>
-      <tr class="doc-expand-row" id="docRow_${vehicleId}" style="display:none" onclick="event.stopPropagation()">
-        <td colspan="8" style="padding:0;background:#161616;border-bottom:1px solid #2A2A2A">
-          <div style="padding:16px 24px" id="docsContainer_${vehicleId}">
-            <div style="color:#8E8D8A;font-size:13px">Loading documents...</div>
-          </div>
-        </td>
-      </tr>`;
-    }).join("") || `<tr><td colspan="8" style="text-align:center;color:#666;padding:16px">No clients</td></tr>`;
-  },
 
-  toggleDocs(vehicleId, companyId) {
-    const row = document.getElementById(`docRow_${vehicleId}`);
-    if (!row) return;
-    const isOpen = row.style.display !== 'none';
-    // Close all other doc rows
-    document.querySelectorAll('.doc-expand-row').forEach(r => r.style.display = 'none');
-    if (!isOpen) {
-      row.style.display = '';
-      const container = document.getElementById(`docsContainer_${vehicleId}`);
-      Documents.loadForVehicle(vehicleId, companyId, container);
-    }
-  },
-  
-  filterClients() {
-    const q = document.getElementById("clientSearch").value.toLowerCase();
-    const filtered = this.clientsData.filter(cl =>
-      (cl.first_name || '').toLowerCase().includes(q) ||
-      (cl.last_name || '').toLowerCase().includes(q) ||
-      (cl.email || '').toLowerCase().includes(q)
-    );
-    this.renderClients(filtered);
-  },
-  
-  async changeTier(userId, newTier) {
-    try {
-      await supaPatch(`subscriptions?user_id=eq.${userId}&status=eq.active`, { tier: newTier, managed_by_company: selectedCompanyId });
-    } catch (e) {
-      alert("Failed to update tier: " + e.message);
-    }
-  },
-  
-  async removeAdmin(profileId) {
-    if (!confirm("Remove this admin?")) return;
-    try {
-      await supaDelete(`company_admins?user_id=eq.${profileId}&company_id=eq.${selectedCompanyId}`);
-      allCompanies = []; // Force reload
-      this.load({ companyId: this.companyId });
-    } catch (e) {
-      console.error("Remove admin failed:", e);
-    }
-  },
-  
-  async loadCodes() {
-    try {
-      const codes = await supa(`company_codes?company_id=eq.${this.companyId}&select=*&order=created_at.desc`);
-      const tbody = document.getElementById("companyCodesBody");
-      
-      if (codes.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:#666;padding:16px">No invite codes yet</td></tr>`;
+      if (!companyArr[0]) {
+        if (contentEl) contentEl.innerHTML = '<div class="data-empty">Company not found.</div>';
         return;
       }
-      
-      tbody.innerHTML = codes.map(c => {
-        const isExpired = c.expires_at && new Date(c.expires_at) < new Date();
-        const isMaxed = c.max_uses && c.current_uses >= c.max_uses;
-        const active = c.is_active && !isExpired && !isMaxed;
-        const statusColor = active ? "#2ABC53" : "#FF6565";
-        const statusText = !c.is_active ? "Disabled" : isExpired ? "Expired" : isMaxed ? "Maxed Out" : "Active";
-        
-        return `<tr>
-          <td><code style="background:#242424;padding:4px 10px;border-radius:4px;color:#767DFB;font-size:13px;font-weight:600;letter-spacing:1px">${escHtml(c.code)}</code></td>
-          <td style="color:#8E8D8A">${escHtml(c.label || '—')}</td>
-          <td style="color:#F5F1EB;font-weight:600">${c.current_uses}</td>
-          <td style="color:#666">${c.max_uses || '∞'}</td>
-          <td style="color:#666;font-size:12px">${c.expires_at ? new Date(c.expires_at).toLocaleDateString() : 'Never'}</td>
-          <td><span style="color:${statusColor};font-size:12px;font-weight:600">${statusText}</span></td>
-          <td>
-            ${c.is_active ? `<button class="btn-secondary" onclick="CompanyDetailPage.toggleCode('${c.id}', false)">Disable</button>` : `<button class="btn-secondary" onclick="CompanyDetailPage.toggleCode('${c.id}', true)">Enable</button>`}
-          </td>
-        </tr>`;
-      }).join("");
+
+      this.company = companyArr[0];
+
+      // Enrich clients with their vehicle + tier
+      const enrichedClients = await Promise.all(
+        profiles.map(async (p) => {
+          const vehicles = await supa(`vehicles?user_id=eq.${p.id}&select=*`);
+          const sub = subs.find((s) => s.user_id === p.id);
+          const name = `${p.first_name || ''} ${p.last_name || ''}`.trim() || (p.email || '').split('@')[0];
+          Router.registerSlug(p.id, name);
+          return {
+            id: p.id,
+            displayName: name,
+            email: p.email,
+            vehicle: vehicles[0],
+            vehicleLabel: vehicles[0] ? [vehicles[0].year, vehicles[0].make, vehicles[0].model].filter(Boolean).join(' ') : '',
+            tier: sub?.tier || 'base_camp',
+            lastLogin: p.last_login_at,
+          };
+        })
+      );
+      this.clients = enrichedClients;
+
+      // Enrich admins
+      const enrichedAdmins = await Promise.all(
+        adminsArr.map(async (a) => {
+          const prof = await supa(`profiles?id=eq.${a.user_id}&select=*`);
+          const p = prof[0] || {};
+          return {
+            id: a.user_id,
+            adminRowId: a.id,
+            role: a.role,
+            createdAt: a.created_at,
+            name: `${p.first_name || ''} ${p.last_name || ''}`.trim() || p.email || '',
+            email: p.email || '',
+          };
+        })
+      );
+      this.admins = enrichedAdmins;
+
+      // Header
+      const ownerAdmin = enrichedAdmins.find((a) => a.role === 'owner') || enrichedAdmins[0];
+      if (nameEl) nameEl.textContent = this.company.name;
+      if (emailEl) emailEl.textContent = this.company.billing_email || ownerAdmin?.email || '';
+
+      this._renderTab();
     } catch (e) {
-      console.error("Load codes failed:", e);
+      console.error('Company detail load failed:', e);
+      if (contentEl) contentEl.innerHTML = `<div class="data-empty">Failed to load — ${escHtml(e.message || '')}</div>`;
     }
   },
-  
-  async toggleCode(codeId, active) {
+
+  switchTab(tab) {
+    this.activeTab = tab;
+    document.querySelectorAll('#pageCompanyDetail .tab[data-company-tab]').forEach((el) => {
+      el.classList.toggle('tab--active', el.getAttribute('data-company-tab') === tab);
+    });
+    this._renderTab();
+  },
+
+  _renderTab() {
+    const contentEl = document.getElementById('companyDetailContent');
+    if (!contentEl || !this.company) return;
+
+    if (this.activeTab === 'overview') {
+      contentEl.innerHTML = this._renderOverview();
+    } else if (this.activeTab === 'build-lines') {
+      contentEl.innerHTML = '<div class="data-empty">Loading build lines...</div>';
+      if (window.BuildLinesPage && BuildLinesPage.loadForCompany) {
+        BuildLinesPage.loadForCompany(this.companyId, this.company.name, contentEl);
+      }
+    } else if (this.activeTab === 'manuals') {
+      contentEl.innerHTML = '<div class="data-empty">Loading manuals...</div>';
+      if (window.ManualsLibrary && ManualsLibrary.loadForCompany) {
+        ManualsLibrary.loadForCompany(this.companyId, contentEl);
+      } else {
+        contentEl.innerHTML = '<div class="data-empty">Manuals library not available.</div>';
+      }
+    }
+  },
+
+  _renderOverview() {
+    const c = this.company;
+    const explorerCount = this.clients.filter((cl) => cl.tier === 'explore' || cl.tier === 'explorer').length;
+    const baseCount = this.clients.filter((cl) => cl.tier === 'base_camp' || cl.tier === 'base').length;
+
+    // Admins section
+    const adminsMarkup = this.admins.length === 0
+      ? '<div class="t-muted t-detail">No admins yet. Use the menu to add one.</div>'
+      : this.admins.map((a) => `
+          <div class="data-table-row data-table-row--static" style="padding:12px 16px">
+            <div class="data-table-cell data-table-cell--bold" style="flex:1 1 200px;min-width:150px">${escHtml(a.name)}</div>
+            <div class="data-table-cell t-muted" style="flex:1 1 220px;min-width:150px">${escHtml(a.email)}</div>
+            <div class="data-table-cell" style="width:100px">
+              <span class="badge ${a.role === 'owner' ? 'badge--tier-explorer' : 'badge--tier-base-camp'}">${escHtml(a.role || 'admin')}</span>
+            </div>
+            <div class="data-table-cell" style="width:80px;text-align:right">
+              <button class="btn btn-ghost btn-sm" onclick="CompaniesPage.removeAdmin('${escHtml(a.adminRowId)}')">Remove</button>
+            </div>
+          </div>
+        `).join('');
+
+    // Clients section
+    const clientsMarkup = this.clients.length === 0
+      ? '<div class="t-muted t-detail">No clients yet.</div>'
+      : `
+        <div class="data-table-headers">
+          <div class="data-table-header col-name">Name</div>
+          <div class="data-table-header col-email">Email</div>
+          <div class="data-table-header col-vehicle">Vehicle</div>
+          <div class="data-table-header col-tier">Tier</div>
+          <div class="data-table-header col-last-active">Last active</div>
+        </div>
+        ${this.clients.map((cl) => `
+          <button class="data-table-row" onclick="Router.navigate('/companies/${escHtml(Router.getSlug(CompaniesPage.companyId))}/clients/${escHtml(Router.getSlug(cl.id))}')">
+            <div class="data-table-cell data-table-cell--bold col-name">${escHtml(cl.displayName)}</div>
+            <div class="data-table-cell col-email t-muted">${escHtml(cl.email || '')}</div>
+            <div class="data-table-cell col-vehicle t-muted">${escHtml(cl.vehicleLabel || '—')}</div>
+            <div class="data-table-cell col-tier">${tierBadge(cl.tier)}</div>
+            <div class="data-table-cell col-last-active t-muted">${escHtml(cl.lastLogin ? timeAgo(cl.lastLogin) : '—')}</div>
+          </button>
+        `).join('')}
+      `;
+
+    return `
+      <div class="w-full flex flex-col gap-8">
+
+        <div class="stat-grid">
+          <div class="stat-tile">
+            <div class="stat-tile-top">
+              <span class="stat-tile-value">${this.clients.length}</span>
+              <span class="stat-tile-label t-muted">Clients</span>
+            </div>
+          </div>
+          <div class="stat-tile">
+            <div class="stat-tile-top">
+              <span class="stat-tile-value">${explorerCount}</span>
+              <span class="stat-tile-label t-muted">Explorers</span>
+            </div>
+          </div>
+          <div class="stat-tile">
+            <div class="stat-tile-top">
+              <span class="stat-tile-value">${baseCount}</span>
+              <span class="stat-tile-label t-muted">Base Camp</span>
+            </div>
+          </div>
+          <div class="stat-tile">
+            <div class="stat-tile-top">
+              <span class="stat-tile-value">—</span>
+              <span class="stat-tile-label t-muted">Qtr Commission</span>
+            </div>
+            <span class="stat-delta stat-delta--neutral">Coming soon</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Admins</div>
+          <div class="t-muted t-detail" style="margin-bottom:16px">People who can manage this company in ArcAdmin.</div>
+          <div class="flex flex-col gap-2">${adminsMarkup}</div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Invite codes</div>
+          <div class="t-muted t-detail" style="margin-bottom:16px">Clients enter these codes during onboarding to join this company.</div>
+          <div id="companyCodesList"><div class="t-muted">Loading...</div></div>
+          <div style="margin-top:16px">
+            <button class="btn btn-secondary btn-sm" onclick="openModal('addCodeModal')">+ New invite code</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Clients</div>
+          <div class="data-table">${clientsMarkup}</div>
+        </div>
+
+      </div>
+    `;
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // OVERFLOW MENU
+  // ═══════════════════════════════════════════════════════════════════════
+
+  toggleOverflow(event) {
+    event.stopPropagation();
+    const menu = document.getElementById('companyOverflowMenu');
+    if (menu) menu.classList.toggle('hidden');
+  },
+
+  closeOverflow() {
+    const menu = document.getElementById('companyOverflowMenu');
+    if (menu) menu.classList.add('hidden');
+  },
+
+  addAdmin() {
+    this.closeOverflow();
+    openModal('addAdminModal');
+  },
+
+  addBuildLine() {
+    this.closeOverflow();
+    // Let BuildLinesPage handle the modal open with fresh state
+    if (window.BuildLinesPage && BuildLinesPage.openAddModal) {
+      BuildLinesPage.openAddModal(this.companyId);
+    } else {
+      openModal('buildLineModal');
+    }
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // ADMIN MANAGEMENT
+  // ═══════════════════════════════════════════════════════════════════════
+
+  async confirmAddAdmin() {
+    const name = document.getElementById('newAdminName').value.trim();
+    const email = document.getElementById('newAdminEmail').value.trim();
+    const role = document.getElementById('newAdminRole').value;
+    const errBox = document.getElementById('addAdminError');
+    errBox.classList.add('hidden');
+
+    if (!name || !email) {
+      errBox.textContent = 'Name and email required.';
+      errBox.classList.remove('hidden');
+      return;
+    }
+
     try {
-      await supaPatch(`company_codes?id=eq.${codeId}`, { is_active: active });
-      await this.loadCodes();
+      // Try the invite function first (handles creating the auth user if needed)
+      const [firstName, ...rest] = name.split(' ');
+      const lastName = rest.join(' ');
+      await supaInvite(email, { first_name: firstName, last_name: lastName });
+
+      // Then link them to this company as an admin
+      // Need to fetch the profile id by email
+      const profiles = await supa(`profiles?email=eq.${encodeURIComponent(email)}&select=id`);
+      if (!profiles[0]) throw new Error('Invite sent, but profile not found yet. Try refreshing.');
+
+      await supaPost('company_admins', {
+        user_id: profiles[0].id,
+        company_id: this.companyId,
+        role: role || 'admin',
+      });
+
+      closeModals();
+      document.getElementById('newAdminName').value = '';
+      document.getElementById('newAdminEmail').value = '';
+      await this.loadDetail({ companyId: this.companyId });
     } catch (e) {
-      console.error("Toggle code failed:", e);
+      errBox.textContent = e.message || 'Failed to add admin.';
+      errBox.classList.remove('hidden');
     }
   },
-  
-  showAddCodeModal() {
-    const company = allCompanies.find(c => c.id === selectedCompanyId);
-    const prefix = company ? company.name.replace(/[^A-Z0-9]/gi, '').substring(0, 8).toUpperCase() : 'ARC';
-    document.getElementById("newCodeValue").value = `${prefix}${new Date().getFullYear()}`;
-    document.getElementById("newCodeLabel").value = '';
-    document.getElementById("newCodeMaxUses").value = '';
-    document.getElementById("newCodeExpires").value = '';
-    document.getElementById("addCodeError").classList.add("hidden");
-    openModal("addCodeModal");
+
+  async removeAdmin(adminRowId) {
+    if (!confirm('Remove this admin from the company?')) return;
+    try {
+      await supaDelete(`company_admins?id=eq.${adminRowId}`);
+      await this.loadDetail({ companyId: this.companyId });
+    } catch (e) {
+      alert(`Failed to remove: ${e.message}`);
+    }
   },
-  
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // INVITE CODES
+  // ═══════════════════════════════════════════════════════════════════════
+
   async createCode() {
-    const code = document.getElementById("newCodeValue").value.trim().toUpperCase();
-    const label = document.getElementById("newCodeLabel").value.trim();
-    const maxUses = document.getElementById("newCodeMaxUses").value;
-    const expires = document.getElementById("newCodeExpires").value;
-    const errEl = document.getElementById("addCodeError");
-    
-    if (!code || code.length < 3) { errEl.textContent = "Code must be at least 3 characters"; errEl.classList.remove("hidden"); return; }
-    
+    const value = document.getElementById('newCodeValue').value.trim().toUpperCase();
+    const label = document.getElementById('newCodeLabel').value.trim();
+    const maxUses = document.getElementById('newCodeMaxUses').value;
+    const expires = document.getElementById('newCodeExpires').value;
+    const errBox = document.getElementById('addCodeError');
+    errBox.classList.add('hidden');
+
+    if (!value) {
+      errBox.textContent = 'Code is required.';
+      errBox.classList.remove('hidden');
+      return;
+    }
+
     try {
-      await supaPost("company_codes", {
-        company_id: selectedCompanyId, code, label: label || null,
-        max_uses: maxUses ? parseInt(maxUses) : null,
-        expires_at: expires ? new Date(expires + "T23:59:59Z").toISOString() : null,
-        is_active: true
+      await supaPost('company_invite_codes', {
+        company_id: this.companyId,
+        code: value,
+        label: label || null,
+        max_uses: maxUses ? parseInt(maxUses, 10) : null,
+        expires_at: expires ? localDateToUTCEnd(expires) : null,
+        active: true,
       });
       closeModals();
-      await this.loadCodes();
+      document.getElementById('newCodeValue').value = '';
+      document.getElementById('newCodeLabel').value = '';
+      document.getElementById('newCodeMaxUses').value = '';
+      document.getElementById('newCodeExpires').value = '';
+      await this.loadDetail({ companyId: this.companyId });
     } catch (e) {
-      errEl.textContent = e.message;
-      errEl.classList.remove("hidden");
+      errBox.textContent = e.message || 'Failed to create code.';
+      errBox.classList.remove('hidden');
     }
   },
-  
-  showAddAdminModal() {
-    document.getElementById("newAdminEmail").value = "";
-    document.getElementById("newAdminName").value = "";
-    document.getElementById("addAdminError").classList.add("hidden");
-    openModal("addAdminModal");
-  },
-  
-  async addAdmin() {
-    const email = document.getElementById("newAdminEmail").value.trim().toLowerCase();
-    const name = document.getElementById("newAdminName").value.trim();
-    const role = document.getElementById("newAdminRole").value;
-    const errEl = document.getElementById("addAdminError");
-    errEl.classList.add("hidden");
-    
-    if (!email) { errEl.textContent = "Email is required"; errEl.classList.remove("hidden"); return; }
-    
-    try {
-      const profiles = await supa(`profiles?email=eq.${encodeURIComponent(email)}&select=id`);
-      let userId;
-      
-      if (profiles.length > 0) {
-        // Existing user — just assign them
-        userId = profiles[0].id;
-      } else {
-        // New user — invite via Edge Function (sends "Set your password" email)
-        const firstName = name.split(' ')[0] || '';
-        const lastName = name.split(' ').slice(1).join(' ') || '';
-        const data = await supaInvite(email, {
-          first_name: firstName,
-          last_name: lastName
-        });
-        userId = data.user_id;
-        if (!userId) throw new Error("Invite sent but no user ID returned");
-        
-        // Edge Function handles profile name update, but wait for it
-        await new Promise(r => setTimeout(r, 2000));
-      }
-      
-      await supaPatch(`profiles?id=eq.${userId}`, { company_id: selectedCompanyId });
-      await supaPost("company_admins", { company_id: selectedCompanyId, user_id: userId, role });
-      
-      closeModals();
-      allCompanies = [];
-      this.load({ companyId: this.companyId });
-    } catch (e) {
-      errEl.textContent = e.message;
-      errEl.classList.remove("hidden");
-    }
-  },
-  
-  closeDeleteModal() {
-    document.getElementById('deleteCompanyModal').style.display = 'none';
-  },
 
-  showDeleteModal() {
-    const company = allCompanies.find(c => c.id === selectedCompanyId);
-    const hint = document.getElementById('deleteCompanyNameHint');
-    if (hint && company) hint.textContent = company.name;
-    document.getElementById('deleteCompanyConfirm').value = '';
-    document.getElementById('deleteCompanyError').classList.add('hidden');
-    document.getElementById('deleteCompanyBtn').disabled = true;
-    document.getElementById('deleteCompanyBtn').style.opacity = '0.4';
-    document.getElementById('deleteCompanyBtn').style.cursor = 'not-allowed';
-    const modal = document.getElementById('deleteCompanyModal');
-    modal.style.display = 'flex';
-  },
-
-  checkDeleteConfirm() {
-    const val = document.getElementById('deleteCompanyConfirm').value;
-    const company = allCompanies.find(c => c.id === selectedCompanyId);
-    const match = company && val === company.name;
-    const btn = document.getElementById('deleteCompanyBtn');
-    btn.disabled = !match;
-    btn.style.opacity = match ? '1' : '0.4';
-    btn.style.cursor = match ? 'pointer' : 'not-allowed';
-  },
+  // ═══════════════════════════════════════════════════════════════════════
+  // DELETE COMPANY
+  // ═══════════════════════════════════════════════════════════════════════
 
   async deleteCompany() {
-    if (!Auth.isSuper()) return;
-    const company = allCompanies.find(c => c.id === selectedCompanyId);
-    const val = document.getElementById('deleteCompanyConfirm').value;
-    if (!company || val !== company.name) return;
+    this.closeOverflow();
+    if (!this.company) return;
 
-    const errEl = document.getElementById('deleteCompanyError');
-    const btn = document.getElementById('deleteCompanyBtn');
-    btn.disabled = true;
-    btn.textContent = 'Deleting...';
-    errEl.classList.add('hidden');
+    const typed = prompt(
+      `This will permanently delete "${this.company.name}" and remove all associated admins and invite codes. ` +
+      `Client profiles will be unlinked but not deleted.\n\nType the company name to confirm:`
+    );
+    if (typed === null) return;
+    if (typed.trim() !== this.company.name) {
+      alert("Company name didn't match. Deletion cancelled.");
+      return;
+    }
 
     try {
-      // Unlink client profiles
-      await supaPatch(`profiles?company_id=eq.${selectedCompanyId}`, { company_id: null });
-      // Delete company_admins, company_codes, then company
-      await supaDelete(`company_admins?company_id=eq.${selectedCompanyId}`);
-      await supaDelete(`company_codes?company_id=eq.${selectedCompanyId}`);
-      await supaDelete(`companies?id=eq.${selectedCompanyId}`);
-
-      closeModals();
-      allCompanies = [];
-      Router.navigate('/companies');
+      await supaDelete(`companies?id=eq.${this.companyId}`);
+      Router.navigate('companies');
     } catch (e) {
-      errEl.textContent = e.message;
-      errEl.classList.remove('hidden');
-      btn.disabled = false;
-      btn.textContent = 'Delete Company';
+      alert(`Failed to delete: ${e.message}`);
     }
   },
 
-  showAddCompanyModal() {
-    document.getElementById("addCompanyError").classList.add("hidden");
-    ['newCompanyName', 'newCompanyAdminName', 'newCompanyAdminEmail', 'newCompanyBillingEmail', 'newCompanyWebsite'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.value = '';
-    });
-    openModal("addCompanyModal");
-  },
-  
+  // ═══════════════════════════════════════════════════════════════════════
+  // CREATE COMPANY (from list page's + Add Company button)
+  // ═══════════════════════════════════════════════════════════════════════
+
   async createCompany() {
-    const name = document.getElementById("newCompanyName").value.trim();
-    const adminEmail = document.getElementById("newCompanyAdminEmail").value.trim();
-    const billingEmail = document.getElementById("newCompanyBillingEmail").value.trim();
-    const website = document.getElementById("newCompanyWebsite").value.trim();
-    const plan = document.getElementById("newCompanyPlan").value;
-    const errEl = document.getElementById("addCompanyError");
-    
-    if (!name || !adminEmail) { errEl.textContent = "Company name and admin email are required"; errEl.classList.remove("hidden"); return; }
-    
-    const maxClients = plan === "starter" ? 10 : plan === "growth" ? 50 : 9999;
-    const slug = slugify(name);
-    
+    const name = document.getElementById('newCompanyName').value.trim();
+    const adminName = document.getElementById('newCompanyAdminName').value.trim();
+    const adminEmail = document.getElementById('newCompanyAdminEmail').value.trim();
+    const billingEmail = document.getElementById('newCompanyBillingEmail').value.trim();
+    const website = document.getElementById('newCompanyWebsite').value.trim();
+    const plan = document.getElementById('newCompanyPlan').value;
+    const errBox = document.getElementById('addCompanyError');
+    errBox.classList.add('hidden');
+
+    if (!name || !adminEmail) {
+      errBox.textContent = 'Company name and admin email required.';
+      errBox.classList.remove('hidden');
+      return;
+    }
+
     try {
-      await supaPost("companies", { name, slug, plan, max_clients: maxClients, billing_email: billingEmail || null, website: website || null });
-      
-      const profiles = await supa(`profiles?email=eq.${encodeURIComponent(adminEmail)}&select=*`);
-      if (profiles.length > 0) {
-        const newCompanies = await supa(`companies?slug=eq.${slug}&select=id`);
-        if (newCompanies[0]) {
-          await supaPost("company_admins", { company_id: newCompanies[0].id, user_id: profiles[0].id, role: "owner" });
+      // 1. Create the company
+      const res = await fetch(`${SUPA_URL}/rest/v1/companies`, {
+        method: 'POST',
+        headers: {
+          apikey: SUPA_KEY,
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          Prefer: 'return=representation',
+        },
+        body: JSON.stringify({
+          name,
+          website: website || null,
+          billing_email: billingEmail || adminEmail,
+          plan: plan || 'starter',
+        }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const [newCompany] = await res.json();
+
+      // 2. Invite the admin
+      if (adminEmail) {
+        try {
+          const [firstName, ...rest] = adminName.split(' ');
+          await supaInvite(adminEmail, { first_name: firstName || '', last_name: rest.join(' ') });
+          // Link the new auth user to this company as owner
+          const profiles = await supa(`profiles?email=eq.${encodeURIComponent(adminEmail)}&select=id`);
+          if (profiles[0]) {
+            await supaPost('company_admins', {
+              user_id: profiles[0].id,
+              company_id: newCompany.id,
+              role: 'owner',
+            });
+          }
+        } catch (inviteErr) {
+          console.warn('Admin invite had an issue (company still created):', inviteErr);
         }
       }
-      
+
       closeModals();
-      allCompanies = [];
-      CompaniesPage.load();
+      ['newCompanyName', 'newCompanyAdminName', 'newCompanyAdminEmail', 'newCompanyBillingEmail', 'newCompanyWebsite']
+        .forEach((id) => { const el = document.getElementById(id); if (el) el.value = ''; });
+      Router.navigate(`/companies/${Router.getSlug(newCompany.id)}`);
     } catch (e) {
-      errEl.textContent = e.message;
-      errEl.classList.remove("hidden");
+      errBox.textContent = e.message || 'Failed to create company.';
+      errBox.classList.remove('hidden');
     }
-  }
+  },
 };
 
+// Backward compat — legacy code paths referenced CompanyDetailPage by name
 window.CompaniesPage = CompaniesPage;
-window.CompanyDetailPage = CompanyDetailPage;
+window.CompanyDetailPage = CompaniesPage;

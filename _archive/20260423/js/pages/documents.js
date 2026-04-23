@@ -140,70 +140,79 @@ const Documents = {
 
   // ── Build Line Document Rendering ──
   renderBuildLineDocs(docs, buildLineId, companyId, containerEl) {
-    const statusBadgeClass = {
-      pending:    'badge--tier-base-camp',
-      processing: 'badge--tier-explorer',
-      ready:      'badge--success',
-      failed:     'badge--danger',
-    };
-    const statusLabel = {
-      pending:    'Queued',
-      processing: 'Processing…',
-      ready:      'Ready',
-      failed:     'Failed',
+    const statusColors = {
+      pending: { bg: '#767DFB20', color: '#767DFB', label: 'Pending' },
+      processing: { bg: '#4A9FD920', color: '#4A9FD9', label: 'Processing' },
+      ready: { bg: '#2ABC5320', color: '#2ABC53', label: 'Ready' },
+      failed: { bg: '#FF656520', color: '#FF6565', label: 'Failed' }
     };
 
     const typeLabels = {
       manual: 'Manual', wiring: 'Wiring Diagram', appliance: 'Appliance Spec',
-      warranty: 'Warranty', other: 'Other',
+      warranty: 'Warranty', other: 'Other'
     };
 
     const fileList = docs.length > 0 ? `
-      <div class="flex flex-col gap-2" style="margin-bottom:16px">
-        ${docs.map((d) => `
-          <div class="data-table-row data-table-row--static" style="padding:12px 14px;gap:12px">
-            <div style="width:36px;height:36px;background:var(--danger-bg);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
-              <span style="font-size:11px;font-weight:700;color:var(--danger)">PDF</span>
-            </div>
-            <div style="flex:1;min-width:0">
-              <div class="t-body" style="font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(d.file_name)}</div>
-              <div class="t-muted" style="font-size:12px;margin-top:2px">
-                ${escHtml(typeLabels[d.document_type] || d.document_type || '—')} · ${this.formatSize(d.file_size)} · ${d.chunk_count ? `${d.chunk_count} chunks · ` : ''}${timeAgo(d.uploaded_at)}
-              </div>
-              ${d.description ? `<div class="t-muted" style="font-size:11px;margin-top:2px">${escHtml(d.description)}</div>` : ''}
-              ${d.error_message ? `<div class="t-danger" style="font-size:11px;margin-top:4px">${escHtml(d.error_message)}</div>` : ''}
-            </div>
-            <span class="badge ${statusBadgeClass[d.processing_status] || 'badge--tier-base-camp'}">${statusLabel[d.processing_status] || d.processing_status || '—'}</span>
-            <div style="display:flex;gap:6px">
-              <button class="btn btn-secondary btn-sm" onclick="Documents.preview('${escHtml(d.id)}','${escHtml(d.file_url)}')">View</button>
-              <button class="btn btn-ghost btn-sm t-danger" onclick="Documents.removeBuildLineDoc('${escHtml(d.id)}','${escHtml(buildLineId)}','${escHtml(companyId)}')">Delete</button>
-            </div>
-          </div>
-        `).join('')}
+      <div class="table-wrap" style="border:none;margin-bottom:16px">
+        <table>
+          <thead><tr><th>Document</th><th>Type</th><th>Size</th><th>AI Status</th><th>Chunks</th><th>Uploaded</th><th></th></tr></thead>
+          <tbody>
+            ${docs.map(d => {
+              const st = statusColors[d.processing_status] || statusColors.pending;
+              return `<tr style="cursor:default">
+                <td>
+                  <div style="display:flex;align-items:center;gap:8px">
+                    <div style="width:32px;height:32px;background:#FF656515;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+                      <span style="font-size:11px;font-weight:700;color:#FF6565">PDF</span>
+                    </div>
+                    <div>
+                      <div style="color:#F5F1EB;font-size:13px;font-weight:500">${escHtml(d.file_name)}</div>
+                      ${d.description ? `<div style="color:#666;font-size:11px">${escHtml(d.description)}</div>` : ''}
+                    </div>
+                  </div>
+                </td>
+                <td><span style="color:#8E8D8A;font-size:12px">${typeLabels[d.document_type] || d.document_type}</span></td>
+                <td style="color:#666;font-size:12px">${this.formatSize(d.file_size)}</td>
+                <td>
+                  <span style="background:${st.bg};color:${st.color};padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600${d.processing_status === 'processing' ? ';animation:pulse 1.5s ease-in-out infinite' : ''}">
+                    ${st.label}
+                  </span>
+                  ${d.error_message ? `<div style="color:#FF6565;font-size:10px;margin-top:2px">${escHtml(d.error_message)}</div>` : ''}
+                </td>
+                <td style="color:#666;font-size:12px">${d.chunk_count || '—'}</td>
+                <td style="color:#666;font-size:12px">${timeAgo(d.uploaded_at)}</td>
+                <td>
+                  <div style="display:flex;gap:4px">
+                    <button class="btn-secondary" style="font-size:11px;padding:4px 10px" onclick="Documents.preview('${d.id}','${d.file_url}')">View</button>
+                    <button class="btn-delete" style="font-size:11px;padding:4px 10px" onclick="Documents.removeBuildLineDoc('${d.id}','${buildLineId}','${companyId}')">Delete</button>
+                  </div>
+                </td>
+              </tr>`;
+            }).join("")}
+          </tbody>
+        </table>
       </div>
-    ` : '<div class="t-muted t-detail" style="padding:8px 0 16px">No documents uploaded for this build line yet.</div>';
+    ` : '<div style="color:#666;font-size:13px;padding:8px 0 16px">No documents uploaded for this build line yet.</div>';
 
     const zoneId = `bl_${buildLineId}`;
     containerEl.innerHTML = `
       ${fileList}
-      <label id="docUploadZone_${zoneId}" for="docFileInput_${zoneId}"
-             style="display:flex;flex-direction:column;align-items:center;gap:10px;padding:28px;border:2px dashed var(--border-default);border-radius:8px;cursor:pointer;background:var(--bg-muted);transition:all 0.15s"
-             ondragover="Documents.handleDragOver(event)"
-             ondragleave="Documents.handleDragLeave(event)"
-             ondrop="Documents.handleDropBuildLine(event, '${escHtml(buildLineId)}', '${escHtml(companyId)}')">
+      <div class="doc-upload-zone" id="docUploadZone_${zoneId}"
+           ondragover="Documents.handleDragOver(event)"
+           ondragleave="Documents.handleDragLeave(event)"
+           ondrop="Documents.handleDropBuildLine(event, '${buildLineId}', '${companyId}')"
+           onclick="document.getElementById('docFileInput_${zoneId}').click()">
         <input type="file" id="docFileInput_${zoneId}" accept=".pdf" style="display:none"
-               onchange="Documents.handleFileSelectBuildLine(event, '${escHtml(buildLineId)}', '${escHtml(companyId)}')">
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--brand-primary)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-          <polyline points="14 2 14 8 20 8"/>
-          <line x1="12" y1="18" x2="12" y2="12"/>
-          <line x1="9" y1="15" x2="12" y2="12"/>
-          <line x1="15" y1="15" x2="12" y2="12"/>
-        </svg>
-        <div class="t-body" style="font-weight:500">Drop PDF here or click to browse</div>
-        <div class="t-muted t-detail">Shared across all vehicles of this build · Max 50MB · PDF only</div>
-      </label>
-      <div id="docUploadProgress_${zoneId}" style="display:none;margin-top:12px"></div>
+               onchange="Documents.handleFileSelectBuildLine(event, '${buildLineId}', '${companyId}')">
+        <div class="doc-upload-icon">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#767DFB" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="12" y2="12"/><line x1="15" y1="15" x2="12" y2="12"/>
+          </svg>
+        </div>
+        <div style="color:#F5F1EB;font-size:13px;font-weight:500">Drop PDF here or click to browse</div>
+        <div style="color:#666;font-size:12px;margin-top:4px">Shared across all vehicles of this build · Max 50MB · PDF only</div>
+      </div>
+      <div id="docUploadProgress_${zoneId}" style="display:none"></div>
     `;
   },
 
@@ -211,8 +220,7 @@ const Documents = {
   handleDropBuildLine(e, buildLineId, companyId) {
     e.preventDefault();
     e.stopPropagation();
-    e.currentTarget.style.borderColor = 'var(--border-default)';
-    e.currentTarget.style.background = 'var(--bg-muted)';
+    e.currentTarget.classList.remove('doc-upload-zone-active');
     if (e.dataTransfer.files.length > 0) {
       this.startUploadBuildLine(e.dataTransfer.files[0], buildLineId, companyId);
     }
@@ -266,22 +274,19 @@ const Documents = {
   handleDragOver(e) {
     e.preventDefault();
     e.stopPropagation();
-    e.currentTarget.style.borderColor = 'var(--brand-primary)';
-    e.currentTarget.style.background = 'var(--brand-primary-10)';
+    e.currentTarget.classList.add('doc-upload-zone-active');
   },
 
   handleDragLeave(e) {
     e.preventDefault();
     e.stopPropagation();
-    e.currentTarget.style.borderColor = 'var(--border-default)';
-    e.currentTarget.style.background = 'var(--bg-muted)';
+    e.currentTarget.classList.remove('doc-upload-zone-active');
   },
 
   handleDrop(e, vehicleId, companyId) {
     e.preventDefault();
     e.stopPropagation();
-    e.currentTarget.style.borderColor = 'var(--border-default)';
-    e.currentTarget.style.background = 'var(--bg-muted)';
+    e.currentTarget.classList.remove('doc-upload-zone-active');
 
     const files = e.dataTransfer.files;
     if (files.length > 0) {
@@ -363,17 +368,13 @@ const Documents = {
 
     try {
       // 1. Upload file to storage
-      // Sanitize filename for Supabase Storage (ASCII-only keys — non-ASCII chars
-      // like ö or é cause "Invalid key" 400 errors). Accents are stripped; spaces
-      // and other non-word chars become underscores. The original filename is
-      // preserved on the vehicle_documents row for display.
-      const safeFileName = file.name
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .replace(/[^\w.\-]+/g, '_')
-        .replace(/_+/g, '_');
       const storageFolder = isBuildLine ? `${companyId || 'direct'}/build_lines/${buildLineId}` : `${companyId || 'direct'}/${vehicleId}`;
-      const storagePath = `${storageFolder}/${Date.now()}_${safeFileName}`;
+      const safeName = file.name
+  .normalize('NFD')                      // decompose accents: ö → o + combining diaeresis
+  .replace(/[\u0300-\u036f]/g, '')       // strip combining marks
+  .replace(/[^\w.\-]+/g, '_')            // non-word chars (incl. spaces) → _
+  .replace(/_+/g, '_');                  // collapse runs of _
+const storagePath = `${storageFolder}/${Date.now()}_${safeName}`;
       const { url, error: uploadError } = await Storage.upload('van-manuals', storagePath, file, (pct) => {
         const fill = document.getElementById(`docProgressFill_${zoneKey}`);
         const text = document.getElementById(`docProgressText_${zoneKey}`);

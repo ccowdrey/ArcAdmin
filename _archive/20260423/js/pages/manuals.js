@@ -1,21 +1,17 @@
-// ArcAdmin — Company Manual Library
-// ===================================
+// ArcNode Admin — Company Manual Library
+// ==========================================
 // Manages the company-scoped device manual library. Each manual is tagged with
 // a device from the shared device_catalog. When a client asks ArcInsight a
 // question, the RAG pipeline pulls from these manuals (filtered by the client's
 // declared systems) after checking vehicle-specific and build-line docs.
 //
 // Storage layout: van-manuals/<company_id>/company_manuals/<manual_id>/<sanitized_filename>
-//
-// 2026-04-23: restyled for new design. loadForCompany now takes a container
-// element as second argument (rendered inline in a company's Manuals tab).
 
 const ManualsLibrary = {
   companyId: null,
   companyName: '',
   manuals: [],
   catalog: [],           // device_catalog rows, loaded once per page view
-  container: null,       // where to render (passed by CompaniesPage tab)
   _uploading: false,
   _pendingFile: null,
   _pendingCompanyId: null,
@@ -23,18 +19,17 @@ const ManualsLibrary = {
   VERCEL_PROCESS_URL: 'https://arcnode-processor.vercel.app/api/process-pdf',
 
   // ── Load ──
-  async loadForCompany(companyId, containerEl, companyName) {
+  async loadForCompany(companyId, companyName) {
     this.companyId = companyId;
     this.companyName = companyName || '';
 
-    // Backwards-compat: if third arg is missing but container was passed the
-    // old way (companyName as 2nd arg), try to find a legacy container.
-    this.container = containerEl || document.getElementById('manualsLibraryContainer');
-    if (!this.container) return;
+    const container = document.getElementById('manualsLibraryContainer');
+    if (!container) return;
 
-    this.container.innerHTML = '<div class="data-empty">Loading manual library...</div>';
+    container.innerHTML = '<div style="color:#8E8D8A;font-size:13px;padding:16px;text-align:center">Loading manual library...</div>';
 
     try {
+      // Load catalog first — needed to render device names + for the upload modal dropdown.
       if (this.catalog.length === 0) {
         this.catalog = await supa(`device_catalog?is_active=eq.true&select=*&order=category.asc,device_name.asc`);
       }
@@ -46,35 +41,31 @@ const ManualsLibrary = {
       this.render();
     } catch (e) {
       console.error('Load manual library failed:', e);
-      this.container.innerHTML = `<div class="data-empty">Failed to load manual library — ${escHtml(e.message || '')}</div>`;
+      container.innerHTML = '<div style="color:#FF6565;font-size:13px;padding:16px">Failed to load manual library</div>';
     }
   },
 
   // ── Render ──
   render() {
-    const container = this.container;
+    const container = document.getElementById('manualsLibraryContainer');
     if (!container) return;
 
-    const deviceById = Object.fromEntries(this.catalog.map((d) => [d.id, d]));
+    // Build a slug→device lookup (by id since manuals reference device_catalog_id)
+    const deviceById = Object.fromEntries(this.catalog.map(d => [d.id, d]));
 
-    const headerMarkup = `
-      <div class="flex items-center justify-between" style="margin-bottom:20px">
-        <div>
-          <div class="t-section-title">Manual library</div>
-          <div class="t-muted t-detail">Device manuals powering ArcInsight for this company's clients.</div>
-        </div>
-      </div>
-    `;
+    // Count update
+    const stat = document.getElementById('companyStatManuals');
+    if (stat) stat.textContent = this.manuals.length;
 
-    const uploadZoneMarkup = `<div id="manualsUploadZone_${escHtml(this.companyId)}" style="margin-top:20px"></div>`;
-
+    // Empty state
     if (this.manuals.length === 0) {
       container.innerHTML = `
-        ${headerMarkup}
-        <div class="data-empty">No manuals in library yet. Upload your first manual to power ArcInsight for this company's clients.</div>
-        ${uploadZoneMarkup}
+        <div style="color:#666;font-size:13px;padding:16px;text-align:center">
+          No manuals in library yet. Upload your first manual to power ArcInsight for this company's clients.
+        </div>
+        <div id="manualsUploadZone_${this.companyId}"></div>
       `;
-      this._renderUploadZone();
+      this.renderUploadZone();
       return;
     }
 
@@ -87,132 +78,113 @@ const ManualsLibrary = {
       byCategory[cat].push({ manual: m, device });
     }
 
-    const categoryOrder = ['climate', 'power', 'plumbing', 'lighting', 'entertainment', 'exterior', 'sensors', 'unknown'];
+    const categoryOrder = ['climate','power','plumbing','lighting','entertainment','exterior','sensors','unknown'];
     const categoryLabels = {
-      climate: 'Climate', power: 'Power', plumbing: 'Plumbing', lighting: 'Lighting',
-      entertainment: 'Entertainment', exterior: 'Awning & Exterior', sensors: 'Sensors',
-      unknown: 'Other',
+      climate:'Climate', power:'Power', plumbing:'Plumbing', lighting:'Lighting',
+      entertainment:'Entertainment', exterior:'Awning & Exterior', sensors:'Sensors',
+      unknown: 'Other'
     };
 
-    let html = '<div style="display:flex;flex-direction:column;gap:24px">';
+    let html = '<div style="display:flex;flex-direction:column;gap:20px">';
     for (const cat of categoryOrder) {
       if (!byCategory[cat]) continue;
       html += `
         <div>
-          <div class="section-label" style="margin-bottom:10px">${categoryLabels[cat]}</div>
+          <div style="color:#8E8D8A;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:8px">${categoryLabels[cat]}</div>
           <div style="display:flex;flex-direction:column;gap:8px">
-            ${byCategory[cat].map(({ manual, device }) => this._renderManualRow(manual, device)).join('')}
+            ${byCategory[cat].map(({ manual, device }) => this.renderManualRow(manual, device)).join('')}
           </div>
         </div>
       `;
     }
     html += '</div>';
+    html += `<div id="manualsUploadZone_${this.companyId}" style="margin-top:16px"></div>`;
 
-    container.innerHTML = `${headerMarkup}${html}${uploadZoneMarkup}`;
-    this._renderUploadZone();
+    container.innerHTML = html;
+    this.renderUploadZone();
   },
 
-  _renderManualRow(manual, device) {
-    const statusBadgeClass = {
-      pending:    'badge--tier-base-camp',
-      processing: 'badge--tier-explorer',
-      completed:  'badge--success',
-      failed:     'badge--danger',
-    }[manual.processing_status] || 'badge--tier-base-camp';
-
+  renderManualRow(manual, device) {
+    const statusColor = {
+      pending:    '#8E8D8A',
+      processing: '#767DFB',
+      completed:  '#2ABC53',
+      failed:     '#FF6565',
+    }[manual.processing_status] || '#8E8D8A';
     const statusLabel = {
       pending:    'Queued',
-      processing: 'Processing…',
+      processing: 'Processing...',
       completed:  'Ready',
       failed:     'Failed',
-    }[manual.processing_status] || manual.processing_status || '—';
+    }[manual.processing_status] || manual.processing_status;
 
-    const deviceName = device
-      ? `${device.device_name}${device.manufacturer ? ` · ${device.manufacturer}` : ''}`
-      : 'Unknown device';
-    const size = manual.file_size ? this._formatSize(manual.file_size) : '';
+    const deviceName = device ? `${device.device_name}${device.manufacturer ? ` · ${device.manufacturer}` : ''}` : 'Unknown device';
+    const size = manual.file_size ? this.formatSize(manual.file_size) : '';
 
     return `
-      <div class="data-table-row data-table-row--static" style="padding:12px 14px;gap:12px">
-        <div style="width:36px;height:36px;background:var(--brand-primary-10);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--brand-primary)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <div style="background:#1A1A1A;border:1px solid #2A2A2A;border-radius:8px;padding:12px 14px;display:flex;align-items:center;gap:12px">
+        <div style="width:32px;height:32px;background:#767DFB15;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#767DFB" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
             <polyline points="14 2 14 8 20 8"/>
           </svg>
         </div>
         <div style="flex:1;min-width:0">
-          <div class="t-body" style="font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(manual.file_name)}</div>
-          <div class="t-muted" style="font-size:12px;margin-top:2px">${escHtml(deviceName)}${size ? ` · ${size}` : ''} · ${timeAgo(manual.uploaded_at)}</div>
-          ${manual.error_message ? `<div class="t-danger" style="font-size:11px;margin-top:4px">${escHtml(manual.error_message)}</div>` : ''}
+          <div style="color:#F5F1EB;font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(manual.file_name)}</div>
+          <div style="color:#8E8D8A;font-size:11px;margin-top:2px">${escHtml(deviceName)}${size ? ` · ${size}` : ''} · ${timeAgo(manual.uploaded_at)}</div>
+          ${manual.error_message ? `<div style="color:#FF6565;font-size:11px;margin-top:4px">${escHtml(manual.error_message)}</div>` : ''}
         </div>
-        <span class="badge ${statusBadgeClass}">${statusLabel}</span>
-        <div style="display:flex;gap:6px">
-          <a href="${escHtml(manual.file_url)}" target="_blank" rel="noopener" class="btn btn-secondary btn-sm" style="text-decoration:none">View</a>
-          <button class="btn btn-ghost btn-sm t-danger" onclick="ManualsLibrary.remove('${escHtml(manual.id)}')">Delete</button>
+        <div style="font-size:11px;color:${statusColor};white-space:nowrap">${statusLabel}</div>
+        <div style="display:flex;gap:4px">
+          <a href="${escHtml(manual.file_url)}" target="_blank" class="btn-secondary" style="font-size:11px;padding:4px 10px;text-decoration:none">View</a>
+          <button class="btn-delete" style="font-size:11px;padding:4px 10px" onclick="ManualsLibrary.remove('${manual.id}')">Delete</button>
         </div>
       </div>
     `;
   },
 
-  _renderUploadZone() {
+  renderUploadZone() {
     const zoneContainer = document.getElementById(`manualsUploadZone_${this.companyId}`);
     if (!zoneContainer) return;
     const zoneId = `manuals_${this.companyId}`;
-
     zoneContainer.innerHTML = `
-      <label id="docUploadZone_${zoneId}" for="docFileInput_${zoneId}"
-             style="display:flex;flex-direction:column;align-items:center;gap:10px;padding:28px;border:2px dashed var(--border-default);border-radius:8px;cursor:pointer;background:var(--bg-muted);transition:border-color 0.15s"
-             ondragover="ManualsLibrary._handleDragOver(event)"
-             ondragleave="ManualsLibrary._handleDragLeave(event)"
-             ondrop="ManualsLibrary._handleDrop(event, '${escHtml(this.companyId)}')">
+      <div class="doc-upload-zone" id="docUploadZone_${zoneId}"
+           ondragover="ManualsLibrary.handleDragOver(event)"
+           ondragleave="ManualsLibrary.handleDragLeave(event)"
+           ondrop="ManualsLibrary.handleDrop(event, '${this.companyId}')"
+           onclick="document.getElementById('docFileInput_${zoneId}').click()">
         <input type="file" id="docFileInput_${zoneId}" accept=".pdf" style="display:none"
-               onchange="ManualsLibrary._handleFileSelect(event, '${escHtml(this.companyId)}')">
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--brand-primary)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-          <polyline points="14 2 14 8 20 8"/>
-          <line x1="12" y1="18" x2="12" y2="12"/>
-          <line x1="9" y1="15" x2="12" y2="12"/>
-          <line x1="15" y1="15" x2="12" y2="12"/>
-        </svg>
-        <div class="t-body" style="font-weight:500">Add a manual to the library</div>
-        <div class="t-muted t-detail">Drop a PDF here or click to browse · Max 50MB</div>
-      </label>
-      <div id="docUploadProgress_${zoneId}" style="display:none;margin-top:12px"></div>
+               onchange="ManualsLibrary.handleFileSelect(event, '${this.companyId}')">
+        <div class="doc-upload-icon">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#767DFB" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="12" y2="12"/><line x1="15" y1="15" x2="12" y2="12"/>
+          </svg>
+        </div>
+        <div style="color:#F5F1EB;font-size:13px;font-weight:500">Add a manual to the library</div>
+        <div style="color:#666;font-size:12px;margin-top:4px">Drop PDF here or click to browse · Max 50MB · PDF only</div>
+      </div>
+      <div id="docUploadProgress_${zoneId}" style="display:none"></div>
     `;
   },
 
   // ── Drag & Drop ──
-  _handleDragOver(e) {
+  handleDragOver(e) { e.preventDefault(); e.stopPropagation(); e.currentTarget.classList.add('doc-upload-zone-active'); },
+  handleDragLeave(e) { e.preventDefault(); e.stopPropagation(); e.currentTarget.classList.remove('doc-upload-zone-active'); },
+  handleDrop(e, companyId) {
     e.preventDefault();
     e.stopPropagation();
-    e.currentTarget.style.borderColor = 'var(--brand-primary)';
-    e.currentTarget.style.background = 'var(--brand-primary-10)';
+    e.currentTarget.classList.remove('doc-upload-zone-active');
+    if (e.dataTransfer.files.length > 0) this.startUpload(e.dataTransfer.files[0], companyId);
   },
-
-  _handleDragLeave(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    e.currentTarget.style.borderColor = 'var(--border-default)';
-    e.currentTarget.style.background = 'var(--bg-muted)';
-  },
-
-  _handleDrop(e, companyId) {
-    e.preventDefault();
-    e.stopPropagation();
-    e.currentTarget.style.borderColor = 'var(--border-default)';
-    e.currentTarget.style.background = 'var(--bg-muted)';
-    if (e.dataTransfer.files.length > 0) this._startUpload(e.dataTransfer.files[0], companyId);
-  },
-
-  _handleFileSelect(e, companyId) {
-    if (e.target.files.length > 0) this._startUpload(e.target.files[0], companyId);
+  handleFileSelect(e, companyId) {
+    if (e.target.files.length > 0) this.startUpload(e.target.files[0], companyId);
     e.target.value = '';
   },
 
   // ── Upload flow ──
-  _startUpload(file, companyId) {
+  startUpload(file, companyId) {
     if (this._uploading) return;
-    if (file.type !== 'application/pdf') { alert('Only PDF files are supported.'); return; }
+    if (file.type !== 'application/pdf') { alert('Only PDF files are supported'); return; }
     if (file.size > 52428800) { alert('File is too large. Maximum size is 50MB.'); return; }
 
     this._pendingFile = file;
@@ -220,8 +192,8 @@ const ManualsLibrary = {
 
     // Build device dropdown from catalog, grouped by category
     const categoryLabels = {
-      climate: 'Climate', power: 'Power', plumbing: 'Plumbing', lighting: 'Lighting',
-      entertainment: 'Entertainment', exterior: 'Awning & Exterior', sensors: 'Sensors',
+      climate:'Climate', power:'Power', plumbing:'Plumbing', lighting:'Lighting',
+      entertainment:'Entertainment', exterior:'Awning & Exterior', sensors:'Sensors',
     };
     const byCat = {};
     for (const d of this.catalog) {
@@ -229,16 +201,16 @@ const ManualsLibrary = {
       byCat[d.category].push(d);
     }
     const optionsHtml = Object.keys(categoryLabels)
-      .filter((cat) => byCat[cat]?.length)
-      .map((cat) => `
+      .filter(cat => byCat[cat]?.length)
+      .map(cat => `
         <optgroup label="${categoryLabels[cat]}">
-          ${byCat[cat].map((d) => `<option value="${escHtml(d.id)}">${escHtml(d.device_name)}${d.manufacturer ? ` — ${escHtml(d.manufacturer)}` : ''}</option>`).join('')}
+          ${byCat[cat].map(d => `<option value="${d.id}">${escHtml(d.device_name)}${d.manufacturer ? ` — ${escHtml(d.manufacturer)}` : ''}</option>`).join('')}
         </optgroup>
       `).join('');
 
     document.getElementById('manualUploadFileName').textContent = file.name;
-    document.getElementById('manualUploadFileSize').textContent = this._formatSize(file.size);
-    document.getElementById('manualUploadDevice').innerHTML = `<option value="">Select a device…</option>${optionsHtml}`;
+    document.getElementById('manualUploadFileSize').textContent = this.formatSize(file.size);
+    document.getElementById('manualUploadDevice').innerHTML = `<option value="">Select a device...</option>${optionsHtml}`;
     document.getElementById('manualUploadDesc').value = '';
     document.getElementById('manualUploadError').classList.add('hidden');
     openModal('manualUploadModal');
@@ -253,7 +225,7 @@ const ManualsLibrary = {
     errEl.classList.add('hidden');
 
     if (!deviceCatalogId) {
-      errEl.textContent = 'Select a device before uploading.';
+      errEl.textContent = 'Select a device before uploading';
       errEl.classList.remove('hidden');
       return;
     }
@@ -270,23 +242,20 @@ const ManualsLibrary = {
     if (progressEl) {
       progressEl.style.display = 'block';
       progressEl.innerHTML = `
-        <div class="card card--compact">
-          <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
-            <div style="width:18px;height:18px;border:2px solid var(--brand-primary);border-right-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite"></div>
-            <span class="t-body">Uploading ${escHtml(file.name)}…</span>
+        <div class="doc-upload-progress">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+            <div class="ai-loading"><div class="spinner"></div></div>
+            <span style="color:#F5F1EB;font-size:13px">Uploading ${escHtml(file.name)}...</span>
           </div>
-          <div style="height:6px;background:var(--bg-muted);border-radius:3px;overflow:hidden">
-            <div id="docProgressFill_${zoneId}" style="height:100%;width:0%;background:var(--brand-primary);transition:width 0.2s"></div>
-          </div>
-          <div class="t-muted t-detail" id="docProgressText_${zoneId}" style="margin-top:6px">0%</div>
+          <div class="doc-progress-bar"><div class="doc-progress-fill" id="docProgressFill_${zoneId}"></div></div>
+          <div style="color:#666;font-size:12px;margin-top:6px" id="docProgressText_${zoneId}">0%</div>
         </div>
-        <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
       `;
     }
 
     try {
       // Step 1: Create company_manuals row first so we have a manual_id for the storage path.
-      const uploaderEmail = Auth._userEmail || 'unknown';
+      const uploaderEmail = document.getElementById('navEmail')?.textContent || 'unknown';
       const insertRes = await fetch(`${SUPA_URL}/rest/v1/company_manuals`, {
         method: 'POST',
         headers: {
@@ -312,7 +281,7 @@ const ManualsLibrary = {
       if (!manualId) throw new Error('No manual_id returned from insert');
 
       // Step 2: Upload file to storage. Sanitize filename for Supabase Storage ASCII key.
-      const safeName = this._sanitizeFilename(file.name);
+      const safeName = this.sanitizeFilename(file.name);
       const storagePath = `${companyId}/company_manuals/${manualId}/${Date.now()}_${safeName}`;
       const { url, error: uploadError } = await Storage.upload('van-manuals', storagePath, file, (pct) => {
         const fill = document.getElementById(`docProgressFill_${zoneId}`);
@@ -321,12 +290,15 @@ const ManualsLibrary = {
         if (text) text.textContent = pct + '%';
       });
       if (uploadError) {
+        // Clean up the orphaned row so the UI doesn't show a broken entry.
         await supaDelete(`company_manuals?id=eq.${manualId}`);
         throw new Error(uploadError);
       }
 
       // Step 3: Update the row with the file_url now that it's known.
-      // Non-public URL (van-manuals bucket is not public — downloads are authenticated).
+      // NOTE: URL uses the non-public path (/object/van-manuals/...) to match
+      // the existing documents.js pattern. The van-manuals bucket is NOT public;
+      // downloads authenticate via service role key. Using /public/... would 400.
       const fileUrl = `${SUPA_URL}/storage/v1/object/van-manuals/${storagePath}`;
       await supaPatch(`company_manuals?id=eq.${manualId}`, { file_url: fileUrl });
 
@@ -334,14 +306,15 @@ const ManualsLibrary = {
       this.processViaVercel(manualId, companyId);
 
       // Step 5: Reload the library so the new row shows up.
-      await this.loadForCompany(companyId, this.container, this.companyName);
+      await this.loadForCompany(companyId, this.companyName);
+
     } catch (e) {
       console.error('Manual upload failed:', e);
       if (progressEl) {
         progressEl.innerHTML = `
-          <div style="background:var(--danger-bg);border:1px solid var(--danger);border-radius:8px;padding:12px">
-            <div class="t-danger" style="font-weight:500">Upload failed</div>
-            <div class="t-danger t-detail" style="margin-top:4px">${escHtml(e.message || '')}</div>
+          <div style="background:#FF656515;border:1px solid #FF656530;border-radius:8px;padding:12px;margin-bottom:12px">
+            <div style="color:#FF6565;font-size:13px;font-weight:500">Upload failed</div>
+            <div style="color:#FF6565;font-size:12px;margin-top:4px">${escHtml(e.message)}</div>
           </div>
         `;
       }
@@ -396,9 +369,9 @@ const ManualsLibrary = {
       const result = await embedRes.json();
       console.log(`✅ Company manual processed: ${result.chunk_count} chunks`);
 
-      if (this.companyId === companyId) {
-        await this.loadForCompany(companyId, this.container, this.companyName);
-      }
+      // Reload library to show 'completed' status
+      if (this.companyId === companyId) await this.loadForCompany(companyId, this.companyName);
+
     } catch (e) {
       console.error('Processing failed:', e);
       try {
@@ -407,9 +380,7 @@ const ManualsLibrary = {
           error_message: (e.message || 'Processing failed').slice(0, 500),
         });
       } catch (_) {}
-      if (this.companyId === companyId) {
-        await this.loadForCompany(companyId, this.container, this.companyName);
-      }
+      if (this.companyId === companyId) await this.loadForCompany(companyId, this.companyName);
     }
   },
 
@@ -418,6 +389,7 @@ const ManualsLibrary = {
     if (!confirm('Delete this manual? This will also remove all AI-processed chunks from the library.')) return;
 
     try {
+      // Get file_url before deletion so we can also clean up storage.
       const rows = await supa(`company_manuals?id=eq.${manualId}&select=file_url`);
       const manual = rows[0];
 
@@ -430,15 +402,15 @@ const ManualsLibrary = {
         if (path) await Storage.remove('van-manuals', path);
       }
 
-      await this.loadForCompany(this.companyId, this.container, this.companyName);
+      await this.loadForCompany(this.companyId, this.companyName);
     } catch (e) {
       console.error('Delete manual failed:', e);
-      alert(`Failed to delete manual: ${e.message}`);
+      alert('Failed to delete manual: ' + e.message);
     }
   },
 
   // ── Helpers ──
-  _sanitizeFilename(name) {
+  sanitizeFilename(name) {
     // Strip accents, replace non-ASCII / whitespace / path chars with underscore.
     // Preserves file extension and keeps the key ASCII-clean for Supabase Storage.
     return name
@@ -448,7 +420,7 @@ const ManualsLibrary = {
       .replace(/_+/g, '_');
   },
 
-  _formatSize(bytes) {
+  formatSize(bytes) {
     if (!bytes) return '';
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;

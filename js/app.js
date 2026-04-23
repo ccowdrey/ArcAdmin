@@ -1,347 +1,239 @@
-// ArcOS Admin — App Initialization
-// ==================================
+// ArcAdmin — App Bootstrap
+// =========================
+// 2026-04-23 rewrite for the new sidebar-nav architecture. Registers routes,
+// wires up global helpers (modal open/close, click-outside for overflow menu),
+// and kicks off the initial render.
 
-document.addEventListener("DOMContentLoaded", () => {
-  // ── Check for invite/recovery token in URL hash ──
+document.addEventListener('DOMContentLoaded', () => {
+
+  // ── Check for invite / password-recovery tokens in the URL hash ──
   const hash = window.location.hash.substring(1);
   if (hash) {
     const params = new URLSearchParams(hash);
     const accessToken = params.get('access_token');
     const type = params.get('type');
-    
+
     if (accessToken && (type === 'invite' || type === 'recovery')) {
-      // Store the token and show set-password page
+      // Temporarily stash token so the set-password request has auth
       token = accessToken;
-      hide('loginPage');
-      hide('appShell');
-      // Update subtitle based on flow type
-      const subEl = document.querySelector('#setPasswordPage .sub');
-      if (subEl) subEl.textContent = type === 'recovery' ? 'Set New Password' : 'Set Your Password';
-      const descEl = document.querySelector('#setPasswordPage .login-box > div[style*="13px"]');
-      if (descEl && type === 'recovery') descEl.textContent = "Enter a new password for your account.";
-      show('setPasswordPage');
-      // Clear the hash from the URL
+      saveSession();
+
+      document.getElementById('loginPage').classList.add('hidden');
+      document.getElementById('appShell').classList.add('hidden');
+      document.getElementById('setPasswordPage').classList.remove('hidden');
+
+      // Clear the hash from the address bar
       history.replaceState(null, '', window.location.pathname);
-      // Focus the password field
-      setTimeout(() => document.getElementById('newPassword')?.focus(), 100);
-      return; // Don't proceed with normal init
+      return;
     }
   }
-  
-  // Login form
-  document.getElementById("loginEmail").addEventListener("keydown", e => { if (e.key === "Enter") handleLogin(); });
-  document.getElementById("loginPassword").addEventListener("keydown", e => { if (e.key === "Enter") handleLogin(); });
-  
-  // Set password form
-  document.getElementById("newPassword")?.addEventListener("keydown", e => { if (e.key === "Enter") document.getElementById("confirmPassword")?.focus(); });
-  document.getElementById("confirmPassword")?.addEventListener("keydown", e => { if (e.key === "Enter") handleSetPassword(); });
-  
-  // Set max date on all date pickers
-  const today = localDate();
-  document.querySelectorAll('input[type="date"]').forEach(el => { el.max = today; });
-  
-  // Register routes
+
+  // ── Register routes ──
+  // All routes require auth. When token is missing, bounce to login.
+
+  const requireAuth = (handler) => (params) => {
+    if (!token) { showLogin(); return; }
+    handler(params);
+  };
+
   Router.on('/login', () => {
-    hide('appShell');
-    show('loginPage');
+    document.getElementById('appShell').classList.add('hidden');
+    document.getElementById('loginPage').classList.remove('hidden');
   });
-  
-  Router.on('/users', () => {
-    if (!token) { Router.navigate('/login'); return; }
-    if (!Auth.isSuper()) { Router.navigate('/'); return; }
-    UsersPage.load();
-  });
-  
-  Router.on('/users/:userId', (params) => {
-    if (!token) { Router.navigate('/login'); return; }
-    UserDetailPage.load(params);
-  });
-  
-  Router.on('/companies', () => {
-    if (!token) { Router.navigate('/login'); return; }
-    if (!Auth.isSuper()) { Router.navigate('/'); return; }
-    CompaniesPage.load();
-  });
-  
-  Router.on('/companies/:companyId', (params) => {
-    if (!token) { Router.navigate('/login'); return; }
-    CompanyDetailPage.load(params);
-  });
-  
-  Router.on('/trips', () => {
-    if (!token) { Router.navigate('/login'); return; }
-    if (!Auth.isSuper()) { Router.navigate('/'); return; }
-    TripsPage.load();
-  });
-  
-  Router.on('/firmware', () => {
-    if (!token) { Router.navigate('/login'); return; }
-    if (!Auth.isSuper()) { Router.navigate('/'); return; }
-    FirmwarePage.load();
-  });
-  
-  Router.on('/companies/:companyId/clients/:clientId', (params) => {
-    if (!token) { Router.navigate('/login'); return; }
-    UserDetailPage.load({ userId: Router.resolveId(params.clientId) });
-  });
-  
-  Router.on('/companies/:companyId/builds/:buildLineId', (params) => {
-    if (!token) { Router.navigate('/login'); return; }
-    BuildLineDetailPage.load(params);
-  });
-  
-  Router.on('/', () => {
-    if (!token) { Router.navigate('/login'); return; }
-    if (Auth.isSuper()) Router.navigate('/users');
-    else if (Auth.isCompanyAdmin()) Router.navigate(`/companies/${userCompanyId}`);
-    else Router.navigate('/login');
-  });
-  
-  // Initialize router
-  Router.init();
-  
-  // Start on login if no token
-  if (!token) {
-    const path = window.location.pathname;
-    if (path === '/' || path === '/login' || path === '') {
-      Router.navigate('/login', false);
+
+  Router.on('/dashboard', requireAuth(() => {
+    Router.showPage('pageDashboard');
+    if (window.DashboardPage) DashboardPage.load();
+  }));
+
+  Router.on('/clients', requireAuth(() => {
+    Router.showPage('pageClients');
+    if (window.ClientsPage) ClientsPage.load();
+  }));
+
+  Router.on('/clients/:userId', requireAuth((params) => {
+    Router.showPage('pageUserDetail');
+    if (window.UserDetailPage) UserDetailPage.load(params);
+  }));
+
+  Router.on('/companies', requireAuth(() => {
+    if (!Auth.isSuper() && !Auth.isCompanyAdmin()) { Router.navigate('dashboard'); return; }
+    Router.showPage('pageCompanies');
+    if (window.CompaniesPage) CompaniesPage.load();
+  }));
+
+  Router.on('/companies/:companyId', requireAuth((params) => {
+    Router.showPage('pageCompanyDetail');
+    if (window.CompaniesPage && CompaniesPage.loadDetail) {
+      CompaniesPage.loadDetail({ companyId: Router.resolveId(params.companyId) });
     }
+  }));
+
+  Router.on('/companies/:companyId/clients/:clientId', requireAuth((params) => {
+    Router.showPage('pageUserDetail');
+    if (window.UserDetailPage) UserDetailPage.load({ userId: Router.resolveId(params.clientId) });
+  }));
+
+  Router.on('/companies/:companyId/builds/:buildLineId', requireAuth((params) => {
+    Router.showPage('pageBuildLineDetail');
+    if (window.BuildLinesPage && BuildLinesPage.loadDetail) {
+      BuildLinesPage.loadDetail({
+        companyId: Router.resolveId(params.companyId),
+        buildLineId: Router.resolveId(params.buildLineId),
+      });
+    }
+  }));
+
+  Router.on('/trips', requireAuth(() => {
+    if (!Auth.isSuper()) { Router.navigate('dashboard'); return; }
+    Router.showPage('pageTrips');
+    if (window.TripsPage) TripsPage.load();
+  }));
+
+  Router.on('/firmware', requireAuth(() => {
+    if (!Auth.isSuper()) { Router.navigate('dashboard'); return; }
+    Router.showPage('pageFirmware');
+    if (window.FirmwarePage) FirmwarePage.load();
+  }));
+
+  Router.on('/', () => {
+    if (!token) { showLogin(); return; }
+    Router.navigate('dashboard', false);
+  });
+
+  // ── Wire up global UI behaviors ──
+  wireModalBackdrops();
+  wireOverflowMenuAutoClose();
+
+  // ── Boot ──
+  if (!token) {
+    showLogin();
+    return;
   }
+
+  // Have a stored token from localStorage — need to validate it and restore the
+  // role/profile context. Simplest approach: reload profile, re-derive role.
+  bootstrapFromStoredSession();
 });
 
-// ── Login Handler ──
-async function handleLogin() {
-  const email = document.getElementById("loginEmail").value.trim();
-  const password = document.getElementById("loginPassword").value;
-  const errEl = document.getElementById("loginError");
-  const btn = document.getElementById("loginBtn");
-  
-  errEl.classList.add("hidden");
-  btn.disabled = true;
-  btn.textContent = "Signing in...";
-  
-  try {
-    await Auth.login(email, password);
-  } catch (e) {
-    errEl.textContent = e.message;
-    errEl.classList.remove("hidden");
-  }
-  
-  btn.disabled = false;
-  btn.textContent = "Sign In";
+// ── Helpers ──
+
+function showLogin() {
+  document.getElementById('appShell').classList.add('hidden');
+  document.getElementById('loginPage').classList.remove('hidden');
 }
 
-// ── Nav handlers (called from HTML) ──
-function navUsers() { Router.navigate('/users'); }
-function navCompanies() { Router.navigate('/companies'); }
-function navTrips() { Router.navigate('/trips'); }
-function navFirmware() { Router.navigate('/firmware'); }
-function handleSignout() { Auth.signout(); }
-
-// ── Set Password Handler (invite flow) ──
-async function handleSetPassword() {
-  const password = document.getElementById('newPassword').value;
-  const confirm = document.getElementById('confirmPassword').value;
-  const errEl = document.getElementById('setPasswordError');
-  const successEl = document.getElementById('setPasswordSuccess');
-  const btn = document.getElementById('setPasswordBtn');
-  
-  errEl.classList.add('hidden');
-  successEl.classList.add('hidden');
-  
-  if (!password || password.length < 8) {
-    errEl.textContent = 'Password must be at least 8 characters';
-    errEl.classList.remove('hidden');
-    return;
-  }
-  
-  if (password !== confirm) {
-    errEl.textContent = 'Passwords do not match';
-    errEl.classList.remove('hidden');
-    return;
-  }
-  
-  btn.disabled = true;
-  btn.textContent = 'Setting password...';
-  
+async function bootstrapFromStoredSession() {
   try {
-    const res = await fetch(`${SUPA_URL}/auth/v1/user`, {
-      method: 'PUT',
-      headers: {
-        apikey: SUPA_KEY,
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ password })
-    });
-    
-    if (!res.ok) {
-      const data = await res.json();
-      throw new Error(data.msg || data.error_description || 'Failed to set password');
+    // We don't have the user id in localStorage — grab it by decoding the JWT.
+    const payload = parseJwtPayload(token);
+    if (!payload || !payload.sub) {
+      clearSession();
+      showLogin();
+      return;
     }
-    
-    successEl.textContent = 'Password set! Redirecting to login...';
-    successEl.classList.remove('hidden');
-    
-    // Sign out the invite token session, redirect to login
-    token = null;
-    setTimeout(() => {
-      hide('setPasswordPage');
-      show('loginPage');
-      Router.navigate('/login', false);
-    }, 2000);
-    
-  } catch (e) {
-    errEl.textContent = e.message;
-    errEl.classList.remove('hidden');
-  }
-  
-  btn.disabled = false;
-  btn.textContent = 'Set Password';
-}
-// ── Forgot Password Handlers ──
-function showForgotPassword(e) {
-  e.preventDefault();
-  document.getElementById("forgotEmail").value = document.getElementById("loginEmail").value;
-  document.getElementById("forgotError").classList.add("hidden");
-  showForgotStep1();
-  hide("loginPage");
-  show("forgotPasswordPage");
-  setTimeout(() => document.getElementById("forgotEmail").focus(), 100);
-}
+    const userId = payload.sub;
 
-function showForgotStep1(e) {
-  if (e) e.preventDefault();
-  document.getElementById("forgotStep1").classList.remove("hidden");
-  document.getElementById("forgotStep2").classList.add("hidden");
-  document.getElementById("forgotSubtitle").textContent = "Reset Password";
-  document.getElementById("forgotError").classList.add("hidden");
-  document.getElementById("forgotBtn").disabled = false;
-  document.getElementById("forgotBtn").textContent = "Send Reset Code";
-}
+    const profile = await supa(`profiles?id=eq.${userId}&select=is_admin,email,first_name,last_name`);
+    const p = profile[0] || {};
+    const fullName = [p.first_name, p.last_name].filter(Boolean).join(' ').trim();
+    Auth._userEmail = p.email || payload.email || '';
+    Auth._userName = fullName || Auth._userEmail;
 
-function showLogin(e) {
-  e.preventDefault();
-  hide("forgotPasswordPage");
-  show("loginPage");
-  setTimeout(() => document.getElementById("loginEmail").focus(), 100);
-}
-
-async function handleForgotPassword() {
-  const email = document.getElementById("forgotEmail").value.trim();
-  const errEl = document.getElementById("forgotError");
-  const btn = document.getElementById("forgotBtn");
-
-  errEl.classList.add("hidden");
-
-  if (!email) {
-    errEl.textContent = "Please enter your email address";
-    errEl.classList.remove("hidden");
-    return;
-  }
-
-  btn.disabled = true;
-  btn.textContent = "Sending...";
-
-  try {
-    const res = await fetch(`${SUPA_URL}/auth/v1/recover`, {
-      method: "POST",
-      headers: { apikey: SUPA_KEY, "Content-Type": "application/json" },
-      body: JSON.stringify({ email })
-    });
-
-    if (!res.ok) {
-      const data = await res.json();
-      throw new Error(data.msg || data.error_description || "Failed to send code");
+    if (p.is_admin) {
+      userRole = 'super_admin';
+    } else {
+      const ca = await supa(`company_admins?user_id=eq.${userId}&select=company_id,role`);
+      if (ca.length > 0) {
+        userRole = 'company_admin';
+        userCompanyId = ca[0].company_id;
+        const companies = await supa(`companies?id=eq.${userCompanyId}&select=name`);
+        userCompanyName = companies[0]?.name || 'Company';
+        Router.registerSlug(userCompanyId, userCompanyName);
+      } else {
+        clearSession();
+        showLogin();
+        return;
+      }
     }
 
-    // Move to step 2
-    document.getElementById("forgotStep1").classList.add("hidden");
-    document.getElementById("forgotStep2").classList.remove("hidden");
-    document.getElementById("forgotSubtitle").textContent = "Check Your Email";
-    document.getElementById("forgotToken").value = "";
-    document.getElementById("resetPassword").value = "";
-    document.getElementById("resetConfirmPassword").value = "";
-    setTimeout(() => document.getElementById("forgotToken").focus(), 100);
+    Auth._startSessionTimers();
+    if (typeof startBackgroundRefresh === 'function') startBackgroundRefresh();
+    Router.renderSidebar(userRole, { name: Auth._userName, email: Auth._userEmail });
 
+    document.getElementById('loginPage').classList.add('hidden');
+    document.getElementById('appShell').classList.remove('hidden');
+
+    // Honor deep-link on reload; otherwise go to dashboard
+    const path = window.location.pathname;
+    if (path === '/' || path === '/login' || path === '') {
+      Router.navigate('dashboard', false);
+    } else {
+      Router.currentPath = path;
+      Router.resolve(path);
+      Router._updateActiveNav();
+    }
   } catch (e) {
-    errEl.textContent = e.message || "Failed to send reset code";
-    errEl.classList.remove("hidden");
-    btn.disabled = false;
-    btn.textContent = "Send Reset Code";
+    console.error('Bootstrap failed:', e);
+    clearSession();
+    showLogin();
   }
 }
 
-async function handleResetPassword() {
-  const email = document.getElementById("forgotEmail").value.trim();
-  const token_val = document.getElementById("forgotToken").value.trim();
-  const password = document.getElementById("resetPassword").value;
-  const confirm = document.getElementById("resetConfirmPassword").value;
-  const errEl = document.getElementById("forgotError");
-  const btn = document.getElementById("resetBtn");
-
-  errEl.classList.add("hidden");
-
-  if (!token_val) { errEl.textContent = "Please enter the code from your email"; errEl.classList.remove("hidden"); return; }
-  if (!password || password.length < 8) { errEl.textContent = "Password must be at least 8 characters"; errEl.classList.remove("hidden"); return; }
-  if (password !== confirm) { errEl.textContent = "Passwords do not match"; errEl.classList.remove("hidden"); return; }
-
-  btn.disabled = true;
-  btn.textContent = "Verifying...";
-
+function parseJwtPayload(jwt) {
   try {
-    // Verify OTP to get a session
-    const verifyRes = await fetch(`${SUPA_URL}/auth/v1/verify`, {
-      method: "POST",
-      headers: { apikey: SUPA_KEY, "Content-Type": "application/json" },
-      body: JSON.stringify({ email, token: token_val, type: "recovery" })
-    });
-
-    if (!verifyRes.ok) {
-      const data = await verifyRes.json();
-      throw new Error(data.msg || data.error_description || "Invalid or expired code");
-    }
-
-    const session = await verifyRes.json();
-    const sessionToken = session.access_token;
-
-    // Update password using the verified session
-    btn.textContent = "Setting password...";
-    const updateRes = await fetch(`${SUPA_URL}/auth/v1/user`, {
-      method: "PUT",
-      headers: { apikey: SUPA_KEY, Authorization: `Bearer ${sessionToken}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ password })
-    });
-
-    if (!updateRes.ok) {
-      const data = await updateRes.json();
-      throw new Error(data.msg || data.error_description || "Failed to update password");
-    }
-
-    // Success — go back to login
-    hide("forgotPasswordPage");
-    show("loginPage");
-    document.getElementById("loginEmail").value = email;
-    document.getElementById("loginError").textContent = "";
-    // Show a brief success message in the login error box (reuse it as info)
-    const loginErr = document.getElementById("loginError");
-    loginErr.style.background = "#2ABC5320";
-    loginErr.style.borderColor = "#2ABC5340";
-    loginErr.style.color = "#2ABC53";
-    loginErr.textContent = "Password updated! Sign in with your new password.";
-    loginErr.classList.remove("hidden");
-    setTimeout(() => {
-      loginErr.classList.add("hidden");
-      loginErr.style.background = "";
-      loginErr.style.borderColor = "";
-      loginErr.style.color = "";
-    }, 5000);
-    setTimeout(() => document.getElementById("loginPassword").focus(), 100);
-
+    const parts = jwt.split('.');
+    if (parts.length !== 3) return null;
+    const payload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padding = '='.repeat((4 - payload.length % 4) % 4);
+    return JSON.parse(atob(payload + padding));
   } catch (e) {
-    errEl.textContent = e.message || "Failed to reset password";
-    errEl.classList.remove("hidden");
-    btn.disabled = false;
-    btn.textContent = "Set New Password";
+    return null;
   }
 }
+
+// ── Modal helpers (used by all pages) ──
+
+function openModal(id) {
+  const el = document.getElementById(id);
+  if (el) el.classList.remove('hidden');
+}
+
+function closeModals() {
+  document.querySelectorAll('.modal-overlay').forEach(m => m.classList.add('hidden'));
+  // Also clear any inline error boxes
+  document.querySelectorAll('.modal-overlay .error-box').forEach(e => e.classList.add('hidden'));
+}
+
+function wireModalBackdrops() {
+  document.querySelectorAll('.modal-overlay').forEach(overlay => {
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) closeModals();
+    });
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeModals();
+  });
+}
+
+// ── Overflow menu auto-close ──
+// Click anywhere outside the menu (or its trigger) and it closes.
+function wireOverflowMenuAutoClose() {
+  document.addEventListener('click', (e) => {
+    document.querySelectorAll('.overflow-menu:not(.hidden)').forEach(menu => {
+      const wrapper = menu.closest('.overflow-menu-wrapper');
+      if (wrapper && !wrapper.contains(e.target)) {
+        menu.classList.add('hidden');
+      }
+    });
+  });
+}
+
+// ── Misc globals (kept for backward compat with legacy page modules) ──
+function show(id) { document.getElementById(id)?.classList.remove('hidden'); }
+function hide(id) { document.getElementById(id)?.classList.add('hidden'); }
+
+window.openModal = openModal;
+window.closeModals = closeModals;
+window.show = show;
+window.hide = hide;
