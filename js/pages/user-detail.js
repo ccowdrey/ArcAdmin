@@ -91,51 +91,42 @@ const UserDetailPage = {
         <div>${tierBadge(tier)}</div>
       </div>
 
-      <div class="card">
-        <div class="card-title">Account</div>
-        <div class="flex flex-col gap-2">
-          ${this._row('User ID', `<span style="font-family:ui-monospace,monospace;font-size:13px">${escHtml(this.userId.slice(0, 8))}...</span>`)}
-          ${this._row('Joined', escHtml(formatDate(profile.created_at)))}
-          ${this._row('Last active', escHtml(profile.last_login_at ? timeAgo(profile.last_login_at) : 'Never'))}
-          ${this._row('Company', escHtml(companyLabel))}
+      <div class="info-grid">
+        <div class="info-card">
+          <div class="info-card-title">ACCOUNT INFO</div>
+          ${this._infoLine('User ID', `<span style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;word-break:break-all">${escHtml(this.userId)}</span>`)}
+          ${this._infoLine('Joined', escHtml(formatDate(profile.created_at)))}
+          ${this._infoLine('Last active', escHtml(profile.last_login_at ? timeAgo(profile.last_login_at) : 'Never'))}
+          ${this._infoLine('Company', escHtml(companyLabel))}
         </div>
-      </div>
 
-      <div class="card">
-        <div class="card-title">Subscription</div>
-        ${sub ? `
-          <div class="flex flex-col gap-2">
-            ${this._row('Tier', `<span style="text-transform:uppercase">${escHtml(sub.tier || '—')}</span>`)}
-            ${this._row('Status', escHtml(sub.status || '—'))}
-            ${this._row('Platform', escHtml(sub.platform || '—'))}
-            ${sub.current_period_end ? this._row('Renews', escHtml(formatDate(sub.current_period_end))) : ''}
-          </div>
+        <div class="info-card">
+          <div class="info-card-title">VEHICLE INFO</div>
+          ${vehicle ? `
+            ${this._infoLine('Make', escHtml(vehicle.make || '—'))}
+            ${this._infoLine('Model', escHtml(vehicle.model || '—'))}
+            ${this._infoLine('Year', escHtml(String(vehicle.year || '—')))}
+            ${this._infoLine('Build line', escHtml(buildLineLabel))}
+            ${this._infoLine('Nickname', escHtml(vehicle.nickname || vehicle.name || '—'))}
+            ${this._infoLine('VIN', escHtml(vehicle.vin || '—'))}
+            ${this._infoLine('Cerbo IP', `<span style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px">${escHtml(vehicle.cerbo_ip || '—')}</span>`)}
+            ${this._infoLine('Cerbo portal ID', `<span style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px">${escHtml(vehicle.cerbo_portal_id || '—')}</span>`)}
+          ` : `<div class="t-muted t-detail" style="padding:8px 0">No vehicle registered.</div>`}
+        </div>
+
+        <div class="info-card">
+          <div class="info-card-title">SUBSCRIPTION</div>
+          ${sub ? `
+            ${this._infoLine('Tier', `<span style="text-transform:capitalize">${escHtml((sub.tier || '').replace(/_/g, ' ') || '—')}</span>`)}
+            ${this._infoLine('Status', `<span style="text-transform:capitalize">${escHtml(sub.status || '—')}</span>`)}
+            ${this._infoLine('Platform', escHtml(sub.platform || '—'))}
+            ${sub.current_period_end ? this._infoLine('Renews', escHtml(formatDate(sub.current_period_end))) : ''}
+          ` : `<div class="t-muted t-detail" style="padding:8px 0">No subscription on record.</div>`}
           <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">
-            <button class="btn btn-secondary btn-sm" onclick="UserDetailPage.changeTier('explorer')">Set Explorer</button>
-            <button class="btn btn-secondary btn-sm" onclick="UserDetailPage.changeTier('base_camp')">Set Base Camp</button>
+            <button class="btn btn-secondary btn-sm" onclick="UserDetailPage.changeTier('explorer')">${sub ? 'Set' : 'Grant'} Explorer</button>
+            <button class="btn btn-secondary btn-sm" onclick="UserDetailPage.changeTier('base_camp')">${sub ? 'Set' : 'Grant'} Base Camp</button>
           </div>
-        ` : `
-          <div class="t-muted t-detail">No subscription on record.</div>
-          <div style="margin-top:16px;display:flex;gap:8px">
-            <button class="btn btn-secondary btn-sm" onclick="UserDetailPage.changeTier('explorer')">Grant Explorer</button>
-            <button class="btn btn-secondary btn-sm" onclick="UserDetailPage.changeTier('base_camp')">Grant Base Camp</button>
-          </div>
-        `}
-      </div>
-
-      <div class="card">
-        <div class="card-title">Vehicle</div>
-        ${vehicle ? `
-          <div class="flex flex-col gap-2">
-            ${this._row('Make & model', escHtml([vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(' ') || '—'))}
-            ${this._row('Build line', escHtml(buildLineLabel))}
-            ${this._row('Name', escHtml(vehicle.nickname || vehicle.name || '—'))}
-            ${this._row('VIN', escHtml(vehicle.vin || '—'))}
-            ${this._row('Cerbo IP', `<span style="font-family:ui-monospace,monospace;font-size:13px">${escHtml(vehicle.cerbo_ip || '—')}</span>`)}
-            ${this._row('Cerbo portal ID', `<span style="font-family:ui-monospace,monospace;font-size:13px">${escHtml(vehicle.cerbo_portal_id || '—')}</span>`)}
-            ${this._row('Vehicle ID', `<span style="font-family:ui-monospace,monospace;font-size:13px">${escHtml(vehicle.id.slice(0, 8))}...</span>`)}
-          </div>
-        ` : `<div class="t-muted t-detail">No vehicle registered yet.</div>`}
+        </div>
       </div>
 
       ${vehicle ? this._renderLogsCard() : ''}
@@ -152,6 +143,18 @@ const UserDetailPage = {
     `;
   },
 
+  // Single info line: bold label left, regular value right.
+  // Matches Figma node 42:1202 (justify-between, both on one line).
+  _infoLine(label, value) {
+    return `
+      <div class="info-line">
+        <span class="info-line-label">${escHtml(label)}</span>
+        <span class="info-line-value">${value || '—'}</span>
+      </div>
+    `;
+  },
+
+  // Legacy row format (kept for telemetry and other callers)
   _row(label, value) {
     return `
       <div style="display:flex;align-items:center;gap:16px;padding:10px 0;border-bottom:1px solid var(--border-subtle)">

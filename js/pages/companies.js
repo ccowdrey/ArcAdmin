@@ -67,7 +67,6 @@ const CompaniesPage = {
           <div class="data-table-header col-name">Company</div>
           <div class="data-table-header col-email">Billing email</div>
           <div class="data-table-header col-vehicle">Clients</div>
-          <div class="data-table-header col-tier">Plan</div>
           <div class="data-table-header col-last-active">Created</div>
         </div>
         ${rows.map((c) => `
@@ -75,22 +74,11 @@ const CompaniesPage = {
             <div class="data-table-cell data-table-cell--bold col-name">${escHtml(c.name)}</div>
             <div class="data-table-cell col-email t-muted">${escHtml(c.billing_email || '—')}</div>
             <div class="data-table-cell col-vehicle t-muted">${c._clientCount || 0}</div>
-            <div class="data-table-cell col-tier">
-              <span class="badge ${this._planBadgeClass(c.plan)}">${(c.plan || 'starter').toUpperCase()}</span>
-            </div>
             <div class="data-table-cell col-last-active t-muted">${escHtml(c.created_at ? formatDate(c.created_at) : '—')}</div>
           </button>
         `).join('')}
       </div>
     `;
-  },
-
-  _planBadgeClass(plan) {
-    switch ((plan || '').toLowerCase()) {
-      case 'enterprise': return 'badge--success';
-      case 'growth':     return 'badge--tier-explorer';
-      default:           return 'badge--tier-base-camp';
-    }
   },
 
   filter() {
@@ -550,7 +538,6 @@ const CompaniesPage = {
     const adminEmail = document.getElementById('newCompanyAdminEmail').value.trim();
     const billingEmail = document.getElementById('newCompanyBillingEmail').value.trim();
     const website = document.getElementById('newCompanyWebsite').value.trim();
-    const plan = document.getElementById('newCompanyPlan').value;
     const errBox = document.getElementById('addCompanyError');
     errBox.classList.add('hidden');
 
@@ -574,7 +561,6 @@ const CompaniesPage = {
           name,
           website: website || null,
           billing_email: billingEmail || adminEmail,
-          plan: plan || 'starter',
         }),
       });
       if (!res.ok) throw new Error(await res.text());

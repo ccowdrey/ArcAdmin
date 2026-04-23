@@ -726,6 +726,64 @@ a { color: inherit; text-decoration: none; }
   margin-bottom: var(--space-2);
 }
 
+/* ── Info grid (detail pages) ──
+   3-column side-by-side info cards, matches Figma node 42:1202.
+   Each card has an uppercase section header and label-left/value-right rows. */
+.info-grid {
+  display: flex;
+  gap: var(--space-3);
+  width: 100%;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.info-card {
+  flex: 1 1 0;
+  min-width: 280px;
+  background: var(--bg-surface);
+  border-radius: var(--radius-xl);
+  padding: var(--space-8);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  align-self: stretch;
+}
+
+.info-card-title {
+  font-size: var(--fs-detail);
+  line-height: 20px;
+  font-weight: var(--fw-regular);
+  color: var(--text-secondary);
+  letter-spacing: 0.04em;
+  margin-bottom: var(--space-2);
+}
+
+.info-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+  font-size: var(--fs-body);
+  line-height: 24px;
+  width: 100%;
+  min-width: 0;
+}
+
+.info-line-label {
+  font-weight: var(--fw-bold);
+  color: var(--text-dark);
+  flex-shrink: 0;
+}
+
+.info-line-value {
+  font-weight: var(--fw-regular);
+  color: var(--text-dark);
+  text-align: right;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 
 /* ═══════════════════════════════════════════════════════════════════════════
    11. BUTTONS
