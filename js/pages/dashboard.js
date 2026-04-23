@@ -445,10 +445,17 @@ const DashboardPage = {
   async removeAdmin(adminRowId, name) {
     if (!confirm(`Remove ${name || 'this admin'} from the company? They'll lose access to ArcAdmin for this company.`)) return;
     try {
-      await supaDelete(`company_admins?id=eq.${adminRowId}`);
+      const res = await supaDelete(`company_admins?id=eq.${adminRowId}`);
+      if (!res.ok) {
+        const body = await res.text().catch(() => '');
+        const msg = body ? ` — ${body.slice(0, 200)}` : '';
+        alert(`Failed to remove admin (HTTP ${res.status})${msg}\n\nThis usually means a Row-Level Security policy is blocking the delete. Check Supabase → Authentication → Policies on the company_admins table.`);
+        return;
+      }
       await this.load();
     } catch (e) {
-      alert(`Failed to remove admin: ${e.message}`);
+      console.error('[Dashboard] removeAdmin failed:', e);
+      alert(`Failed to remove admin: ${e.message || e}`);
     }
   },
 };
