@@ -202,6 +202,8 @@ const CompaniesPage = {
 
     if (this.activeTab === 'overview') {
       contentEl.innerHTML = this._renderOverview();
+      // Overview references a #companyCodesList div — populate it async.
+      this.loadCodes();
     } else if (this.activeTab === 'build-lines') {
       contentEl.innerHTML = '<div class="data-empty">Loading build lines...</div>';
       if (window.BuildLinesPage && BuildLinesPage.loadForCompany) {
@@ -403,6 +405,80 @@ const CompaniesPage = {
   // INVITE CODES
   // ═══════════════════════════════════════════════════════════════════════
 
+  async loadCodes() {
+    const listEl = document.getElementById('companyCodesList');
+    if (!listEl) return;
+
+    try {
+      const codes = await supa(
+        `company_invite_codes?company_id=eq.${this.companyId}&select=*&order=created_at.desc`
+      );
+
+      if (!codes || codes.length === 0) {
+        listEl.innerHTML = '<div class="t-muted t-detail">No invite codes yet.</div>';
+        return;
+      }
+
+      listEl.innerHTML = codes.map((c) => {
+        const isExpired = c.expires_at && new Date(c.expires_at) < new Date();
+        const isExhausted = c.max_uses != null && (c.uses_count ?? 0) >= c.max_uses;
+        const active = c.active && !isExpired && !isExhausted;
+
+        let statusBadge;
+        if (!c.active)       statusBadge = '<span class="badge badge--tier-base-camp">Disabled</span>';
+        else if (isExpired)  statusBadge = '<span class="badge badge--danger">Expired</span>';
+        else if (isExhausted) statusBadge = '<span class="badge badge--danger">Exhausted</span>';
+        else                  statusBadge = '<span class="badge badge--success">Active</span>';
+
+        const usageText = c.max_uses != null
+          ? `${c.uses_count || 0} / ${c.max_uses} uses`
+          : `${c.uses_count || 0} uses`;
+
+        const expiryText = c.expires_at
+          ? `Expires ${formatDate(c.expires_at)}`
+          : 'No expiry';
+
+        return `
+          <div class="data-table-row data-table-row--static" style="padding:12px 14px;gap:12px">
+            <div style="flex:1 1 180px;min-width:140px">
+              <div class="t-body" style="font-weight:600;font-family:ui-monospace,monospace;letter-spacing:1px">${escHtml(c.code)}</div>
+              ${c.label ? `<div class="t-muted" style="font-size:11px;margin-top:2px">${escHtml(c.label)}</div>` : ''}
+            </div>
+            <div class="t-muted t-detail" style="width:140px">${escHtml(usageText)}</div>
+            <div class="t-muted t-detail" style="width:160px">${escHtml(expiryText)}</div>
+            <div style="width:100px">${statusBadge}</div>
+            <div style="display:flex;gap:6px">
+              <button class="btn btn-ghost btn-sm" onclick="CompaniesPage.toggleCode('${escHtml(c.id)}', ${!c.active})">${c.active ? 'Disable' : 'Enable'}</button>
+              <button class="btn btn-ghost btn-sm t-danger" onclick="CompaniesPage.deleteCode('${escHtml(c.id)}')">Delete</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    } catch (e) {
+      console.error('[Codes] load failed:', e);
+      listEl.innerHTML = `<div class="t-danger t-detail">Failed to load codes — ${escHtml(e.message || '')}</div>`;
+    }
+  },
+
+  async toggleCode(codeId, setActive) {
+    try {
+      await supaPatch(`company_invite_codes?id=eq.${codeId}`, { active: setActive });
+      await this.loadCodes();
+    } catch (e) {
+      alert(`Failed to update code: ${e.message}`);
+    }
+  },
+
+  async deleteCode(codeId) {
+    if (!confirm('Delete this invite code? Any clients who already used it will keep their company link.')) return;
+    try {
+      await supaDelete(`company_invite_codes?id=eq.${codeId}`);
+      await this.loadCodes();
+    } catch (e) {
+      alert(`Failed to delete code: ${e.message}`);
+    }
+  },
+
   async createCode() {
     const value = document.getElementById('newCodeValue').value.trim().toUpperCase();
     const label = document.getElementById('newCodeLabel').value.trim();
@@ -431,7 +507,7 @@ const CompaniesPage = {
       document.getElementById('newCodeLabel').value = '';
       document.getElementById('newCodeMaxUses').value = '';
       document.getElementById('newCodeExpires').value = '';
-      await this.loadDetail({ companyId: this.companyId });
+      await this.loadCodes();
     } catch (e) {
       errBox.textContent = e.message || 'Failed to create code.';
       errBox.classList.remove('hidden');
