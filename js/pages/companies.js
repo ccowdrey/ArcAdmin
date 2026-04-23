@@ -411,7 +411,7 @@ const CompaniesPage = {
 
     try {
       const codes = await supa(
-        `company_invite_codes?company_id=eq.${this.companyId}&select=*&order=created_at.desc`
+        `company_codes?company_id=eq.${this.companyId}&select=*&order=created_at.desc`
       );
 
       if (!codes || codes.length === 0) {
@@ -421,18 +421,18 @@ const CompaniesPage = {
 
       listEl.innerHTML = codes.map((c) => {
         const isExpired = c.expires_at && new Date(c.expires_at) < new Date();
-        const isExhausted = c.max_uses != null && (c.uses_count ?? 0) >= c.max_uses;
-        const active = c.active && !isExpired && !isExhausted;
+        const isExhausted = c.max_uses != null && (c.current_uses ?? 0) >= c.max_uses;
+        const active = c.is_active && !isExpired && !isExhausted;
 
         let statusBadge;
-        if (!c.active)       statusBadge = '<span class="badge badge--tier-base-camp">Disabled</span>';
-        else if (isExpired)  statusBadge = '<span class="badge badge--danger">Expired</span>';
+        if (!c.is_active)     statusBadge = '<span class="badge badge--tier-base-camp">Disabled</span>';
+        else if (isExpired)   statusBadge = '<span class="badge badge--danger">Expired</span>';
         else if (isExhausted) statusBadge = '<span class="badge badge--danger">Exhausted</span>';
         else                  statusBadge = '<span class="badge badge--success">Active</span>';
 
         const usageText = c.max_uses != null
-          ? `${c.uses_count || 0} / ${c.max_uses} uses`
-          : `${c.uses_count || 0} uses`;
+          ? `${c.current_uses || 0} / ${c.max_uses} uses`
+          : `${c.current_uses || 0} uses`;
 
         const expiryText = c.expires_at
           ? `Expires ${formatDate(c.expires_at)}`
@@ -448,7 +448,7 @@ const CompaniesPage = {
             <div class="t-muted t-detail" style="width:160px">${escHtml(expiryText)}</div>
             <div style="width:100px">${statusBadge}</div>
             <div style="display:flex;gap:6px">
-              <button class="btn btn-ghost btn-sm" onclick="CompaniesPage.toggleCode('${escHtml(c.id)}', ${!c.active})">${c.active ? 'Disable' : 'Enable'}</button>
+              <button class="btn btn-ghost btn-sm" onclick="CompaniesPage.toggleCode('${escHtml(c.id)}', ${!c.is_active})">${c.is_active ? 'Disable' : 'Enable'}</button>
               <button class="btn btn-ghost btn-sm t-danger" onclick="CompaniesPage.deleteCode('${escHtml(c.id)}')">Delete</button>
             </div>
           </div>
@@ -462,7 +462,7 @@ const CompaniesPage = {
 
   async toggleCode(codeId, setActive) {
     try {
-      await supaPatch(`company_invite_codes?id=eq.${codeId}`, { active: setActive });
+      await supaPatch(`company_codes?id=eq.${codeId}`, { is_active: setActive });
       await this.loadCodes();
     } catch (e) {
       alert(`Failed to update code: ${e.message}`);
@@ -472,7 +472,7 @@ const CompaniesPage = {
   async deleteCode(codeId) {
     if (!confirm('Delete this invite code? Any clients who already used it will keep their company link.')) return;
     try {
-      await supaDelete(`company_invite_codes?id=eq.${codeId}`);
+      await supaDelete(`company_codes?id=eq.${codeId}`);
       await this.loadCodes();
     } catch (e) {
       alert(`Failed to delete code: ${e.message}`);
@@ -494,13 +494,13 @@ const CompaniesPage = {
     }
 
     try {
-      await supaPost('company_invite_codes', {
+      await supaPost('company_codes', {
         company_id: this.companyId,
         code: value,
         label: label || null,
         max_uses: maxUses ? parseInt(maxUses, 10) : null,
         expires_at: expires ? localDateToUTCEnd(expires) : null,
-        active: true,
+        is_active: true,
       });
       closeModals();
       document.getElementById('newCodeValue').value = '';
