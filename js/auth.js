@@ -177,12 +177,11 @@ const Auth = {
     this._userEmail = null;
     this._userName = null;
 
-    document.getElementById('appShell').classList.add('hidden');
-    document.getElementById('loginPage').classList.remove('hidden');
-    const errBox = document.getElementById('loginError');
-    if (errBox) errBox.classList.add('hidden');
-
-    window.history.replaceState({}, '', '/login');
+    // Hard reload to /login. This clears any DOM mutations from the previous
+    // session — for example, the company admin dashboard replaces the static
+    // super admin HTML in #pageDashboard. Without a reload, a subsequent
+    // super admin login silently no-ops because the original IDs are gone.
+    window.location.replace('/login');
   },
 
   showSignup() {

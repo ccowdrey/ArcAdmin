@@ -13,8 +13,6 @@ const DashboardPage = {
   async load() {
     const pageEl = document.getElementById('pageDashboard');
     try {
-      this._renderGreeting();
-
       // Company admins get a completely different dashboard — their own company,
       // their invite codes, their admin list, their clients.
       if (Auth.isCompanyAdmin()) {
@@ -22,6 +20,39 @@ const DashboardPage = {
         return;
       }
 
+      // Super admin dashboard — rebuild HTML defensively so we don't depend
+      // on whatever state #pageDashboard was in from a previous company-admin
+      // session in the same browser tab.
+      if (pageEl) {
+        pageEl.innerHTML = `
+          <div class="page-greeting" id="dashboardGreeting">Good morning</div>
+
+          <div class="stat-grid" id="dashboardStats">
+            <!-- Rendered by dashboard.js -->
+          </div>
+
+          <div class="tabs" id="dashboardTabs">
+            <button class="tab tab--active" data-tab="all-users" onclick="DashboardPage.switchTab('all-users')">All users</button>
+            <button class="tab" data-tab="companies" onclick="DashboardPage.switchTab('companies')">Companies</button>
+          </div>
+
+          <div class="search-input">
+            <input type="text" id="dashboardSearch" placeholder="Search users" oninput="DashboardPage.filter()">
+            <div class="search-input-icon">
+              <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8"/>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              </svg>
+            </div>
+          </div>
+
+          <div id="dashboardList" class="w-full">
+            <!-- Rendered by dashboard.js -->
+          </div>
+        `;
+      }
+
+      this._renderGreeting();
       this._renderTilesLoading();
       this._renderListLoading();
 
