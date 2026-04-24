@@ -422,6 +422,8 @@ const CompaniesPage = {
         document.getElementById('newAdminName').value = '';
         document.getElementById('newAdminEmail').value = '';
 
+        showToast(`Admin added — invite sent to ${email}`, 'success');
+
         if (Auth.isCompanyAdmin() && window.DashboardPage && window.location.pathname.includes('dashboard')) {
           await DashboardPage.load();
         } else {
@@ -552,6 +554,8 @@ const CompaniesPage = {
         document.getElementById('newCodeLabel').value = '';
         document.getElementById('newCodeMaxUses').value = '';
         document.getElementById('newCodeExpires').value = '';
+
+        showToast(`Invite code ${value} created`, 'success');
 
         if (Auth.isCompanyAdmin() && window.DashboardPage && window.location.pathname.includes('dashboard')) {
           await DashboardPage.load();

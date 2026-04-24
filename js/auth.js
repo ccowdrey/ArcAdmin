@@ -243,25 +243,46 @@ const Auth = {
           throw new Error(msg);
         }
 
-        // CRITICAL: clear the invite session completely before signing in.
-        // The invite token is a short-lived "magic link" token whose JWT
-        // claims (aud, role context) sometimes produce subtle RLS mismatches
-        // vs. a clean password-grant token. If we don't clear it first,
-        // the dashboard can render blank on first load because SELECTs
-        // hit policies that evaluate differently against the stale token.
-        // Logging out and in again then works — but the user shouldn't
-        // need to do that.
+        // Clear everything invite-related before signing in with the new password.
         clearSession();
-        // clear any in-memory globals that the bootstrap path might use
         userRole = null;
         userCompanyId = null;
         userCompanyName = null;
 
-        // Sign in fresh with the new password to get a clean session
-        // with proper long-lived refresh token and clean JWT claims.
-        // _loginInternal takes the user all the way into _enterApp() which
-        // renders the sidebar + loads dashboard.
-        await this._loginInternal(email, pw1);
+        // Sign in with password grant to get a clean long-lived session.
+        const signInRes = await fetch(`${SUPA_URL}/auth/v1/token?grant_type=password`, {
+          method: 'POST',
+          headers: {
+            apikey: SUPA_KEY,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ email, password: pw1 }),
+        });
+        if (!signInRes.ok) {
+          const body = await signInRes.text().catch(() => '');
+          throw new Error(`Password was set, but sign-in failed: ${body.slice(0, 200)}`);
+        }
+        const payload = await signInRes.json();
+
+        // Persist the session directly to localStorage in the exact shape
+        // api.js loadSession() expects. We write to localStorage ourselves
+        // rather than trying to update api.js's private `refreshToken` `let`
+        // (cross-module writes don't work — each `let` is scoped to its file).
+        // On reload, api.js loadSession() picks it up as `token` + `refreshToken`.
+        try {
+          localStorage.setItem('arcadmin_session', JSON.stringify({
+            access_token: payload.access_token,
+            refresh_token: payload.refresh_token,
+            saved_at: Date.now(),
+          }));
+        } catch (e) {
+          console.warn('Failed to persist session:', e);
+        }
+
+        // Hard reload — fresh bootstrap from a clean session.
+        // replace() is better than href= because it doesn't leave the
+        // set-password page in the back-button history.
+        window.location.replace('/dashboard');
       } catch (e) {
         if (errBox) {
           errBox.textContent = e.message || 'Something went wrong setting your password.';

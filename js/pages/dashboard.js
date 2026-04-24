@@ -465,13 +465,14 @@ const DashboardPage = {
         if (!res.ok) {
           const body = await res.text().catch(() => '');
           const msg = body ? ` — ${body.slice(0, 200)}` : '';
-          alert(`Failed to remove admin (HTTP ${res.status})${msg}\n\nThis usually means a Row-Level Security policy is blocking the delete. Check Supabase → Authentication → Policies on the company_admins table.`);
+          showToast(`Failed to remove admin (HTTP ${res.status})${msg}`, 'error');
           return;
         }
+        showToast(`${name || 'Admin'} removed`, 'success');
         await this.load();
       } catch (e) {
         console.error('[Dashboard] removeAdmin failed:', e);
-        alert(`Failed to remove admin: ${e.message || e}`);
+        showToast(`Failed to remove admin: ${e.message || e}`, 'error');
       }
     });
   },

@@ -104,6 +104,30 @@ async function withBtnLoading(btnOrEvent, asyncFn) {
   }
 }
 
+// Show a fixed top-center toast. Auto-dismisses after `duration` ms.
+// Kind: 'success' (default) | 'error'. Call from anywhere after an async op.
+function showToast(message, kind = 'success', duration = 3000) {
+  let container = document.getElementById('toastContainer');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'toastContainer';
+    container.className = 'toast-container';
+    document.body.appendChild(container);
+  }
+  const toast = document.createElement('div');
+  toast.className = `toast toast--${kind}`;
+  toast.textContent = message;
+  container.appendChild(toast);
+  // Force reflow so the opacity transition runs
+  // eslint-disable-next-line no-unused-expressions
+  toast.offsetHeight;
+  toast.classList.add('toast--visible');
+  setTimeout(() => {
+    toast.classList.remove('toast--visible');
+    setTimeout(() => toast.remove(), 220);
+  }, duration);
+}
+
 window.formatDate = formatDate;
 window.formatTime = formatTime;
 window.formatDateTime = formatDateTime;
@@ -117,3 +141,4 @@ window.slugify = slugify;
 window.timeOfDayGreeting = timeOfDayGreeting;
 window.escHtml = escHtml;
 window.withBtnLoading = withBtnLoading;
+window.showToast = showToast;
