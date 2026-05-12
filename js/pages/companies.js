@@ -113,11 +113,20 @@ const CompaniesPage = {
     if (contentEl) contentEl.innerHTML = '<div class="data-empty">Loading company details...</div>';
 
     try {
-      const [companyArr, profiles, subs, adminsArr] = await Promise.all([
+      // Find clients via TWO paths and merge:
+      //   1. profiles.company_id = this company   (the canonical path)
+      //   2. vehicles.build_line_id → build_lines where company_id = this company
+      //      (defense-in-depth: catches users whose profile.company_id wasn't
+      //      set during the brittle pre-RPC onboarding flow)
+      //
+      // We fetch build_lines for this company first to get their IDs, then
+      // pull vehicles whose build_line_id is in that set. Dedupe by user_id.
+      const [companyArr, profilesByCompany, subs, adminsArr, buildLinesForCompany] = await Promise.all([
         supa(`companies?id=eq.${companyId}&select=*`),
         supa(`profiles?company_id=eq.${companyId}&select=*`),
         supa('subscriptions?select=user_id,tier,status'),
         supa(`company_admins?company_id=eq.${companyId}&select=*`),
+        supa(`build_lines?company_id=eq.${companyId}&select=id`),
       ]);
 
       if (!companyArr[0]) {
@@ -126,6 +135,32 @@ const CompaniesPage = {
       }
 
       this.company = companyArr[0];
+
+      // Second-path: pull vehicles whose build_line belongs to this company,
+      // then fetch the owning profile for each. We need this because some
+      // users may have vehicle.build_line_id set but profile.company_id NULL
+      // (legacy onboarding race condition).
+      let profilesByBuildLine = [];
+      const blIds = (buildLinesForCompany || []).map((bl) => bl.id);
+      if (blIds.length > 0) {
+        // PostgREST `in` filter takes comma-separated values in parens.
+        const inList = blIds.join(',');
+        const vehicles = await supa(`vehicles?build_line_id=in.(${inList})&select=user_id`);
+        const userIds = [...new Set(vehicles.map((v) => v.user_id).filter(Boolean))];
+        if (userIds.length > 0) {
+          profilesByBuildLine = await supa(
+            `profiles?id=in.(${userIds.join(',')})&select=*`
+          );
+        }
+      }
+
+      // Merge + dedupe by id. Path 1 wins on duplicate (canonical source).
+      const byId = new Map();
+      for (const p of profilesByCompany) byId.set(p.id, p);
+      for (const p of profilesByBuildLine) {
+        if (!byId.has(p.id)) byId.set(p.id, p);
+      }
+      const profiles = Array.from(byId.values());
 
       // Enrich clients with their vehicle + tier
       const enrichedClients = await Promise.all(

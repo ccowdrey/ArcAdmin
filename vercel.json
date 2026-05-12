@@ -1,5 +1,7 @@
 {
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }],
+  "rewrites": [
+    { "source": "/((?!css/|js/|assets/|supabase/|favicon\\.|.*\\.(?:css|js|svg|png|jpg|jpeg|webp|ico|json|txt|map|woff|woff2|ttf|otf)$).*)", "destination": "/index.html" }
+  ],
   "headers": [
     {
       "source": "/(.*)",
