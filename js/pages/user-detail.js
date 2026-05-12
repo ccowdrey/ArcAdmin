@@ -45,12 +45,14 @@ const UserDetailPage = {
 
       // Build line + company (if present)
       let buildLineLabel = '—';
+      let buildLineBatteryAh = null;
       let companyLabel = '—';
       if (v?.build_line_id) {
         try {
-          const bls = await supa(`build_lines?id=eq.${v.build_line_id}&select=name,company_id`);
+          const bls = await supa(`build_lines?id=eq.${v.build_line_id}&select=name,company_id,battery_capacity_ah`);
           if (bls[0]) {
             buildLineLabel = bls[0].name;
+            buildLineBatteryAh = bls[0].battery_capacity_ah ?? null;
             if (bls[0].company_id) {
               const cos = await supa(`companies?id=eq.${bls[0].company_id}&select=name`);
               if (cos[0]) companyLabel = cos[0].name;
@@ -64,7 +66,7 @@ const UserDetailPage = {
         } catch (_) {}
       }
 
-      this._render({ profile: p, sub, vehicle: v, buildLineLabel, companyLabel });
+      this._render({ profile: p, sub, vehicle: v, buildLineLabel, buildLineBatteryAh, companyLabel });
 
       // Set default log date range (last 7 days) and auto-load
       if (v) {
@@ -76,9 +78,14 @@ const UserDetailPage = {
     }
   },
 
-  _render({ profile, sub, vehicle, buildLineLabel, companyLabel }) {
+  _render({ profile, sub, vehicle, buildLineLabel, buildLineBatteryAh, companyLabel }) {
     const contentEl = document.getElementById('userDetailContent');
     if (!contentEl) return;
+
+    // Stash the vehicle + build-line context so the inline battery edit
+    // handler can reference them without re-fetching.
+    this._vehicle = vehicle || null;
+    this._buildLineBatteryAh = (buildLineBatteryAh != null) ? buildLineBatteryAh : null;
 
     const tier = sub?.tier || 'base_camp';
 
@@ -107,6 +114,7 @@ const UserDetailPage = {
             ${this._infoLine('Model', escHtml(vehicle.model || '—'))}
             ${this._infoLine('Year', escHtml(String(vehicle.year || '—')))}
             ${this._infoLine('Build line', escHtml(buildLineLabel))}
+            ${this._renderBatteryRow(vehicle, buildLineBatteryAh)}
             ${this._infoLine('Nickname', escHtml(vehicle.nickname || vehicle.name || '—'))}
             ${this._infoLine('VIN', escHtml(vehicle.vin || '—'))}
             ${this._infoLine('Cerbo IP', `<span style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px">${escHtml(vehicle.cerbo_ip || '—')}</span>`)}
@@ -162,6 +170,128 @@ const UserDetailPage = {
         <div class="t-body" style="flex:1">${value || '—'}</div>
       </div>
     `;
+  },
+
+  // Battery row — shows the effective value (vehicle override OR build
+  // line default OR "Not set"), with the build line default in muted
+  // text underneath when there's an override. Inline edit-on-click.
+  //
+  // Effective = vehicle.battery_capacity_ah ?? build_line.battery_capacity_ah
+  //
+  // The iPad mirrors this hierarchy in BatteryCapacityLearner —
+  // vehicle override wins, otherwise build line, otherwise the learner
+  // observes the value from clean discharge windows.
+  _renderBatteryRow(vehicle, buildLineAh) {
+    const vehicleAh = (vehicle.battery_capacity_ah != null) ? vehicle.battery_capacity_ah : null;
+    const effectiveAh = vehicleAh ?? buildLineAh ?? null;
+
+    const valueText = effectiveAh != null
+      ? `${effectiveAh} Ah`
+      : '<span class="t-muted">Not set</span>';
+
+    // Sub-label: only show when the value is overridden vs. the build line
+    // (i.e. vehicle override is set AND differs from / supplements the build
+    // line default). Helps builders see "this customer is on a non-stock spec."
+    let subLabel = '';
+    if (vehicleAh != null && buildLineAh != null && vehicleAh !== buildLineAh) {
+      subLabel = `<div class="t-muted t-detail" style="font-size:11px;margin-top:2px">Override · build line default: ${buildLineAh} Ah</div>`;
+    } else if (vehicleAh != null && buildLineAh == null) {
+      subLabel = `<div class="t-muted t-detail" style="font-size:11px;margin-top:2px">Custom · no build line default</div>`;
+    } else if (vehicleAh == null && buildLineAh != null) {
+      subLabel = `<div class="t-muted t-detail" style="font-size:11px;margin-top:2px">Inherited from build line</div>`;
+    }
+
+    return `
+      <div class="info-line" id="batteryInfoRow" style="align-items:flex-start">
+        <span class="info-line-label">Battery</span>
+        <span class="info-line-value" style="display:flex;flex-direction:column;align-items:flex-end;gap:0">
+          <span style="display:flex;align-items:center;gap:8px">
+            <span>${valueText}</span>
+            <button class="btn btn-ghost btn-sm" style="padding:2px 8px;font-size:12px" onclick="UserDetailPage.editBattery()">Edit</button>
+          </span>
+          ${subLabel}
+        </span>
+      </div>
+    `;
+  },
+
+  editBattery() {
+    const row = document.getElementById('batteryInfoRow');
+    if (!row) return;
+    const currentAh = (this._vehicle && this._vehicle.battery_capacity_ah != null)
+      ? this._vehicle.battery_capacity_ah
+      : '';
+    const blAh = this._buildLineBatteryAh;
+    const placeholder = (blAh != null) ? `Build line default: ${blAh}` : 'e.g. 600';
+
+    row.innerHTML = `
+      <span class="info-line-label">Battery</span>
+      <span class="info-line-value" style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+        <span style="display:flex;align-items:center;gap:8px">
+          <input id="batteryEditInput" type="number" min="0" step="1" value="${escHtml(String(currentAh))}"
+                 placeholder="${escHtml(placeholder)}"
+                 style="width:110px;padding:4px 8px;border:1px solid var(--border-default);border-radius:6px;background:var(--bg-default);color:var(--text-primary);font-size:13px;text-align:right">
+          <span class="t-muted t-detail" style="font-size:13px">Ah</span>
+          <button class="btn btn-primary btn-sm" style="padding:4px 12px;font-size:12px" onclick="UserDetailPage.saveBattery()">Save</button>
+          <button class="btn btn-ghost btn-sm" style="padding:4px 8px;font-size:12px" onclick="UserDetailPage._reloadBatteryRow()">Cancel</button>
+        </span>
+        <span class="t-muted t-detail" style="font-size:11px">
+          ${blAh != null
+            ? `Leave blank to inherit build line default (${blAh} Ah)`
+            : 'Build line has no default. Leave blank to let the iPad learn from observation.'}
+        </span>
+      </span>
+    `;
+
+    // Focus + select-all so admins can immediately type to replace
+    const input = document.getElementById('batteryEditInput');
+    if (input) { input.focus(); input.select(); }
+  },
+
+  async saveBattery() {
+    if (!this.vehicleId) {
+      alert('No vehicle for this user — nothing to update.');
+      return;
+    }
+    const input = document.getElementById('batteryEditInput');
+    if (!input) return;
+
+    const raw = (input.value || '').trim();
+    let newValue;
+    if (raw === '') {
+      // Empty → clear the override, fall back to build line default
+      newValue = null;
+    } else {
+      const n = Number(raw);
+      if (!Number.isFinite(n) || n < 0 || !Number.isInteger(n)) {
+        alert('Battery capacity must be a positive whole number (Ah), or empty to clear.');
+        return;
+      }
+      newValue = n;
+    }
+
+    try {
+      await supaPatch(`vehicles?id=eq.${this.vehicleId}`, {
+        battery_capacity_ah: newValue,
+        updated_at: new Date().toISOString(),
+      });
+
+      // Refresh state and re-render the row in place
+      if (this._vehicle) this._vehicle.battery_capacity_ah = newValue;
+      this._reloadBatteryRow();
+    } catch (e) {
+      alert(`Failed to update battery: ${e.message || e}`);
+    }
+  },
+
+  _reloadBatteryRow() {
+    const row = document.getElementById('batteryInfoRow');
+    if (!row) return;
+    // Re-render using the current (stashed) vehicle + build-line state.
+    // We replace the row's outerHTML so the id stays attached to the new
+    // markup for future edits.
+    const newMarkup = this._renderBatteryRow(this._vehicle, this._buildLineBatteryAh);
+    row.outerHTML = newMarkup;
   },
 
   // ═══════════════════════════════════════════════════════════════════════
