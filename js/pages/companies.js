@@ -250,6 +250,45 @@ const CompaniesPage = {
         `).join('')}
       `;
 
+    // Brand / logo section
+    // Preview box is sized for horizontal logos up to 200×56 (the iPad app
+    // header is 24pt tall; we render the preview ~2.3× scale so builders
+    // can see fine detail). Logos are object-fit:contain so anything from
+    // a square mark to a 200×56 wordmark renders correctly inside the box.
+    const logoMarkup = c.logo_url
+      ? `
+        <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+          <div style="width:240px;height:80px;border-radius:12px;border:1px solid var(--border-default);background:var(--bg-muted);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;padding:8px">
+            <img src="${escHtml(c.logo_url)}" style="max-width:100%;max-height:100%;object-fit:contain" onerror="this.style.display='none'">
+          </div>
+          <div style="flex:1;min-width:200px">
+            <div class="t-body" style="font-weight:500">Custom logo uploaded</div>
+            <div class="t-muted t-detail">Replaces the Arc logo in the ArcNode iPad app header for every client under this company.</div>
+            <div style="margin-top:12px;display:flex;gap:8px">
+              <label class="btn btn-secondary btn-sm" style="cursor:pointer;margin:0">
+                Replace
+                <input type="file" accept="image/png,image/svg+xml,image/jpeg,image/webp" style="display:none" onchange="CompaniesPage.uploadLogo(this.files[0])">
+              </label>
+              <button class="btn btn-ghost btn-sm t-danger" onclick="CompaniesPage.removeLogo()">Remove</button>
+            </div>
+          </div>
+        </div>
+      `
+      : `
+        <label style="display:flex;flex-direction:column;align-items:center;gap:12px;padding:32px;border:2px dashed var(--border-default);border-radius:8px;cursor:pointer;background:var(--bg-muted)"
+               onmouseover="this.style.borderColor='var(--brand-primary)'"
+               onmouseout="this.style.borderColor='var(--border-default)'">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--text-secondary)">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/>
+            <line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+          <div class="t-body">Upload company logo</div>
+          <div class="t-muted t-detail">PNG, SVG, JPG, or WebP. Replaces the Arc logo in the ArcNode iPad app header for every client under this company. Recommended: horizontal wordmark on transparent background, up to 200×56 px (3.5:1) — the app scales to header height while preserving aspect ratio.</div>
+          <input type="file" accept="image/png,image/svg+xml,image/jpeg,image/webp" style="display:none" onchange="CompaniesPage.uploadLogo(this.files[0])">
+        </label>
+      `;
+
     return `
       <div class="w-full flex flex-col gap-8">
 
@@ -279,6 +318,12 @@ const CompaniesPage = {
             </div>
             <span class="stat-delta stat-delta--neutral">Coming soon</span>
           </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Brand</div>
+          <div class="t-muted t-detail" style="margin-bottom:16px">Custom logo shown in the ArcNode iPad app header for clients of this company.</div>
+          ${logoMarkup}
         </div>
 
         <div class="card">
@@ -332,6 +377,59 @@ const CompaniesPage = {
       BuildLinesPage.openAddModal(this.companyId);
     } else {
       openModal('buildLineModal');
+    }
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // BRAND / LOGO
+  // ═══════════════════════════════════════════════════════════════════════
+
+  async uploadLogo(file) {
+    if (!file) return;
+    if (!this.companyId) return;
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Logo must be under 5 MB.');
+      return;
+    }
+    try {
+      const ext = (file.name.split('.').pop() || 'png').toLowerCase();
+      // Cache-bust by appending a timestamp — Supabase Storage caches public
+      // URLs aggressively, so reusing the same path means the iPad app keeps
+      // serving the old logo until the CDN TTL expires.
+      const path = `company-logos/${this.companyId}-${Date.now()}.${ext}`;
+
+      const uploadRes = await fetch(`${SUPA_URL}/storage/v1/object/van-manuals/${path}`, {
+        method: 'POST',
+        headers: {
+          apikey: SUPA_KEY,
+          Authorization: `Bearer ${token}`,
+          'Content-Type': file.type || 'image/png',
+          'x-upsert': 'true',
+        },
+        body: file,
+      });
+      if (!uploadRes.ok) throw new Error(await uploadRes.text());
+
+      const publicUrl = `${SUPA_URL}/storage/v1/object/public/van-manuals/${path}`;
+      await supaPatch(`companies?id=eq.${this.companyId}`, { logo_url: publicUrl });
+
+      this.company.logo_url = publicUrl;
+      // Re-render the overview tab to show the new logo
+      this._renderTab();
+    } catch (e) {
+      alert(`Logo upload failed: ${e.message}`);
+    }
+  },
+
+  async removeLogo() {
+    if (!this.companyId) return;
+    if (!confirm('Remove the custom logo? Clients will see the Arc logo again on their next launch.')) return;
+    try {
+      await supaPatch(`companies?id=eq.${this.companyId}`, { logo_url: null });
+      this.company.logo_url = null;
+      this._renderTab();
+    } catch (e) {
+      alert(`Remove failed: ${e.message}`);
     }
   },
 

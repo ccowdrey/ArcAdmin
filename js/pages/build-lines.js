@@ -137,6 +137,7 @@ const BuildLinesPage = {
     document.getElementById('buildLineModel').value = '';
     document.getElementById('buildLineYear').value = '';
     document.getElementById('buildLineSortOrder').value = '0';
+    document.getElementById('buildLineBatteryAh').value = '';
     document.getElementById('buildLineError').classList.add('hidden');
     document.getElementById('buildLineSaveBtn').textContent = 'Add Build Line';
     openModal('buildLineModal');
@@ -153,6 +154,7 @@ const BuildLinesPage = {
     document.getElementById('buildLineModel').value = bl.default_model || '';
     document.getElementById('buildLineYear').value = bl.default_year || '';
     document.getElementById('buildLineSortOrder').value = bl.sort_order ?? 0;
+    document.getElementById('buildLineBatteryAh').value = bl.battery_capacity_ah ?? '';
     document.getElementById('buildLineError').classList.add('hidden');
     document.getElementById('buildLineSaveBtn').textContent = 'Save Changes';
     openModal('buildLineModal');
@@ -166,11 +168,19 @@ const BuildLinesPage = {
     const defaultModel = document.getElementById('buildLineModel').value.trim();
     const defaultYear = document.getElementById('buildLineYear').value.trim();
     const sortOrder = parseInt(document.getElementById('buildLineSortOrder').value, 10) || 0;
+    const batteryAhRaw = document.getElementById('buildLineBatteryAh').value.trim();
+    const batteryAh = batteryAhRaw === '' ? null : Number(batteryAhRaw);
     const errEl = document.getElementById('buildLineError');
     errEl.classList.add('hidden');
 
     if (!name) {
       errEl.textContent = 'Build line name is required.';
+      errEl.classList.remove('hidden');
+      return;
+    }
+
+    if (batteryAh !== null && (!Number.isFinite(batteryAh) || batteryAh < 0)) {
+      errEl.textContent = 'Battery capacity must be a positive number (Ah).';
       errEl.classList.remove('hidden');
       return;
     }
@@ -183,6 +193,7 @@ const BuildLinesPage = {
       default_model: defaultModel || null,
       default_year: defaultYear || null,
       sort_order: sortOrder,
+      battery_capacity_ah: batteryAh,
       is_active: true,
     };
 
@@ -256,11 +267,15 @@ const BuildLinesPage = {
 
       // Info card
       if (infoEl) {
+        const battery = (this.lineData.battery_capacity_ah != null)
+          ? `${escHtml(String(this.lineData.battery_capacity_ah))} Ah`
+          : '—';
         infoEl.innerHTML = `
           <div class="flex flex-col gap-2">
             ${this._infoRow('Default make', escHtml(this.lineData.default_make || '—'))}
             ${this._infoRow('Default model', escHtml(this.lineData.default_model || '—'))}
             ${this._infoRow('Default year', escHtml(this.lineData.default_year || '—'))}
+            ${this._infoRow('Battery capacity', battery)}
             ${this._infoRow('Description', escHtml(this.lineData.description || '—'))}
             ${this._infoRow('Created', escHtml(formatDateTime(this.lineData.created_at)))}
           </div>

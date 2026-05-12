@@ -412,6 +412,11 @@
         <div class="field" style="flex:1"><label>Default Year</label><input id="buildLineYear" placeholder="e.g. 2026"></div>
         <div class="field" style="flex:1"><label>Sort Order</label><input id="buildLineSortOrder" type="number" value="0" placeholder="0"></div>
       </div>
+      <div class="field">
+        <label>Battery Capacity (Ah)</label>
+        <input id="buildLineBatteryAh" type="number" min="0" step="1" placeholder="e.g. 600">
+        <div class="t-muted t-detail" style="margin-top:6px">Total bank amp-hours at nominal voltage. Used to seed BatteryCapacityLearner so the runtime card is accurate before the learner has observed a full discharge.</div>
+      </div>
       <div class="t-muted t-detail">Default make/model/year will pre-fill the user's vehicle info when they select this build during onboarding.</div>
     </div>
     <div class="modal-footer">
