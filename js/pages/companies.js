@@ -513,7 +513,7 @@ const CompaniesPage = {
       for (let i = 0; i < sessionIds.length; i += chunkSize) {
         const chunk = sessionIds.slice(i, i + chunkSize);
         const batch = await supa(
-          `chat_messages?session_id=in.(${chunk.join(',')})&role=eq.user&created_at=gte.${since}&select=id,session_id,content,created_at&order=created_at.desc&limit=1000`
+          `chat_messages?session_id=in.(${chunk.join(',')})&is_user=eq.true&created_at=gte.${since}&select=id,session_id,content,is_user,created_at&order=created_at.desc&limit=1000`
         );
         messages = messages.concat(batch || []);
         if (messages.length >= 1000) {
