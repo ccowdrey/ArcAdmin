@@ -3,9 +3,18 @@
 // Identity + subscription + vehicle + account actions + Victron Cerbo
 // system logs with pagination.
 //
-// 2026-04-23 update: Cerbo telemetry log viewer restored (was accidentally
-// removed in the redesign rewrite). Date range picker, batched fetch,
-// paginated table, all using new design tokens.
+// 2026-04-23 update: Cerbo telemetry log viewer restored.
+//
+// 2026-05-12 update: per-vehicle battery capacity override row in the
+// Vehicle Info card. Effective = vehicle.battery_capacity_ah ??
+// build_line.battery_capacity_ah ?? null. Inline edit; empty clears the
+// override. The iPad's BatteryCapacityLearner mirrors this hierarchy.
+//
+// 2026-05-16 update: device control logs section. Surfaces every user-
+// initiated switch / scene activation emitted by the iPad app from the
+// device_control_logs table. Date range, optional filters by category and
+// source, paginated. Empty state explains that the table is populated by
+// the iPad app — useful for troubleshooting "did the fan ever come on?".
 
 const UserDetailPage = {
   userId: null,
@@ -13,11 +22,22 @@ const UserDetailPage = {
   userEmail: '',
   vehicleId: null,
 
-  // Telemetry log state
+  // Stashed context for inline battery edit
+  _vehicle: null,
+  _buildLineBatteryAh: null,
+
+  // Cerbo telemetry log state
   _logs: [],
   _page: 1,
   _perPage: 100,
   _dateRange: { start: '', end: '' },
+
+  // Device control log state
+  _devLogs: [],
+  _devLogsPage: 1,
+  _devLogsPerPage: 50,
+  _devLogsDateRange: { start: '', end: '' },
+  _devLogsFilters: { category: '', action: '', source: '' },
 
   async load(params) {
     this.userId = Router.resolveId(params.userId);
@@ -43,7 +63,9 @@ const UserDetailPage = {
       this.userName = `${p.first_name || ''} ${p.last_name || ''}`.trim() || p.email;
       this.userEmail = p.email;
 
-      // Build line + company (if present)
+      // Build line + company (if present). We pull battery_capacity_ah on
+      // the build line so the vehicle row can show the effective value
+      // hierarchy (vehicle override > build line default > unset).
       let buildLineLabel = '—';
       let buildLineBatteryAh = null;
       let companyLabel = '—';
@@ -68,7 +90,6 @@ const UserDetailPage = {
 
       this._render({ profile: p, sub, vehicle: v, buildLineLabel, buildLineBatteryAh, companyLabel });
 
-      // Set default log date range (last 7 days) and auto-load
       if (v) {
         this._initLogsSection();
       }
@@ -124,35 +145,29 @@ const UserDetailPage = {
 
         <div class="info-card">
           <div class="info-card-title">SUBSCRIPTION</div>
-          ${sub ? `
-            ${this._infoLine('Tier', `<span style="text-transform:capitalize">${escHtml((sub.tier || '').replace(/_/g, ' ') || '—')}</span>`)}
-            ${this._infoLine('Status', `<span style="text-transform:capitalize">${escHtml(sub.status || '—')}</span>`)}
-            ${this._infoLine('Platform', escHtml(sub.platform || '—'))}
-            ${sub.current_period_end ? this._infoLine('Renews', escHtml(formatDate(sub.current_period_end))) : ''}
-          ` : `<div class="t-muted t-detail" style="padding:8px 0">No subscription on record.</div>`}
-          <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">
-            <button class="btn btn-secondary btn-sm" onclick="UserDetailPage.changeTier('explorer')">${sub ? 'Set' : 'Grant'} Explorer</button>
-            <button class="btn btn-secondary btn-sm" onclick="UserDetailPage.changeTier('base_camp')">${sub ? 'Set' : 'Grant'} Base Camp</button>
-          </div>
+          ${this._infoLine('Tier', tierBadge(tier))}
+          ${this._infoLine('Status', escHtml(sub?.status || '—'))}
+          ${this._infoLine('Platform', escHtml(sub?.platform || '—'))}
+          ${this._infoLine('Started', escHtml(sub?.started_at ? formatDate(sub.started_at) : '—'))}
+          ${this._infoLine('Renews', escHtml(sub?.current_period_end ? formatDate(sub.current_period_end) : '—'))}
         </div>
       </div>
 
-      ${vehicle ? this._renderLogsCard() : ''}
-
-      ${Auth.isSuper() ? `
-        <div class="card">
-          <div class="card-title t-danger">Danger zone</div>
-          <div class="t-muted t-detail" style="margin-bottom:16px">
-            Permanently delete this user and all their data. This cannot be undone.
-          </div>
-          <button class="btn btn-danger btn-sm" onclick="UserDetailPage.deleteUser()">Delete user</button>
+      <div class="card">
+        <div class="card-title">Account actions</div>
+        <div class="t-muted t-detail" style="margin-bottom:16px">Change subscription tier or remove the account entirely.</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn btn-secondary btn-sm" onclick="UserDetailPage.changeTier('explore')">Set Explorer</button>
+          <button class="btn btn-secondary btn-sm" onclick="UserDetailPage.changeTier('base_camp')">Set Base Camp</button>
+          <button class="btn btn-ghost btn-sm t-danger" onclick="UserDetailPage.deleteUser()">Delete user</button>
         </div>
-      ` : ''}
+      </div>
+
+      ${vehicle ? this._renderDeviceControlLogsCard() : ''}
+      ${vehicle ? this._renderLogsCard() : ''}
     `;
   },
 
-  // Single info line: bold label left, regular value right.
-  // Matches Figma node 42:1202 (justify-between, both on one line).
   _infoLine(label, value) {
     return `
       <div class="info-line">
@@ -162,7 +177,6 @@ const UserDetailPage = {
     `;
   },
 
-  // Legacy row format (kept for telemetry and other callers)
   _row(label, value) {
     return `
       <div style="display:flex;align-items:center;gap:16px;padding:10px 0;border-bottom:1px solid var(--border-subtle)">
@@ -172,15 +186,13 @@ const UserDetailPage = {
     `;
   },
 
-  // Battery row — shows the effective value (vehicle override OR build
-  // line default OR "Not set"), with the build line default in muted
-  // text underneath when there's an override. Inline edit-on-click.
-  //
-  // Effective = vehicle.battery_capacity_ah ?? build_line.battery_capacity_ah
-  //
-  // The iPad mirrors this hierarchy in BatteryCapacityLearner —
-  // vehicle override wins, otherwise build line, otherwise the learner
-  // observes the value from clean discharge windows.
+  // ═══════════════════════════════════════════════════════════════════════
+  // BATTERY CAPACITY ROW + INLINE EDIT (per-vehicle override)
+  // ═══════════════════════════════════════════════════════════════════════
+  // Effective value = vehicle.battery_capacity_ah ?? build_line.battery_capacity_ah
+  // The iPad's BatteryCapacityLearner mirrors this hierarchy: vehicle
+  // override wins, otherwise build line default, otherwise observation.
+
   _renderBatteryRow(vehicle, buildLineAh) {
     const vehicleAh = (vehicle.battery_capacity_ah != null) ? vehicle.battery_capacity_ah : null;
     const effectiveAh = vehicleAh ?? buildLineAh ?? null;
@@ -189,9 +201,8 @@ const UserDetailPage = {
       ? `${effectiveAh} Ah`
       : '<span class="t-muted">Not set</span>';
 
-    // Sub-label: only show when the value is overridden vs. the build line
-    // (i.e. vehicle override is set AND differs from / supplements the build
-    // line default). Helps builders see "this customer is on a non-stock spec."
+    // Sub-label distinguishes the three states. Helps builders see "this
+    // customer is on a non-stock spec."
     let subLabel = '';
     if (vehicleAh != null && buildLineAh != null && vehicleAh !== buildLineAh) {
       subLabel = `<div class="t-muted t-detail" style="font-size:11px;margin-top:2px">Override · build line default: ${buildLineAh} Ah</div>`;
@@ -243,7 +254,6 @@ const UserDetailPage = {
       </span>
     `;
 
-    // Focus + select-all so admins can immediately type to replace
     const input = document.getElementById('batteryEditInput');
     if (input) { input.focus(); input.select(); }
   },
@@ -259,7 +269,6 @@ const UserDetailPage = {
     const raw = (input.value || '').trim();
     let newValue;
     if (raw === '') {
-      // Empty → clear the override, fall back to build line default
       newValue = null;
     } else {
       const n = Number(raw);
@@ -276,7 +285,6 @@ const UserDetailPage = {
         updated_at: new Date().toISOString(),
       });
 
-      // Refresh state and re-render the row in place
       if (this._vehicle) this._vehicle.battery_capacity_ah = newValue;
       this._reloadBatteryRow();
     } catch (e) {
@@ -287,11 +295,247 @@ const UserDetailPage = {
   _reloadBatteryRow() {
     const row = document.getElementById('batteryInfoRow');
     if (!row) return;
-    // Re-render using the current (stashed) vehicle + build-line state.
-    // We replace the row's outerHTML so the id stays attached to the new
-    // markup for future edits.
     const newMarkup = this._renderBatteryRow(this._vehicle, this._buildLineBatteryAh);
     row.outerHTML = newMarkup;
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // DEVICE CONTROL LOGS (manual switch / scene activation events)
+  // ═══════════════════════════════════════════════════════════════════════
+
+  _renderDeviceControlLogsCard() {
+    const today = localDate();
+    const weekAgo = localDate(new Date(Date.now() - 7 * 86400000));
+    return `
+      <div class="card">
+        <div class="card-title">Device Activity</div>
+        <div class="t-muted t-detail" style="margin-bottom:16px">
+          User-triggered switch flips, scene activations, and remediation actions.
+          Use this to troubleshoot "did the fan ever come on last night?" or
+          spot patterns in how a client is using their build.
+        </div>
+        <div style="display:flex;gap:12px;align-items:flex-end;margin-bottom:16px;flex-wrap:wrap">
+          <div class="field" style="margin-bottom:0;flex:0 0 auto">
+            <label>Start</label>
+            <input type="date" id="userDevLogStart" value="${weekAgo}" max="${today}">
+          </div>
+          <div class="field" style="margin-bottom:0;flex:0 0 auto">
+            <label>End</label>
+            <input type="date" id="userDevLogEnd" value="${today}" max="${today}">
+          </div>
+          <div class="field" style="margin-bottom:0;flex:0 0 auto">
+            <label>Category</label>
+            <select id="userDevLogCategory" style="padding:7px 10px;background:var(--bg-surface);border:1px solid var(--border-default);border-radius:6px;font-size:13px">
+              <option value="">All</option>
+              <option value="climate">Climate</option>
+              <option value="lighting">Lighting</option>
+              <option value="power">Power</option>
+              <option value="plumbing">Plumbing</option>
+              <option value="exterior">Exterior</option>
+              <option value="entertainment">Entertainment</option>
+              <option value="scene">Scenes</option>
+            </select>
+          </div>
+          <div class="field" style="margin-bottom:0;flex:0 0 auto">
+            <label>Source</label>
+            <select id="userDevLogSource" style="padding:7px 10px;background:var(--bg-surface);border:1px solid var(--border-default);border-radius:6px;font-size:13px">
+              <option value="">All</option>
+              <option value="manual">Manual tap</option>
+              <option value="scene">Scene</option>
+              <option value="schedule">Schedule</option>
+              <option value="bedtime">Bedtime</option>
+              <option value="alert">Alert</option>
+              <option value="system">System</option>
+            </select>
+          </div>
+          <button class="btn btn-primary btn-sm" id="userLoadDevLogsBtn" onclick="UserDetailPage.loadDeviceControlLogs()">Load Activity</button>
+        </div>
+        <div id="userDevLogsContent">
+          <div class="t-muted t-detail">Pick a date range and click <strong>Load Activity</strong>.</div>
+        </div>
+      </div>
+    `;
+  },
+
+  async loadDeviceControlLogs() {
+    const startInput = document.getElementById('userDevLogStart');
+    const endInput = document.getElementById('userDevLogEnd');
+    const catInput = document.getElementById('userDevLogCategory');
+    const srcInput = document.getElementById('userDevLogSource');
+    const btn = document.getElementById('userLoadDevLogsBtn');
+    const contentEl = document.getElementById('userDevLogsContent');
+    if (!startInput || !endInput || !btn || !contentEl) return;
+
+    const start = startInput.value;
+    const end = endInput.value;
+    if (!start || !end) {
+      contentEl.innerHTML = '<div class="t-danger t-detail">Pick a start and end date.</div>';
+      return;
+    }
+
+    this._devLogsFilters = {
+      category: catInput?.value || '',
+      action: '',
+      source: srcInput?.value || '',
+    };
+
+    btn.textContent = 'Loading...';
+    btn.disabled = true;
+    contentEl.innerHTML = '<div class="t-muted t-detail">Fetching device activity...</div>';
+
+    try {
+      const startISO = localDateToUTCStart(start);
+      const endISO = localDateToUTCEnd(end);
+
+      const filters = [
+        `user_id=eq.${this.userId}`,
+        `occurred_at=gte.${startISO}`,
+        `occurred_at=lte.${endISO}`,
+      ];
+      if (this._devLogsFilters.category) {
+        filters.push(`device_category=eq.${encodeURIComponent(this._devLogsFilters.category)}`);
+      }
+      if (this._devLogsFilters.source) {
+        filters.push(`source=eq.${encodeURIComponent(this._devLogsFilters.source)}`);
+      }
+
+      const url = `device_control_logs?${filters.join('&')}&order=occurred_at.desc&limit=5000&select=*`;
+      const logs = await supa(url);
+
+      this._devLogs = logs;
+      this._devLogsPage = 1;
+      this._devLogsDateRange = { start, end };
+
+      if (logs.length === 0) {
+        contentEl.innerHTML = `
+          <div class="t-muted t-detail" style="padding:12px;background:var(--bg-muted);border-radius:8px">
+            No device activity logged from ${escHtml(start)} to ${escHtml(end)}.
+            <div style="margin-top:6px;font-size:11px">
+              Activity logging is emitted by the ArcNode iPad app. If this client
+              has the latest app and you still see nothing, they may not have
+              toggled any devices manually in this window.
+            </div>
+          </div>
+        `;
+      } else {
+        this._renderDevLogsPage();
+      }
+    } catch (e) {
+      console.error('[Device Activity] fetch failed:', e);
+      contentEl.innerHTML = `<div class="t-danger t-detail">Failed to load — ${escHtml(e.message || '')}</div>`;
+    }
+
+    btn.textContent = 'Load Activity';
+    btn.disabled = false;
+  },
+
+  _renderDevLogsPage() {
+    const contentEl = document.getElementById('userDevLogsContent');
+    if (!contentEl) return;
+
+    const logs = this._devLogs;
+    const total = logs.length;
+    const perPage = this._devLogsPerPage;
+    const totalPages = Math.max(1, Math.ceil(total / perPage));
+    const page = Math.min(Math.max(1, this._devLogsPage), totalPages);
+    const startIdx = (page - 1) * perPage;
+    const endIdx = Math.min(startIdx + perPage, total);
+    const pageRows = logs.slice(startIdx, endIdx);
+
+    const counts = {};
+    for (const l of logs) {
+      const key = l.device_name || l.device_key || 'unknown';
+      counts[key] = (counts[key] || 0) + 1;
+    }
+    const topDevices = Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5);
+
+    const topMarkup = topDevices.length > 0 ? `
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px">
+        ${topDevices.map(([name, count]) => `
+          <div style="padding:6px 10px;background:var(--brand-primary-10,rgba(118,123,251,0.08));border:1px solid var(--brand-primary);border-radius:999px;font-size:12px;color:var(--text-primary)">
+            <span style="font-weight:500">${escHtml(name)}</span>
+            <span class="t-muted" style="margin-left:4px">×${count}</span>
+          </div>
+        `).join('')}
+      </div>
+    ` : '';
+
+    const table = `
+      <div style="overflow-x:auto;border:1px solid var(--border-default);border-radius:8px">
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead>
+            <tr style="background:var(--bg-muted);text-align:left">
+              ${['Time','Device','Category','Action','Source','Value'].map((h) => `
+                <th style="padding:8px 10px;font-weight:500;color:var(--text-dark);white-space:nowrap;font-size:11px;text-transform:uppercase;letter-spacing:0.04em">${h}</th>
+              `).join('')}
+            </tr>
+          </thead>
+          <tbody>
+            ${pageRows.map((l) => this._renderDevLogRow(l)).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+
+    const pagination = totalPages > 1 ? `
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:16px;flex-wrap:wrap">
+        <span class="t-muted t-detail">Showing ${(startIdx + 1).toLocaleString()}–${endIdx.toLocaleString()} of ${total.toLocaleString()}</span>
+        <div style="display:flex;align-items:center;gap:4px">
+          <button class="btn btn-ghost btn-sm" onclick="UserDetailPage._goToDevLogsPage(${page - 1})" ${page === 1 ? 'disabled' : ''}>‹ Prev</button>
+          <span class="t-muted" style="padding:0 8px">Page ${page} of ${totalPages}</span>
+          <button class="btn btn-ghost btn-sm" onclick="UserDetailPage._goToDevLogsPage(${page + 1})" ${page === totalPages ? 'disabled' : ''}>Next ›</button>
+        </div>
+      </div>
+    ` : `<div class="t-muted t-detail" style="margin-top:12px">${total.toLocaleString()} event${total === 1 ? '' : 's'} from ${this._devLogsDateRange.start} to ${this._devLogsDateRange.end}</div>`;
+
+    contentEl.innerHTML = topMarkup + table + pagination;
+  },
+
+  _renderDevLogRow(l) {
+    const actionColors = {
+      on: 'var(--success)',
+      activate: 'var(--success)',
+      off: 'var(--text-secondary)',
+      deactivate: 'var(--text-secondary)',
+      set: 'var(--brand-primary)',
+    };
+    const actionColor = actionColors[l.action] || 'var(--text-primary)';
+    const sourceBadge = l.source && l.source !== 'manual'
+      ? `<span class="badge badge--tier-base-camp" style="font-size:10px">${escHtml(l.source)}</span>`
+      : `<span class="t-muted" style="font-size:11px">manual</span>`;
+
+    let valueText = '—';
+    if (l.value != null) {
+      try {
+        if (typeof l.value === 'string') valueText = l.value;
+        else valueText = JSON.stringify(l.value);
+      } catch (_) {
+        valueText = String(l.value);
+      }
+      if (valueText.length > 60) valueText = valueText.slice(0, 57) + '…';
+    }
+
+    const cell = (content, color = 'var(--text-primary)', style = '') =>
+      `<td style="padding:6px 10px;white-space:nowrap;color:${color};border-top:1px solid var(--border-subtle);${style}">${content}</td>`;
+
+    return `
+      <tr>
+        ${cell(formatDateTime(l.occurred_at), 'var(--text-secondary)', 'font-size:11px')}
+        ${cell(`<span style="font-weight:500">${escHtml(l.device_name || l.device_key || '—')}</span>`)}
+        ${cell(escHtml(l.device_category || '—'), 'var(--text-secondary)')}
+        ${cell(`<span style="font-weight:600;text-transform:uppercase;font-size:11px;letter-spacing:0.04em">${escHtml(l.action || '—')}</span>`, actionColor)}
+        ${cell(sourceBadge)}
+        ${cell(`<span style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px">${escHtml(valueText)}</span>`, 'var(--text-secondary)')}
+      </tr>
+    `;
+  },
+
+  _goToDevLogsPage(page) {
+    const totalPages = Math.ceil(this._devLogs.length / this._devLogsPerPage);
+    this._devLogsPage = Math.max(1, Math.min(totalPages, page));
+    this._renderDevLogsPage();
   },
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -329,6 +573,8 @@ const UserDetailPage = {
   _initLogsSection() {
     this._logs = [];
     this._page = 1;
+    this._devLogs = [];
+    this._devLogsPage = 1;
   },
 
   async loadLogs() {
@@ -390,7 +636,6 @@ const UserDetailPage = {
       } else {
         offset += batchSize;
       }
-      // Safety cap to avoid runaway fetches
       if (all.length > 50000) {
         console.warn('[Logs] hit 50k cap, stopping fetch');
         hasMore = false;

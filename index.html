@@ -10,6 +10,10 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/arcadmin.css">
+  <style>
+    /* Spinner used by AI Questions synthesis loading state */
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
 </head>
 <body>
 
@@ -235,6 +239,7 @@
         <button class="tab tab--active" data-company-tab="overview" onclick="CompaniesPage.switchTab('overview')">Overview</button>
         <button class="tab" data-company-tab="build-lines" onclick="CompaniesPage.switchTab('build-lines')">Build Lines</button>
         <button class="tab" data-company-tab="manuals" onclick="CompaniesPage.switchTab('manuals')">Manuals</button>
+        <button class="tab" data-company-tab="ai-questions" onclick="CompaniesPage.switchTab('ai-questions')">AI Questions</button>
       </div>
 
       <div id="companyDetailContent" class="w-full">
@@ -273,7 +278,7 @@
 
       <div class="card">
         <div class="card-title">Systems</div>
-        <div class="t-muted t-detail" style="margin-bottom:12px">Default devices installed in this build. New vehicles inherit these automatically; builders can customize per-vehicle after onboarding. ArcInsight uses these tags to pick the right manuals for each client.</div>
+        <div class="t-muted t-detail" style="margin-bottom:12px">Default devices installed in this build. New vehicles inherit these automatically; builders can customize per-vehicle after onboarding. ArcInsight uses these tags to pick the right manuals for each client. <strong>Assign each device to its Cerbo port</strong> (VE.CAN instance or relay channel) so client device tabs auto-configure during onboarding.</div>
         <div id="buildLineSystemsContainer">
           <div class="t-muted">Loading...</div>
         </div>
@@ -488,6 +493,68 @@
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModals()">Cancel</button>
       <button class="btn btn-primary" onclick="Documents.confirmUpload()">Upload &amp; Process</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- Port Assignment Modal (for build-line systems picker)                   -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay hidden" id="portAssignmentModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="portAssignmentTitle">Port Assignment</div>
+        <div class="t-muted t-detail" id="portAssignmentSubtitle" style="margin-top:4px">Where this device sits on the Cerbo</div>
+      </div>
+      <button class="modal-close" onclick="closeModals()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="error-box hidden" id="portAssignmentError"></div>
+
+      <div class="field">
+        <label>Port</label>
+        <select id="portAssignmentPort" onchange="BuildLinesPage._togglePortFields()">
+          <option value="">— Not assigned —</option>
+          <option value="vecan0">VE.CAN 0 (Cerbo Port 1)</option>
+          <option value="vecan1">VE.CAN 1 (Cerbo Port 2)</option>
+          <option value="relay_e16t">Relay board — E16T (16 channels)</option>
+          <option value="relay_f16">Relay board — F16 (16 channels)</option>
+          <option value="ble">BLE (Bluetooth)</option>
+          <option value="wifi">WiFi (LAN)</option>
+        </select>
+      </div>
+
+      <div class="field" id="portAssignmentInstanceWrap" style="display:none">
+        <label>VE.CAN / RV-C Instance</label>
+        <input type="number" id="portAssignmentInstance" min="0" max="255" placeholder="e.g. 1">
+        <div class="t-muted t-detail" style="margin-top:4px">Instance ID on the chosen VE.CAN bus. MaxxFan uses 1 by default; Safiery StarPower defaults to 0.</div>
+      </div>
+
+      <div class="field" id="portAssignmentChannelWrap" style="display:none">
+        <label>Relay Channel</label>
+        <input type="number" id="portAssignmentChannel" min="1" max="16" placeholder="1–16">
+        <div class="t-muted t-detail" style="margin-top:4px">Channel number on the relay board (1–16). For H-bridge devices like Girard awning, use the FIRST channel of the pair.</div>
+      </div>
+
+      <div class="field">
+        <label>Role / Label (optional)</label>
+        <input id="portAssignmentRole" placeholder="e.g. Zone A AC, Bedroom Lights, Galley Pump">
+        <div class="t-muted t-detail" style="margin-top:4px">Optional human label shown in the device tab.</div>
+      </div>
+
+      <div class="field">
+        <label>Notes (optional)</label>
+        <input id="portAssignmentNotes" placeholder="e.g. CMD1 + CMD2 lid sequence required">
+      </div>
+
+    </div>
+    <div class="modal-footer" style="justify-content:space-between">
+      <button class="btn btn-ghost btn-sm t-danger" onclick="BuildLinesPage.clearPortAssignment(event)">Clear assignment</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-secondary" onclick="closeModals()">Cancel</button>
+        <button class="btn btn-primary" onclick="BuildLinesPage.savePortAssignment(event)">Save</button>
+      </div>
     </div>
   </div>
 </div>

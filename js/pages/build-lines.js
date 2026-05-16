@@ -6,15 +6,23 @@
 // the default device list, which a DB trigger copies into vehicle_systems on
 // new vehicle insert.
 //
-// 2026-04-23 rewrite for new design. Key API changes:
-//   - loadForCompany(companyId, name, containerEl) — renders INTO the given
-//     element instead of a fixed DOM id. Used by CompaniesPage for its tab.
-//   - loadDetail({companyId, buildLineId}) — entry for the build-line detail
-//     page (routed as /companies/:companyId/builds/:buildLineId).
-//   - openAddModal(companyId) — used by the company overflow menu.
+// 2026-04-23 rewrite for new design.
 //
-// The Systems picker uses the new purple tokens; toggling is optimistic + writes
-// to build_line_systems, which the DB trigger cascades into vehicle_systems.
+// 2026-05-16 update: port-assignment editor. Each selected device in the
+// Systems picker can now declare which Cerbo port + VE.CAN instance + relay
+// channel it sits on. Stored in build_line_systems.port_assignment (JSONB).
+// When a vehicle is onboarded, the existing trigger carries the assignment
+// into vehicle_systems, so the iPad app can pre-configure device tabs.
+//
+//   port_assignment JSON shape (per device):
+//     {
+//       "port":     "vecan0" | "vecan1" | "relay_e16t" | "relay_f16" | "ble" | "wifi" | null,
+//       "instance": <int|null>,    // RV-C / VE.CAN instance ID
+//       "channel":  <int|null>,    // relay channel (1-16)
+//       "role":     <string|null>, // optional human label, e.g. "Zone A AC"
+//       "notes":    <string|null>
+//     }
+//
 
 const BuildLinesPage = {
   // ── List state ──
@@ -28,6 +36,10 @@ const BuildLinesPage = {
   lineData: null,
   _catalog: [],
   _selectedIds: new Set(),
+  _systemsByDevice: {}, // device_catalog_id -> { id (row id), port_assignment }
+
+  // ── Port assignment modal state ──
+  _portModalDeviceId: null,
 
   // ═══════════════════════════════════════════════════════════════════════
   // LIST — rendered inside a company's Build Lines tab
@@ -228,8 +240,9 @@ const BuildLinesPage = {
   async loadDetail({ companyId, buildLineId }) {
     this.companyId = companyId;
     this.lineId = buildLineId;
-    this._catalog = []; // reset cache between views
+    this._catalog = [];
     this._selectedIds = new Set();
+    this._systemsByDevice = {};
 
     const nameEl = document.getElementById('buildLineDetailName');
     const companyEl = document.getElementById('buildLineDetailCompany');
@@ -251,7 +264,6 @@ const BuildLinesPage = {
       }
       this.lineData = lines[0];
 
-      // Company context for breadcrumb / subtitle
       let companyName = '';
       try {
         const companies = await supa(`companies?id=eq.${companyId}&select=name`);
@@ -265,7 +277,6 @@ const BuildLinesPage = {
       if (companyEl) companyEl.textContent = companyName || '';
       if (bcEl) bcEl.textContent = companyName || 'Back';
 
-      // Info card
       if (infoEl) {
         const battery = (this.lineData.battery_capacity_ah != null)
           ? `${escHtml(String(this.lineData.battery_capacity_ah))} Ah`
@@ -286,20 +297,15 @@ const BuildLinesPage = {
         `;
       }
 
-      // Schematic section
       this._renderSchematic();
-
-      // Systems picker
       await this.loadSystems();
 
-      // Docs (delegate to Documents module if available)
       if (window.Documents && typeof Documents.loadForBuildLine === 'function') {
         Documents.loadForBuildLine(buildLineId, companyId, docsEl);
       } else if (docsEl) {
         docsEl.innerHTML = '<div class="t-muted">Documents module not loaded.</div>';
       }
 
-      // For editing from detail → modal, we need buildLines cached
       if (this.buildLines.length === 0) {
         try {
           const all = await supa(`build_lines?company_id=eq.${companyId}&is_active=eq.true&select=*`);
@@ -407,7 +413,7 @@ const BuildLinesPage = {
   },
 
   // ═══════════════════════════════════════════════════════════════════════
-  // SYSTEMS PICKER (Phase 1c) — restyled to new tokens
+  // SYSTEMS PICKER — with port/channel assignment per device
   // ═══════════════════════════════════════════════════════════════════════
 
   async loadSystems() {
@@ -418,11 +424,21 @@ const BuildLinesPage = {
       const catalogPromise = this._catalog.length
         ? Promise.resolve(this._catalog)
         : supa(`device_catalog?is_active=eq.true&select=*&order=category.asc,device_name.asc`);
-      const selectedPromise = supa(`build_line_systems?build_line_id=eq.${this.lineId}&select=device_catalog_id`);
+      // Pull id + port_assignment so we can render assignments inline
+      const selectedPromise = supa(
+        `build_line_systems?build_line_id=eq.${this.lineId}&select=id,device_catalog_id,port_assignment`
+      );
 
       const [catalog, selected] = await Promise.all([catalogPromise, selectedPromise]);
       this._catalog = catalog;
       this._selectedIds = new Set(selected.map((r) => r.device_catalog_id));
+      this._systemsByDevice = {};
+      for (const row of selected) {
+        this._systemsByDevice[row.device_catalog_id] = {
+          id: row.id,
+          port_assignment: row.port_assignment || null,
+        };
+      }
       this._renderSystems();
     } catch (e) {
       console.error('Load systems failed:', e);
@@ -447,7 +463,7 @@ const BuildLinesPage = {
     };
 
     const selectedCount = this._selectedIds.size;
-    let html = `<div class="t-muted t-detail" style="margin-bottom:20px">${selectedCount} ${selectedCount === 1 ? 'device' : 'devices'} selected</div>`;
+    let html = `<div class="t-muted t-detail" style="margin-bottom:20px">${selectedCount} ${selectedCount === 1 ? 'device' : 'devices'} selected — click a selected device's port pill to assign it to a Cerbo port / VE.CAN instance / relay channel.</div>`;
     html += '<div style="display:flex;flex-direction:column;gap:24px">';
 
     for (const cat of categoryOrder) {
@@ -455,7 +471,7 @@ const BuildLinesPage = {
       html += `
         <div>
           <div class="section-label" style="margin-bottom:10px">${categoryLabels[cat]}</div>
-          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px">
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:8px">
             ${byCat[cat].map((d) => this._renderSystemCheckbox(d)).join('')}
           </div>
         </div>
@@ -471,18 +487,68 @@ const BuildLinesPage = {
     const cardBorder = checked ? 'var(--brand-primary)' : 'var(--border-default)';
     const boxBg = checked ? 'var(--brand-primary)' : 'transparent';
     const boxBorder = checked ? 'var(--brand-primary)' : 'var(--text-muted)';
+
+    // Port pill: only visible when the device is selected.
+    const portPill = checked ? this._renderPortPill(device.id) : '';
+
     return `
-      <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:${cardBg};border:1px solid ${cardBorder};border-radius:8px;cursor:pointer;transition:all 0.12s"
-             onclick="BuildLinesPage.toggleSystem('${escHtml(device.id)}', event)">
-        <div style="width:18px;height:18px;border-radius:4px;border:1.5px solid ${boxBorder};background:${boxBg};display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all 0.12s">
-          ${checked ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#1B1B1B" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' : ''}
-        </div>
-        <div style="flex:1;min-width:0">
-          <div class="t-body" style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(device.device_name)}</div>
-          ${device.manufacturer ? `<div class="t-muted" style="font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(device.manufacturer)}</div>` : ''}
-        </div>
-      </label>
+      <div style="display:flex;flex-direction:column;gap:6px;padding:10px 12px;background:${cardBg};border:1px solid ${cardBorder};border-radius:8px;transition:all 0.12s">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer"
+               onclick="BuildLinesPage.toggleSystem('${escHtml(device.id)}', event)">
+          <div style="width:18px;height:18px;border-radius:4px;border:1.5px solid ${boxBorder};background:${boxBg};display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all 0.12s">
+            ${checked ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#1B1B1B" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' : ''}
+          </div>
+          <div style="flex:1;min-width:0">
+            <div class="t-body" style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(device.device_name)}</div>
+            ${device.manufacturer ? `<div class="t-muted" style="font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(device.manufacturer)}</div>` : ''}
+          </div>
+        </label>
+        ${portPill}
+      </div>
     `;
+  },
+
+  // Visual representation of a device's current port assignment, with click to edit.
+  _renderPortPill(deviceCatalogId) {
+    const row = this._systemsByDevice[deviceCatalogId];
+    const pa = row?.port_assignment || null;
+    const label = this._formatPortLabel(pa);
+    const isSet = !!pa && !!pa.port;
+    const pillBg = isSet ? 'var(--bg-surface)' : 'transparent';
+    const pillBorder = isSet ? 'var(--brand-primary)' : 'var(--text-muted)';
+    const pillColor = isSet ? 'var(--text-primary)' : 'var(--text-secondary)';
+    const pillStyle = isSet ? 'dashed' : 'dashed';
+
+    return `
+      <button
+        onclick="BuildLinesPage.openPortAssignmentModal('${escHtml(deviceCatalogId)}', event)"
+        style="margin-left:28px;display:inline-flex;align-items:center;gap:6px;padding:4px 10px;background:${pillBg};border:1px ${pillStyle} ${pillBorder};border-radius:999px;font-size:11px;color:${pillColor};cursor:pointer;align-self:flex-start;font-family:inherit"
+        onmouseover="this.style.background='var(--brand-primary-10)'"
+        onmouseout="this.style.background='${pillBg}'">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="11" width="18" height="11" rx="2"/>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+        </svg>
+        ${escHtml(label)}
+      </button>
+    `;
+  },
+
+  _formatPortLabel(pa) {
+    if (!pa || !pa.port) return 'Assign port...';
+    const portLabels = {
+      vecan0: 'VE.CAN 0',
+      vecan1: 'VE.CAN 1',
+      relay_e16t: 'E16T relay',
+      relay_f16: 'F16 relay',
+      ble: 'BLE',
+      wifi: 'WiFi',
+    };
+    let s = portLabels[pa.port] || pa.port;
+    if (pa.instance != null && pa.instance !== '') s += ` · inst ${pa.instance}`;
+    if (pa.channel != null && pa.channel !== '') s += ` · ch ${pa.channel}`;
+    if (pa.role) s += ` · ${pa.role}`;
+    return s;
   },
 
   async toggleSystem(deviceCatalogId, event) {
@@ -490,19 +556,44 @@ const BuildLinesPage = {
 
     const wasSelected = this._selectedIds.has(deviceCatalogId);
 
-    if (wasSelected) this._selectedIds.delete(deviceCatalogId);
-    else this._selectedIds.add(deviceCatalogId);
+    if (wasSelected) {
+      this._selectedIds.delete(deviceCatalogId);
+      delete this._systemsByDevice[deviceCatalogId];
+    } else {
+      this._selectedIds.add(deviceCatalogId);
+      this._systemsByDevice[deviceCatalogId] = { id: null, port_assignment: null };
+    }
     this._renderSystems();
 
     try {
       if (wasSelected) {
         await supaDelete(`build_line_systems?build_line_id=eq.${this.lineId}&device_catalog_id=eq.${deviceCatalogId}`);
       } else {
-        await supaPost('build_line_systems', {
-          build_line_id: this.lineId,
-          device_catalog_id: deviceCatalogId,
-          is_default: true,
+        // Use return=representation so we can capture the new row id
+        const res = await fetch(`${SUPA_URL}/rest/v1/build_line_systems`, {
+          method: 'POST',
+          headers: {
+            apikey: SUPA_KEY,
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            Prefer: 'return=representation',
+          },
+          body: JSON.stringify({
+            build_line_id: this.lineId,
+            device_catalog_id: deviceCatalogId,
+            is_default: true,
+          }),
         });
+        if (res.ok) {
+          const arr = await res.json();
+          if (arr[0]?.id) {
+            this._systemsByDevice[deviceCatalogId] = {
+              id: arr[0].id,
+              port_assignment: arr[0].port_assignment || null,
+            };
+            this._renderSystems();
+          }
+        }
       }
     } catch (e) {
       console.error('Toggle system failed:', e);
@@ -511,6 +602,139 @@ const BuildLinesPage = {
       this._renderSystems();
       alert(`Failed to update systems: ${e.message}`);
     }
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // PORT ASSIGNMENT MODAL
+  // ═══════════════════════════════════════════════════════════════════════
+
+  openPortAssignmentModal(deviceCatalogId, event) {
+    if (event) { event.preventDefault(); event.stopPropagation(); }
+    this._portModalDeviceId = deviceCatalogId;
+
+    const device = this._catalog.find((d) => d.id === deviceCatalogId);
+    const row = this._systemsByDevice[deviceCatalogId];
+    const pa = row?.port_assignment || {};
+
+    const titleEl = document.getElementById('portAssignmentTitle');
+    if (titleEl) titleEl.textContent = device ? `Port Assignment — ${device.device_name}` : 'Port Assignment';
+
+    const subtitleEl = document.getElementById('portAssignmentSubtitle');
+    if (subtitleEl) subtitleEl.textContent = device?.manufacturer
+      ? `${device.manufacturer} — where this device sits on the Cerbo`
+      : 'Where this device sits on the Cerbo';
+
+    document.getElementById('portAssignmentPort').value = pa.port || '';
+    document.getElementById('portAssignmentInstance').value = pa.instance != null ? pa.instance : '';
+    document.getElementById('portAssignmentChannel').value = pa.channel != null ? pa.channel : '';
+    document.getElementById('portAssignmentRole').value = pa.role || '';
+    document.getElementById('portAssignmentNotes').value = pa.notes || '';
+
+    const errEl = document.getElementById('portAssignmentError');
+    if (errEl) errEl.classList.add('hidden');
+
+    this._togglePortFields();
+    openModal('portAssignmentModal');
+  },
+
+  // Hide irrelevant fields based on the chosen port. VE.CAN ports use
+  // instance; relay boards use channel; BLE/WiFi use neither.
+  _togglePortFields() {
+    const port = document.getElementById('portAssignmentPort')?.value || '';
+    const instanceWrap = document.getElementById('portAssignmentInstanceWrap');
+    const channelWrap = document.getElementById('portAssignmentChannelWrap');
+    const showInstance = port === 'vecan0' || port === 'vecan1';
+    const showChannel = port === 'relay_e16t' || port === 'relay_f16';
+    if (instanceWrap) instanceWrap.style.display = showInstance ? '' : 'none';
+    if (channelWrap) channelWrap.style.display = showChannel ? '' : 'none';
+  },
+
+  async savePortAssignment(event) {
+    const deviceCatalogId = this._portModalDeviceId;
+    if (!deviceCatalogId) { closeModals(); return; }
+
+    const port = document.getElementById('portAssignmentPort').value || null;
+    const instanceRaw = document.getElementById('portAssignmentInstance').value;
+    const channelRaw = document.getElementById('portAssignmentChannel').value;
+    const role = document.getElementById('portAssignmentRole').value.trim() || null;
+    const notes = document.getElementById('portAssignmentNotes').value.trim() || null;
+    const errEl = document.getElementById('portAssignmentError');
+    errEl.classList.add('hidden');
+
+    const portAssignment = {
+      port,
+      instance: instanceRaw === '' ? null : parseInt(instanceRaw, 10),
+      channel: channelRaw === '' ? null : parseInt(channelRaw, 10),
+      role,
+      notes,
+    };
+
+    // Validation:
+    if (port === 'vecan0' || port === 'vecan1') {
+      if (portAssignment.instance === null || Number.isNaN(portAssignment.instance)) {
+        errEl.textContent = 'VE.CAN ports require an instance ID.';
+        errEl.classList.remove('hidden');
+        return;
+      }
+    }
+    if (port === 'relay_e16t' || port === 'relay_f16') {
+      if (portAssignment.channel === null || Number.isNaN(portAssignment.channel)) {
+        errEl.textContent = 'Relay boards require a channel number (1–16).';
+        errEl.classList.remove('hidden');
+        return;
+      }
+      if (portAssignment.channel < 1 || portAssignment.channel > 16) {
+        errEl.textContent = 'Channel must be between 1 and 16.';
+        errEl.classList.remove('hidden');
+        return;
+      }
+    }
+
+    await withBtnLoading(event, async () => {
+      try {
+        await supaPatch(
+          `build_line_systems?build_line_id=eq.${this.lineId}&device_catalog_id=eq.${deviceCatalogId}`,
+          { port_assignment: portAssignment }
+        );
+
+        const row = this._systemsByDevice[deviceCatalogId] || { id: null };
+        row.port_assignment = portAssignment;
+        this._systemsByDevice[deviceCatalogId] = row;
+
+        closeModals();
+        this._renderSystems();
+        showToast('Port assignment saved', 'success');
+      } catch (e) {
+        console.error('Save port assignment failed:', e);
+        errEl.textContent = e.message || 'Failed to save.';
+        errEl.classList.remove('hidden');
+      }
+    });
+  },
+
+  async clearPortAssignment(event) {
+    const deviceCatalogId = this._portModalDeviceId;
+    if (!deviceCatalogId) { closeModals(); return; }
+
+    await withBtnLoading(event, async () => {
+      try {
+        await supaPatch(
+          `build_line_systems?build_line_id=eq.${this.lineId}&device_catalog_id=eq.${deviceCatalogId}`,
+          { port_assignment: null }
+        );
+
+        const row = this._systemsByDevice[deviceCatalogId] || { id: null };
+        row.port_assignment = null;
+        this._systemsByDevice[deviceCatalogId] = row;
+
+        closeModals();
+        this._renderSystems();
+        showToast('Port assignment cleared', 'success');
+      } catch (e) {
+        console.error('Clear port assignment failed:', e);
+        alert(`Failed to clear: ${e.message}`);
+      }
+    });
   },
 };
 

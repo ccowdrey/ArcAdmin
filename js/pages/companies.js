@@ -3,8 +3,14 @@
 // Handles BOTH the companies list AND the company detail page.
 // Replaces the legacy two-module split (CompaniesPage + CompanyDetailPage).
 //
-// Detail page is tabbed: Overview | Build Lines | Manuals.
+// Detail page tabs: Overview | Build Lines | Manuals | AI Questions
 // The overflow menu (3-dots button) provides: Add Admin, Add Build Line, Delete.
+//
+// 2026-05-16 update: added AI Questions tab. Pulls user-role chat_messages
+// from clients linked to this company (via profiles.company_id OR
+// build_lines.company_id → vehicles → users), renders a paginated table, and
+// offers a "Synthesize" button that calls the synthesize-ai-questions Edge
+// Function to cluster themes via Claude.
 
 const CompaniesPage = {
   // ── List state ──
@@ -16,6 +22,13 @@ const CompaniesPage = {
   clients: [],
   admins: [],
   activeTab: 'overview',
+
+  // ── AI Questions tab state ──
+  _aiQuestions: [],
+  _aiQuestionsPage: 1,
+  _aiQuestionsPerPage: 25,
+  _aiQuestionsLoaded: false,
+  _aiSynthesis: null, // { summary, themes, total_questions, window }
 
   // ═══════════════════════════════════════════════════════════════════════
   // LIST
@@ -99,6 +112,12 @@ const CompaniesPage = {
   async loadDetail({ companyId }) {
     this.companyId = companyId;
     this.activeTab = 'overview';
+
+    // Reset AI Questions state when switching companies
+    this._aiQuestions = [];
+    this._aiQuestionsPage = 1;
+    this._aiQuestionsLoaded = false;
+    this._aiSynthesis = null;
 
     // Reset tab UI to Overview
     document.querySelectorAll('#pageCompanyDetail .tab[data-company-tab]').forEach((el) => {
@@ -225,7 +244,6 @@ const CompaniesPage = {
 
     if (this.activeTab === 'overview') {
       contentEl.innerHTML = this._renderOverview();
-      // Overview references a #companyCodesList div — populate it async.
       this.loadCodes();
     } else if (this.activeTab === 'build-lines') {
       contentEl.innerHTML = '<div class="data-empty">Loading build lines...</div>';
@@ -239,6 +257,8 @@ const CompaniesPage = {
       } else {
         contentEl.innerHTML = '<div class="data-empty">Manuals library not available.</div>';
       }
+    } else if (this.activeTab === 'ai-questions') {
+      this._renderAIQuestionsTab(contentEl);
     }
   },
 
@@ -247,7 +267,6 @@ const CompaniesPage = {
     const explorerCount = this.clients.filter((cl) => cl.tier === 'explore' || cl.tier === 'explorer').length;
     const baseCount = this.clients.filter((cl) => cl.tier === 'base_camp' || cl.tier === 'base').length;
 
-    // Admins section
     const adminsMarkup = this.admins.length === 0
       ? '<div class="t-muted t-detail">No admins yet. Use the menu to add one.</div>'
       : this.admins.map((a) => `
@@ -263,7 +282,6 @@ const CompaniesPage = {
           </div>
         `).join('');
 
-    // Clients section
     const clientsMarkup = this.clients.length === 0
       ? '<div class="t-muted t-detail">No clients yet.</div>'
       : `
@@ -386,6 +404,360 @@ const CompaniesPage = {
   },
 
   // ═══════════════════════════════════════════════════════════════════════
+  // AI QUESTIONS TAB
+  // ═══════════════════════════════════════════════════════════════════════
+  // Public API:
+  //   loadAIQuestionsForCompany(companyId, containerEl)  — entry point used
+  //     by both the super-admin tab and the ModelsPage / company-admin tab.
+  //
+  // Internal state lives on the CompaniesPage object so the synthesis result
+  // and pagination survive tab switches without a refetch.
+
+  async loadAIQuestionsForCompany(companyId, containerEl) {
+    this.companyId = companyId;
+    if (!containerEl) return;
+    this._renderAIQuestionsTab(containerEl);
+  },
+
+  _renderAIQuestionsTab(contentEl) {
+    if (!contentEl) return;
+    // First render: skeleton + kick off load
+    contentEl.innerHTML = `
+      <div class="w-full flex flex-col gap-6">
+        <div class="card">
+          <div class="flex items-center justify-between" style="margin-bottom:8px;gap:16px;flex-wrap:wrap">
+            <div>
+              <div class="card-title" style="margin-bottom:4px">AI Questions</div>
+              <div class="t-muted t-detail">Questions your clients are asking ArcInsight, the in-app AI assistant.</div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <select id="aiQuestionsWindow" onchange="CompaniesPage.reloadAIQuestions()" style="padding:6px 10px;background:var(--bg-surface);border:1px solid var(--border-default);border-radius:6px;font-size:13px">
+                <option value="7">Last 7 days</option>
+                <option value="30" selected>Last 30 days</option>
+                <option value="90">Last 90 days</option>
+                <option value="365">Last year</option>
+              </select>
+              <button class="btn btn-primary btn-sm" id="aiSynthesizeBtn" onclick="CompaniesPage.synthesizeAIQuestions(event)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;vertical-align:-2px">
+                  <path d="M12 3v3M5.6 5.6l2.1 2.1M3 12h3M5.6 18.4l2.1-2.1M12 18v3M16.3 16.3l2.1 2.1M18 12h3M16.3 7.7l2.1-2.1"/>
+                  <circle cx="12" cy="12" r="3"/>
+                </svg>
+                Synthesize
+              </button>
+            </div>
+          </div>
+          <div id="aiSynthesisBlock" style="margin-top:16px">
+            ${this._aiSynthesis ? this._renderSynthesisBlock() : '<div class="t-muted t-detail">Click <strong>Synthesize</strong> to cluster these questions into themes and get suggested actions.</div>'}
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Recent questions</div>
+          <div class="t-muted t-detail" style="margin-bottom:16px">All user-typed questions, newest first.</div>
+          <div id="aiQuestionsList">
+            <div class="t-muted t-detail">Loading...</div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    if (!this._aiQuestionsLoaded) {
+      this._fetchAIQuestions();
+    } else {
+      this._renderAIQuestionsList();
+    }
+  },
+
+  async _fetchAIQuestions() {
+    const listEl = document.getElementById('aiQuestionsList');
+    if (listEl) listEl.innerHTML = '<div class="t-muted t-detail">Loading...</div>';
+
+    try {
+      // Resolve the company's client user_ids (same union logic as the
+      // company-admin dashboard: profiles.company_id OR build_lines → vehicles).
+      const clientIds = await this._resolveCompanyClientIds(this.companyId);
+
+      if (clientIds.length === 0) {
+        this._aiQuestions = [];
+        this._aiQuestionsLoaded = true;
+        if (listEl) listEl.innerHTML = '<div class="t-muted t-detail">No clients linked to this company yet.</div>';
+        return;
+      }
+
+      const windowDays = parseInt(document.getElementById('aiQuestionsWindow')?.value || '30', 10);
+      const since = new Date(Date.now() - windowDays * 86400000).toISOString();
+
+      // chat_messages has no user_id column — we go through chat_sessions.
+      // 1) Find sessions belonging to these clients.
+      const sessions = await supa(
+        `chat_sessions?user_id=in.(${clientIds.join(',')})&select=id,user_id`
+      );
+
+      if (!sessions || sessions.length === 0) {
+        this._aiQuestions = [];
+        this._aiQuestionsLoaded = true;
+        this._aiQuestionsPage = 1;
+        if (listEl) listEl.innerHTML = '<div class="t-muted t-detail">No AI sessions in this window.</div>';
+        return;
+      }
+
+      // session_id -> user_id lookup so we can attribute each question
+      const sessionUserMap = {};
+      for (const s of sessions) sessionUserMap[s.id] = s.user_id;
+      const sessionIds = sessions.map((s) => s.id);
+
+      // 2) Fetch user-role messages from those sessions, in chunks to avoid
+      //    URL-length issues for companies with thousands of sessions.
+      const chunkSize = 200;
+      let messages = [];
+      for (let i = 0; i < sessionIds.length; i += chunkSize) {
+        const chunk = sessionIds.slice(i, i + chunkSize);
+        const batch = await supa(
+          `chat_messages?session_id=in.(${chunk.join(',')})&role=eq.user&created_at=gte.${since}&select=id,session_id,content,created_at&order=created_at.desc&limit=1000`
+        );
+        messages = messages.concat(batch || []);
+        if (messages.length >= 1000) {
+          messages = messages.slice(0, 1000);
+          break;
+        }
+      }
+
+      // 3) Enrich each message with the asking user's name/email
+      const userIdsInResults = Array.from(new Set(
+        messages.map((m) => sessionUserMap[m.session_id]).filter(Boolean)
+      ));
+      let profileMap = {};
+      if (userIdsInResults.length > 0) {
+        const profs = await supa(
+          `profiles?id=in.(${userIdsInResults.join(',')})&select=id,first_name,last_name,email`
+        );
+        for (const p of profs) {
+          const name = `${p.first_name || ''} ${p.last_name || ''}`.trim() || (p.email || '').split('@')[0] || '—';
+          profileMap[p.id] = { name, email: p.email || '' };
+        }
+      }
+
+      this._aiQuestions = messages.map((m) => {
+        const uid = sessionUserMap[m.session_id];
+        return {
+          id: m.id,
+          content: m.content,
+          created_at: m.created_at,
+          user_id: uid,
+          session_id: m.session_id,
+          userName: profileMap[uid]?.name || '—',
+          userEmail: profileMap[uid]?.email || '',
+        };
+      });
+      this._aiQuestionsLoaded = true;
+      this._aiQuestionsPage = 1;
+
+      this._renderAIQuestionsList();
+    } catch (e) {
+      console.error('AI Questions load failed:', e);
+      if (listEl) listEl.innerHTML = `<div class="t-danger t-detail">Failed to load — ${escHtml(e.message || '')}</div>`;
+    }
+  },
+
+  // Returns the array of user_ids who are clients of the given company,
+  // unioned across profiles.company_id and build_lines → vehicles ownership.
+  async _resolveCompanyClientIds(companyId) {
+    try {
+      const [buildLines, directProfiles] = await Promise.all([
+        supa(`build_lines?company_id=eq.${companyId}&select=id`),
+        supa(`profiles?company_id=eq.${companyId}&select=id`),
+      ]);
+
+      const buildLineIds = buildLines.map((b) => b.id);
+      let vehicleUserIds = [];
+      if (buildLineIds.length > 0) {
+        const vehs = await supa(
+          `vehicles?build_line_id=in.(${buildLineIds.join(',')})&select=user_id`
+        );
+        vehicleUserIds = vehs.map((v) => v.user_id).filter(Boolean);
+      }
+
+      return Array.from(new Set([
+        ...directProfiles.map((p) => p.id),
+        ...vehicleUserIds,
+      ]));
+    } catch (e) {
+      console.error('[CompaniesPage] _resolveCompanyClientIds failed:', e);
+      return [];
+    }
+  },
+
+  reloadAIQuestions() {
+    this._aiQuestionsLoaded = false;
+    this._aiSynthesis = null;
+    const synthBlock = document.getElementById('aiSynthesisBlock');
+    if (synthBlock) {
+      synthBlock.innerHTML = '<div class="t-muted t-detail">Click <strong>Synthesize</strong> to cluster these questions into themes and get suggested actions.</div>';
+    }
+    this._fetchAIQuestions();
+  },
+
+  _renderAIQuestionsList() {
+    const listEl = document.getElementById('aiQuestionsList');
+    if (!listEl) return;
+
+    const total = this._aiQuestions.length;
+    if (total === 0) {
+      listEl.innerHTML = '<div class="t-muted t-detail">No AI questions in this window.</div>';
+      return;
+    }
+
+    const perPage = this._aiQuestionsPerPage;
+    const totalPages = Math.max(1, Math.ceil(total / perPage));
+    const page = Math.min(Math.max(1, this._aiQuestionsPage), totalPages);
+    const startIdx = (page - 1) * perPage;
+    const endIdx = Math.min(startIdx + perPage, total);
+    const pageRows = this._aiQuestions.slice(startIdx, endIdx);
+
+    const tableMarkup = `
+      <div style="overflow-x:auto;border:1px solid var(--border-default);border-radius:8px">
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead>
+            <tr style="background:var(--bg-muted);text-align:left">
+              <th style="padding:10px 12px;font-weight:500;color:var(--text-dark);font-size:11px;text-transform:uppercase;letter-spacing:0.04em;width:60%">Question</th>
+              <th style="padding:10px 12px;font-weight:500;color:var(--text-dark);font-size:11px;text-transform:uppercase;letter-spacing:0.04em;width:25%">Asked by</th>
+              <th style="padding:10px 12px;font-weight:500;color:var(--text-dark);font-size:11px;text-transform:uppercase;letter-spacing:0.04em;width:15%;white-space:nowrap">Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${pageRows.map((q) => `
+              <tr>
+                <td style="padding:10px 12px;border-top:1px solid var(--border-subtle);color:var(--text-primary);line-height:1.4">${escHtml(q.content || '')}</td>
+                <td style="padding:10px 12px;border-top:1px solid var(--border-subtle);color:var(--text-secondary);white-space:nowrap">
+                  <div style="font-weight:500;color:var(--text-primary)">${escHtml(q.userName)}</div>
+                  ${q.userEmail ? `<div style="font-size:11px;color:var(--text-muted)">${escHtml(q.userEmail)}</div>` : ''}
+                </td>
+                <td style="padding:10px 12px;border-top:1px solid var(--border-subtle);color:var(--text-secondary);white-space:nowrap;font-size:12px">
+                  ${escHtml(formatDateTime(q.created_at))}
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+
+    const pageButtons = totalPages > 1
+      ? `
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:16px;flex-wrap:wrap">
+          <span class="t-muted t-detail">Showing ${(startIdx + 1).toLocaleString()}–${endIdx.toLocaleString()} of ${total.toLocaleString()}</span>
+          <div style="display:flex;align-items:center;gap:4px">
+            <button class="btn btn-ghost btn-sm" onclick="CompaniesPage._goToAIPage(${page - 1})" ${page === 1 ? 'disabled' : ''}>‹ Prev</button>
+            <span class="t-muted" style="padding:0 8px">Page ${page} of ${totalPages}</span>
+            <button class="btn btn-ghost btn-sm" onclick="CompaniesPage._goToAIPage(${page + 1})" ${page === totalPages ? 'disabled' : ''}>Next ›</button>
+          </div>
+        </div>
+      `
+      : `<div class="t-muted t-detail" style="margin-top:12px">${total.toLocaleString()} question${total === 1 ? '' : 's'} in this window</div>`;
+
+    listEl.innerHTML = tableMarkup + pageButtons;
+  },
+
+  _goToAIPage(page) {
+    const totalPages = Math.ceil(this._aiQuestions.length / this._aiQuestionsPerPage);
+    this._aiQuestionsPage = Math.max(1, Math.min(totalPages, page));
+    this._renderAIQuestionsList();
+  },
+
+  async synthesizeAIQuestions(event) {
+    const synthBlock = document.getElementById('aiSynthesisBlock');
+    if (!synthBlock) return;
+
+    const windowDays = parseInt(document.getElementById('aiQuestionsWindow')?.value || '30', 10);
+    synthBlock.innerHTML = `
+      <div class="t-muted t-detail" style="display:flex;align-items:center;gap:8px">
+        <div class="spinner" style="width:14px;height:14px;border:2px solid var(--border-default);border-top-color:var(--brand-primary);border-radius:50%;animation:spin 0.8s linear infinite"></div>
+        Synthesizing themes with Claude...
+      </div>
+    `;
+
+    await withBtnLoading(event, async () => {
+      try {
+        const res = await fetch(`${SUPA_URL}/functions/v1/synthesize-ai-questions`, {
+          method: 'POST',
+          headers: {
+            apikey: SUPA_KEY,
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            company_id: this.companyId,
+            since_days: windowDays,
+          }),
+        });
+
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(data.error || `HTTP ${res.status}`);
+        }
+
+        this._aiSynthesis = data;
+        synthBlock.innerHTML = this._renderSynthesisBlock();
+      } catch (e) {
+        console.error('[AI Questions] synthesize failed:', e);
+        synthBlock.innerHTML = `
+          <div class="t-danger t-detail" style="padding:12px;background:var(--danger-bg,rgba(220,38,38,0.08));border-radius:8px">
+            Synthesis failed — ${escHtml(e.message || '')}
+          </div>
+        `;
+      }
+    });
+  },
+
+  _renderSynthesisBlock() {
+    const s = this._aiSynthesis;
+    if (!s) return '';
+    const themes = Array.isArray(s.themes) ? s.themes : [];
+    const total = s.total_questions || 0;
+
+    if (themes.length === 0) {
+      return `<div class="t-muted t-detail">${escHtml(s.summary || 'No themes identified.')}</div>`;
+    }
+
+    const themeCards = themes.map((t, i) => {
+      const examples = Array.isArray(t.example_questions) ? t.example_questions : [];
+      return `
+        <div style="padding:14px 16px;background:var(--bg-muted);border:1px solid var(--border-subtle);border-radius:8px">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px">
+            <div class="t-body" style="font-weight:600">${escHtml(t.title || `Theme ${i + 1}`)}</div>
+            <span class="badge badge--tier-explorer" style="white-space:nowrap">${t.count || 0} ${(t.count || 0) === 1 ? 'question' : 'questions'}</span>
+          </div>
+          ${examples.length > 0 ? `
+            <div style="margin:8px 0">
+              ${examples.slice(0, 3).map((q) => `
+                <div class="t-muted t-detail" style="padding:4px 0;font-style:italic">"${escHtml(q)}"</div>
+              `).join('')}
+            </div>
+          ` : ''}
+          ${t.suggested_action ? `
+            <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border-subtle)">
+              <span class="t-muted" style="font-size:11px;text-transform:uppercase;letter-spacing:0.04em;font-weight:600">Suggested action</span>
+              <div class="t-body" style="font-size:13px;margin-top:4px">${escHtml(t.suggested_action)}</div>
+            </div>
+          ` : ''}
+        </div>
+      `;
+    }).join('');
+
+    return `
+      <div class="flex flex-col gap-3">
+        ${s.summary ? `
+          <div style="padding:14px 16px;background:var(--brand-primary-10,rgba(118,123,251,0.08));border-left:3px solid var(--brand-primary);border-radius:6px">
+            <div class="t-body" style="line-height:1.5">${escHtml(s.summary)}</div>
+            <div class="t-muted" style="font-size:11px;margin-top:6px">Based on ${total.toLocaleString()} question${total === 1 ? '' : 's'}</div>
+          </div>
+        ` : ''}
+        <div style="display:flex;flex-direction:column;gap:8px">${themeCards}</div>
+      </div>
+    `;
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════
   // OVERFLOW MENU
   // ═══════════════════════════════════════════════════════════════════════
 
@@ -407,7 +779,6 @@ const CompaniesPage = {
 
   addBuildLine() {
     this.closeOverflow();
-    // Let BuildLinesPage handle the modal open with fresh state
     if (window.BuildLinesPage && BuildLinesPage.openAddModal) {
       BuildLinesPage.openAddModal(this.companyId);
     } else {
@@ -490,16 +861,8 @@ const CompaniesPage = {
         const [firstName, ...rest] = name.split(' ');
         const lastName = rest.join(' ');
 
-        // 1. Send the invite. The edge function creates the auth user (if new)
-        //    and sends the Loops email. The response MAY include the user id.
         const inviteResult = await supaInvite(email, { first_name: firstName, last_name: lastName });
 
-        // 2. Resolve the user id. Try (in order):
-        //    a) the id from the invite response
-        //    b) the id from an existing profile by email
-        //    c) retry profile lookup up to 5x with short backoff (the auth
-        //       user may have been created but the profiles trigger might
-        //       not have committed yet).
         let userId =
           inviteResult?.user_id ||
           inviteResult?.user?.id ||
@@ -521,9 +884,6 @@ const CompaniesPage = {
           );
         }
 
-        // 3. Ensure a profiles row exists with the provided name. The invite
-        //    edge function should create this via a trigger, but some environments
-        //    don't have the trigger installed — upsert as a safety net.
         try {
           await supaPost('profiles', {
             id: userId,
@@ -531,12 +891,8 @@ const CompaniesPage = {
             first_name: firstName || '',
             last_name: lastName || '',
           }, { upsert: true });
-        } catch (_) {
-          // Non-fatal: the profile row likely already exists
-        }
+        } catch (_) {}
 
-        // 4. Link to this company as an admin. Duplicate insert will be
-        //    rejected by the unique constraint, so catch and continue.
         try {
           await supaPost('company_admins', {
             user_id: userId,
@@ -544,8 +900,6 @@ const CompaniesPage = {
             role: role || 'admin',
           });
         } catch (linkErr) {
-          // If they're already an admin of this company, that's fine —
-          // only re-throw if it's a different error.
           if (!String(linkErr.message || linkErr).toLowerCase().includes('duplicate')) {
             throw linkErr;
           }
@@ -748,7 +1102,6 @@ const CompaniesPage = {
     }
 
     try {
-      // 1. Create the company
       const res = await fetch(`${SUPA_URL}/rest/v1/companies`, {
         method: 'POST',
         headers: {
@@ -766,12 +1119,10 @@ const CompaniesPage = {
       if (!res.ok) throw new Error(await res.text());
       const [newCompany] = await res.json();
 
-      // 2. Invite the admin
       if (adminEmail) {
         try {
           const [firstName, ...rest] = adminName.split(' ');
           await supaInvite(adminEmail, { first_name: firstName || '', last_name: rest.join(' ') });
-          // Link the new auth user to this company as owner
           const profiles = await supa(`profiles?email=eq.${encodeURIComponent(adminEmail)}&select=id`);
           if (profiles[0]) {
             await supaPost('company_admins', {
@@ -796,6 +1147,5 @@ const CompaniesPage = {
   },
 };
 
-// Backward compat — legacy code paths referenced CompanyDetailPage by name
 window.CompaniesPage = CompaniesPage;
 window.CompanyDetailPage = CompaniesPage;
