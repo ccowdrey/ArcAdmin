@@ -1269,6 +1269,10 @@ body.nav-open { overflow: hidden; }
 /* ═══════════════ Breakpoint A: <=900px (drawer nav engages) ═══════════════ */
 @media (max-width: 900px) {
 
+  /* Safety net: prevent horizontal scroll on mobile. Any element wider
+     than the viewport gets clipped instead of forcing a side-scroll. */
+  html, body { overflow-x: hidden; max-width: 100vw; }
+
   /* Show the mobile top bar */
   .mobile-topbar { display: flex; }
 
@@ -1310,8 +1314,13 @@ body.nav-open { overflow: hidden; }
   .sidebar-item--active { border-left-color: var(--brand-primary); border-bottom: none; }
   .sidebar-item-label { display: inline; }
 
-  /* Main content area */
+  /* Main content area
+     Desktop's .main has `margin-left: var(--sidebar-width)` to clear the
+     fixed sidebar. On mobile the sidebar is off-screen (transformed left)
+     so the margin would just shove content right, leaving an empty
+     gutter. Reset to 0 so content fills the viewport. */
   .main {
+    margin-left: 0;
     padding: var(--space-5);
     width: 100%;
     min-height: calc(100vh - 56px);
@@ -1319,9 +1328,11 @@ body.nav-open { overflow: hidden; }
 
   /* Typography compresses */
   .page-greeting { font-size: 22px; line-height: 1.25; }
-  .page-title { font-size: 22px; line-height: 1.25; }
+  .page-title { font-size: 22px; line-height: 1.25; word-break: break-word; overflow-wrap: anywhere; }
+  .page-subtitle { word-break: break-word; overflow-wrap: anywhere; }
   .page-title-row { flex-wrap: wrap; gap: var(--space-3); }
-  .page-title-row > * { flex: 0 1 auto; }
+  .page-title-row > * { flex: 0 1 auto; min-width: 0; }
+  .page-title-block { width: 100%; flex: 1 1 100%; }
 
   /* Info cards stack */
   .info-grid { flex-direction: column; gap: var(--space-4); }
