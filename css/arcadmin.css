@@ -625,6 +625,14 @@ a { color: inherit; text-decoration: none; }
 .field input[disabled],
 .field input[readonly] { background: var(--bg-muted); cursor: not-allowed; color: var(--text-secondary); }
 
+/* Logs / telemetry filter row (date pickers + category/source selects +
+   Load button). On desktop the fields sit on one line; each gets a
+   sensible min width so date inputs don't collide. The fields inherit
+   `.field input/select` height so date pickers and dropdowns match. */
+.logs-filter-row .field { min-width: 150px; }
+.logs-filter-row .field input[type="date"],
+.logs-filter-row .field select { min-width: 150px; }
+
 
 /* ═══════════════════════════════════════════════════════════════════════════
    9. DATA TABLES (card-row style)
@@ -1401,14 +1409,35 @@ body.nav-open { overflow: hidden; }
     width: auto; flex: 0 0 auto;
   }
 
-  /* Info lines on detail pages: label/value can wrap onto two lines */
+  /* Info lines on detail pages: label/value stack, both left-aligned.
+     Desktop justifies label-left / value-right via space-between + 
+     text-align:right. On mobile we stack them and force left alignment.
+     The !important is deliberate — the battery row and a couple of other
+     rows set inline align styles that we need to beat. */
   .info-line {
-    align-items: flex-start;
+    align-items: flex-start !important;
     flex-wrap: wrap;
-    gap: var(--space-2);
+    justify-content: flex-start !important;
+    gap: 2px;
   }
-  .info-line-label { flex: 0 0 100%; }
-  .info-line-value { flex: 1 1 100%; text-align: left; }
+  .info-line-label { flex: 0 0 100%; text-align: left !important; }
+  .info-line-value {
+    flex: 1 1 100%;
+    text-align: left !important;
+    align-items: flex-start !important;
+    justify-content: flex-start !important;
+  }
+  /* The battery row uses a nested flex column aligned to flex-end on
+     desktop; pull it back to the left on mobile. */
+  .info-line-value > span { align-items: flex-start !important; text-align: left !important; }
+
+  /* Logs filter row: stack each field full-width so date pickers don't
+     overlap on narrow screens. The Load button goes full-width too. */
+  .logs-filter-row { flex-direction: column; align-items: stretch !important; gap: var(--space-3); }
+  .logs-filter-row .field { flex: 1 1 100% !important; width: 100%; min-width: 0; }
+  .logs-filter-row .field input,
+  .logs-filter-row .field select { width: 100%; min-width: 0; }
+  .logs-filter-row .btn { width: 100%; }
 
   /* Modals: fill the screen with safe padding */
   .modal-box {

@@ -314,7 +314,7 @@ const UserDetailPage = {
           Use this to troubleshoot "did the fan ever come on last night?" or
           spot patterns in how a client is using their build.
         </div>
-        <div style="display:flex;gap:12px;align-items:flex-end;margin-bottom:16px;flex-wrap:wrap">
+        <div class="logs-filter-row" style="display:flex;gap:12px;align-items:flex-end;margin-bottom:16px;flex-wrap:wrap">
           <div class="field" style="margin-bottom:0;flex:0 0 auto">
             <label>Start</label>
             <input type="date" id="userDevLogStart" value="${weekAgo}" max="${today}">
@@ -325,7 +325,7 @@ const UserDetailPage = {
           </div>
           <div class="field" style="margin-bottom:0;flex:0 0 auto">
             <label>Category</label>
-            <select id="userDevLogCategory" style="padding:7px 10px;background:var(--bg-surface);border:1px solid var(--border-default);border-radius:6px;font-size:13px">
+            <select id="userDevLogCategory">
               <option value="">All</option>
               <option value="climate">Climate</option>
               <option value="lighting">Lighting</option>
@@ -338,7 +338,7 @@ const UserDetailPage = {
           </div>
           <div class="field" style="margin-bottom:0;flex:0 0 auto">
             <label>Source</label>
-            <select id="userDevLogSource" style="padding:7px 10px;background:var(--bg-surface);border:1px solid var(--border-default);border-radius:6px;font-size:13px">
+            <select id="userDevLogSource">
               <option value="">All</option>
               <option value="manual">Manual tap</option>
               <option value="scene">Scene</option>
