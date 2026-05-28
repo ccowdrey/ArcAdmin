@@ -54,6 +54,8 @@ const Router = {
     this.currentPath = path;
     this.resolve(path);
     this._updateActiveNav();
+    // Auto-close the mobile nav drawer when navigating. No-op on desktop.
+    this.closeMobileNav();
     if (window.gtag) gtag('event', 'page_view', { page_path: path });
   },
 
@@ -187,9 +189,52 @@ const Router = {
     return icons[name] || '';
   },
 
+  // ── Mobile nav drawer ──
+  // Triggered by the hamburger button on the mobile top bar (visible <900px).
+  // Toggling sets `.is-open` on the sidebar and scrim. The CSS slide animation
+  // and scrim opacity follow from there. `body.nav-open` locks background
+  // scroll while the drawer is visible.
+  openMobileNav() {
+    const sidebar = document.getElementById('sidebar');
+    const scrim = document.getElementById('mobileNavScrim');
+    const btn = document.getElementById('mobileMenuBtn');
+    if (!sidebar || !scrim) return;
+    sidebar.classList.add('is-open');
+    scrim.classList.add('is-open');
+    document.body.classList.add('nav-open');
+    if (btn) btn.setAttribute('aria-expanded', 'true');
+  },
+
+  closeMobileNav() {
+    const sidebar = document.getElementById('sidebar');
+    const scrim = document.getElementById('mobileNavScrim');
+    const btn = document.getElementById('mobileMenuBtn');
+    if (!sidebar || !scrim) return;
+    sidebar.classList.remove('is-open');
+    scrim.classList.remove('is-open');
+    document.body.classList.remove('nav-open');
+    if (btn) btn.setAttribute('aria-expanded', 'false');
+  },
+
   // ── Init ──
   init() {
     window.addEventListener('popstate', () => this.resolve(window.location.pathname));
+
+    // Close the drawer on Escape (a11y).
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') this.closeMobileNav();
+    });
+
+    // If the user rotates / resizes back to desktop while the drawer is
+    // open, make sure we clean up the body lock and is-open classes so
+    // the desktop layout renders correctly.
+    let resizeTimer = null;
+    window.addEventListener('resize', () => {
+      if (resizeTimer) clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        if (window.innerWidth > 900) this.closeMobileNav();
+      }, 100);
+    });
   },
 };
 

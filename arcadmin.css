@@ -182,6 +182,15 @@ a { color: inherit; text-decoration: none; }
 }
 
 /* ── Sidebar ── */
+/* Fixed to the viewport so it stays put while main content scrolls.
+   `height: 100vh` + `overflow-y: auto` lets the sidebar scroll
+   internally if its own content ever exceeds the viewport height —
+   but normal content never pushes it offscreen.
+
+   Layout: brand at top, menu flexes to fill, footer section (avatar +
+   log out) pinned to the bottom. `justify-content: space-between` on
+   the outer flex accomplishes this without needing `margin-top: auto`
+   hacks. */
 .sidebar {
   width: var(--sidebar-width);
   flex-shrink: 0;
@@ -189,19 +198,32 @@ a { color: inherit; text-decoration: none; }
   padding: var(--sidebar-padding-y) var(--sidebar-padding-x);
   display: flex;
   flex-direction: column;
-  gap: var(--space-10);
-  min-height: 100vh;
-  position: sticky;
+  gap: var(--space-6);
+  position: fixed;
   top: 0;
+  left: 0;
+  height: 100vh;
   overflow-y: auto;
+  z-index: 10;
 }
 
 .sidebar-brand {
   display: flex;
   align-items: center;
   gap: var(--space-1);
+  width: 100%;
 }
 
+/* Full ArcAdmin wordmark SVG — fills the sidebar header width.
+   The uploaded SVG is 210×26, so we size by height and let width scale. */
+.sidebar-brand-logo-full {
+  height: 22px;
+  width: auto;
+  max-width: 100%;
+  display: block;
+}
+
+/* Legacy stub kept in case another page references it */
 .sidebar-brand-logo {
   height: 25px;
   width: 42px;
@@ -289,7 +311,7 @@ a { color: inherit; text-decoration: none; }
   height: 32px;
   border-radius: var(--radius-pill);
   background: var(--brand-primary);
-  color: var(--text-dark);
+  color: #1B1B1B;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -300,14 +322,20 @@ a { color: inherit; text-decoration: none; }
 }
 
 /* ── Main content ── */
+/* The sidebar is position:fixed so it's out of normal flow — push main
+   content over by sidebar-width so it doesn't slide underneath.
+   Main is the scroll container for all page content, so long pages
+   scroll while the sidebar stays pinned. */
 .main {
   flex: 1 0 0;
   min-width: 0;
+  margin-left: var(--sidebar-width);
   padding: var(--main-padding);
   display: flex;
   flex-direction: column;
   gap: var(--space-8);
   align-items: flex-start;
+  min-height: 100vh;
 }
 
 
@@ -715,6 +743,64 @@ a { color: inherit; text-decoration: none; }
   margin-bottom: var(--space-2);
 }
 
+/* ── Info grid (detail pages) ──
+   3-column side-by-side info cards, matches Figma node 42:1202.
+   Each card has an uppercase section header and label-left/value-right rows. */
+.info-grid {
+  display: flex;
+  gap: var(--space-3);
+  width: 100%;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.info-card {
+  flex: 1 1 0;
+  min-width: 280px;
+  background: var(--bg-surface);
+  border-radius: var(--radius-xl);
+  padding: var(--space-8);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  align-self: stretch;
+}
+
+.info-card-title {
+  font-size: var(--fs-detail);
+  line-height: 20px;
+  font-weight: var(--fw-regular);
+  color: var(--text-secondary);
+  letter-spacing: 0.04em;
+  margin-bottom: var(--space-2);
+}
+
+.info-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+  font-size: var(--fs-body);
+  line-height: 24px;
+  width: 100%;
+  min-width: 0;
+}
+
+.info-line-label {
+  font-weight: var(--fw-bold);
+  color: var(--text-dark);
+  flex-shrink: 0;
+}
+
+.info-line-value {
+  font-weight: var(--fw-regular);
+  color: var(--text-dark);
+  text-align: right;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 
 /* ═══════════════════════════════════════════════════════════════════════════
    11. BUTTONS
@@ -739,7 +825,7 @@ a { color: inherit; text-decoration: none; }
 
 .btn-primary {
   background: var(--brand-primary);
-  color: #FFFFFF;
+  color: #1B1B1B;
 }
 
 .btn-primary:hover { background: var(--brand-primary-2); }
@@ -772,6 +858,99 @@ a { color: inherit; text-decoration: none; }
   padding: 8px 14px;
   font-size: var(--fs-detail);
   line-height: 20px;
+}
+
+/* ── Loading state ── */
+.btn--loading {
+  position: relative;
+  color: transparent !important;
+  pointer-events: none;
+  cursor: wait;
+}
+.btn--loading::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 16px;
+  height: 16px;
+  margin: -8px 0 0 -8px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  color: var(--text-primary);
+  animation: btn-spin 0.7s linear infinite;
+}
+.btn-primary.btn--loading::after { color: #1B1B1B; }
+.btn-danger.btn--loading::after { color: var(--danger); }
+@keyframes btn-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TOASTS — fixed top-center confirmation banner
+   ═══════════════════════════════════════════════════════════════════════════ */
+.toast-container {
+  position: fixed;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+.toast {
+  background: #FDFDFD;
+  color: var(--text-primary);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 8px;
+  padding: 12px 20px;
+  font-size: var(--fs-detail);
+  font-weight: 500;
+  box-shadow: 0 8px 24px rgba(27, 27, 27, 0.12), 0 2px 6px rgba(27, 27, 27, 0.06);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 240px;
+  max-width: 440px;
+  pointer-events: auto;
+  opacity: 0;
+  transform: translateY(-12px);
+  transition: opacity 200ms ease, transform 200ms ease;
+}
+.toast--visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+.toast--success {
+  border-color: rgba(42, 188, 83, 0.3);
+}
+.toast--success::before {
+  content: '';
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--success);
+  flex-shrink: 0;
+  background-image: url("data:image/svg+xml,%3Csvg width='12' height='12' xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2 6l3 3 5-6' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+}
+.toast--error {
+  border-color: rgba(221, 34, 34, 0.3);
+}
+.toast--error::before {
+  content: '';
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--danger);
+  flex-shrink: 0;
+  background-image: url("data:image/svg+xml,%3Csvg width='12' height='12' xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 3l6 6M9 3l-6 6' stroke='%23fff' stroke-width='2' stroke-linecap='round' fill='none'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
 }
 
 
@@ -945,11 +1124,22 @@ a { color: inherit; text-decoration: none; }
 .login-title {
   text-align: center;
   margin-bottom: var(--space-8);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
 }
 
+.login-logo {
+  height: 28px;
+  width: auto;
+  display: block;
+}
+
+/* Legacy text-wordmark styles kept for backward compatibility */
 .login-title .arc { font-size: 28px; font-weight: var(--fw-bold); color: var(--brand-primary); }
 .login-title .os  { font-size: 28px; font-weight: var(--fw-bold); color: var(--text-dark); }
-.login-title .sub { font-size: var(--fs-detail); color: var(--text-secondary); margin-top: var(--space-2); }
+.login-title .sub { font-size: var(--fs-detail); color: var(--text-secondary); margin-top: var(--space-1); }
 
 .logo-img { height: 32px; margin: 0 auto; }
 
@@ -997,26 +1187,257 @@ a { color: inherit; text-decoration: none; }
 
 /* ═══════════════════════════════════════════════════════════════════════════
    17. RESPONSIVE
-   ═══════════════════════════════════════════════════════════════════════════ */
+   ═══════════════════════════════════════════════════════════════════════════
 
-/* Mobile: sidebar becomes top bar. Minimal for now — admin is desktop-first. */
+   ArcAdmin is desktop-first. On mobile (<900px) the sidebar collapses into
+   a slide-out drawer triggered by a hamburger button in the new top bar.
+   Tables collapse from multi-column rows to stacked, self-labeled cards.
+   Forms and modals reflow to a single column.
+
+   Design constraints we're optimizing for:
+   • iPhone 14/15 (390px) is the target floor
+   • Read-only / triage use case — view clients, check status, glance
+     at battery values. Heavy editing (logo upload, build line systems
+     picker, PDF uploads) stays desktop-first and gets either a
+     compressed UI or a "use a larger screen" hint.
+   • Tap targets ≥44×44 per HIG.
+
+   Two breakpoints:
+   • ≤900px — drawer nav engages; tables, info-grids, modals reflow
+   • ≤480px — phone-tight density: single-column stat tiles, smaller
+     greeting type, page padding tightens to 16px
+*/
+
+/* ── Mobile top bar (hidden on desktop) ── */
+.mobile-topbar {
+  display: none;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  align-items: center;
+  gap: var(--space-3);
+  height: 56px;
+  padding: 0 var(--space-4);
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-default);
+}
+
+.mobile-topbar-menu-btn {
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--text-dark);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  margin-left: -8px; /* visually align icon with content edge */
+}
+.mobile-topbar-menu-btn:hover { background: var(--bg-hover); }
+.mobile-topbar-menu-btn:focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 2px;
+}
+
+.mobile-topbar-logo {
+  height: 22px;
+  width: auto;
+}
+.mobile-topbar-spacer { flex: 1; }
+
+/* ── Mobile scrim (hidden by default; engaged when nav is open) ── */
+.mobile-nav-scrim {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 99;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.mobile-nav-scrim.is-open {
+  display: block;
+  opacity: 1;
+}
+
+/* Prevent background scroll while drawer is open */
+body.nav-open { overflow: hidden; }
+
+
+/* ═══════════════ Breakpoint A: <=900px (drawer nav engages) ═══════════════ */
 @media (max-width: 900px) {
+
+  /* Show the mobile top bar */
+  .mobile-topbar { display: flex; }
+
+  /* App shell stays column-flow but the topbar is the first row.
+     Sidebar is removed from flow (becomes a fixed drawer). */
   .app-shell { flex-direction: column; }
+
+  /* Sidebar → slide-out drawer */
   .sidebar {
-    width: 100%;
-    min-height: auto;
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 280px;
+    max-width: 80vw;
+    min-height: 100vh;
+    height: 100vh;
+    z-index: 100;
+    flex-direction: column;     /* keep desktop's vertical menu */
+    align-items: stretch;
+    gap: 0;
     padding: var(--space-5);
-    flex-direction: row;
-    align-items: center;
-    gap: var(--space-5);
-    border-bottom: 1px solid var(--border-default);
-    position: sticky;
+    border-right: 1px solid var(--border-default);
+    border-bottom: none;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
-  .sidebar-menu { flex-direction: row; flex: 1; }
-  .sidebar-section { flex-direction: row; gap: var(--space-2); }
-  .sidebar-item { border-left: none; border-bottom: 2px solid transparent; padding-bottom: var(--space-2); }
-  .sidebar-item--active { border-bottom-color: var(--brand-primary); border-left: none; }
-  .sidebar-item-label { display: none; }
-  .main { padding: var(--space-5); }
-  .col-name, .col-email, .col-vehicle { width: auto; flex: 1 1 auto; }
+  .sidebar.is-open { transform: translateX(0); }
+
+  .sidebar-brand { padding-bottom: var(--space-4); }
+  .sidebar-menu { flex-direction: column; flex: 1; }
+  .sidebar-section { flex-direction: column; gap: var(--space-2); }
+  .sidebar-section--footer { margin-top: auto; }
+
+  /* Restore desktop sidebar-item layout — labels stay visible in the drawer */
+  .sidebar-item { border-left: 2px solid transparent; border-bottom: none; padding-bottom: var(--space-3); }
+  .sidebar-item--active { border-left-color: var(--brand-primary); border-bottom: none; }
+  .sidebar-item-label { display: inline; }
+
+  /* Main content area */
+  .main {
+    padding: var(--space-5);
+    width: 100%;
+    min-height: calc(100vh - 56px);
+  }
+
+  /* Typography compresses */
+  .page-greeting { font-size: 22px; line-height: 1.25; }
+  .page-title { font-size: 22px; line-height: 1.25; }
+  .page-title-row { flex-wrap: wrap; gap: var(--space-3); }
+  .page-title-row > * { flex: 0 1 auto; }
+
+  /* Info cards stack */
+  .info-grid { flex-direction: column; gap: var(--space-4); }
+  .info-card { min-width: 0; width: 100%; }
+
+  /* Stat grid: 2-up on tablet-ish, 1-up on phone (see <=480px below) */
+  .stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  /* Tabs scroll horizontally rather than wrapping awkwardly */
+  .tabs {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab { flex-shrink: 0; }
+
+  /* Data tables → stacked, self-labeled rows.
+     Headers are hidden; each cell shows its label via data-label attr.
+     Pages that want to use this should add data-label="Name" etc. to
+     each cell. Cells without data-label fall back gracefully (no label,
+     just value). */
+  .data-table-headers { display: none; }
+
+  .data-table { gap: var(--space-3); }
+  .data-table-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-2);
+    padding: var(--space-4);
+    text-align: left;
+  }
+  .data-table-cell {
+    width: 100%;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: var(--space-3);
+    font-size: var(--fs-body);
+  }
+  .data-table-cell::before {
+    content: attr(data-label);
+    color: var(--text-secondary);
+    font-size: var(--fs-detail);
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    flex-shrink: 0;
+  }
+  .data-table-cell:empty::before { content: none; }
+  .data-table-cell--bold { font-weight: var(--fw-bold); }
+  /* The "primary" cell of a row (usually first) gets full-width treatment
+     without the label, since the value IS the row identity. Mark with
+     class="data-table-cell data-table-cell--primary". */
+  .data-table-cell--primary { display: block; }
+  .data-table-cell--primary::before { content: none; }
+
+  /* Column-width helpers go full-width when stacking */
+  .col-name, .col-email, .col-vehicle,
+  .col-build, .col-tier, .col-active, .col-action {
+    width: auto; flex: 0 0 auto;
+  }
+
+  /* Info lines on detail pages: label/value can wrap onto two lines */
+  .info-line {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+  .info-line-label { flex: 0 0 100%; }
+  .info-line-value { flex: 1 1 100%; text-align: left; }
+
+  /* Modals: fill the screen with safe padding */
+  .modal-box {
+    width: calc(100% - 24px);
+    max-width: 100%;
+    max-height: calc(100vh - 48px);
+    margin: 24px 12px;
+    border-radius: var(--radius-lg);
+  }
+  .modal-body { padding: var(--space-5); }
+
+  /* Search input grows to fill */
+  .search-input { width: 100%; }
+
+  /* Breadcrumbs keep tap targets size */
+  .page-breadcrumb-back {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+
+/* ═══════════════ Breakpoint B: <=480px (phone-tight) ═══════════════ */
+@media (max-width: 480px) {
+  .main { padding: var(--space-4); }
+  .page-greeting { font-size: 20px; }
+  .page-title { font-size: 20px; }
+
+  /* Single-column stat tiles */
+  .stat-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Slightly tighter card padding */
+  .info-card { padding: var(--space-4); }
+}
+
+
+/* Print fallback unrelated to mobile but useful */
+@media print {
+  .sidebar, .mobile-topbar, .mobile-nav-scrim { display: none !important; }
+  .main { padding: 0; }
 }

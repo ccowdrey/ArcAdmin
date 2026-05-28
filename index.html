@@ -73,6 +73,26 @@
 <!-- ═══════════════════════════════════════════════════════════════════════ -->
 <div class="app-shell hidden" id="appShell">
 
+  <!-- ── Mobile top bar (only visible <900px) ── -->
+  <header class="mobile-topbar" id="mobileTopbar">
+    <button class="mobile-topbar-menu-btn" id="mobileMenuBtn"
+            type="button" aria-label="Open menu" aria-controls="sidebar" aria-expanded="false"
+            onclick="Router.openMobileNav()">
+      <svg viewBox="0 0 24 24" width="24" height="24" stroke-width="2"
+           stroke-linecap="round" stroke-linejoin="round" fill="none" stroke="currentColor">
+        <line x1="3" y1="6" x2="21" y2="6"/>
+        <line x1="3" y1="12" x2="21" y2="12"/>
+        <line x1="3" y1="18" x2="21" y2="18"/>
+      </svg>
+    </button>
+    <img src="assets/logo.svg" alt="ArcAdmin" class="mobile-topbar-logo">
+    <span class="mobile-topbar-spacer" aria-hidden="true"></span>
+  </header>
+
+  <!-- ── Mobile scrim (tap to close drawer) ── -->
+  <div class="mobile-nav-scrim" id="mobileNavScrim"
+       onclick="Router.closeMobileNav()" aria-hidden="true"></div>
+
   <!-- ── Sidebar ── -->
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-brand">
