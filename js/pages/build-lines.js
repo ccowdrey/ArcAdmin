@@ -150,6 +150,8 @@ const BuildLinesPage = {
     document.getElementById('buildLineYear').value = '';
     document.getElementById('buildLineSortOrder').value = '0';
     document.getElementById('buildLineBatteryAh').value = '';
+    document.getElementById('buildLineWheelbase').value = '';
+    document.getElementById('buildLineTrack').value = '';
     document.getElementById('buildLineError').classList.add('hidden');
     document.getElementById('buildLineSaveBtn').textContent = 'Add Build Line';
     openModal('buildLineModal');
@@ -167,6 +169,8 @@ const BuildLinesPage = {
     document.getElementById('buildLineYear').value = bl.default_year || '';
     document.getElementById('buildLineSortOrder').value = bl.sort_order ?? 0;
     document.getElementById('buildLineBatteryAh').value = bl.battery_capacity_ah ?? '';
+    document.getElementById('buildLineWheelbase').value = bl.wheelbase_inches ?? '';
+    document.getElementById('buildLineTrack').value = bl.track_width_inches ?? '';
     document.getElementById('buildLineError').classList.add('hidden');
     document.getElementById('buildLineSaveBtn').textContent = 'Save Changes';
     openModal('buildLineModal');
@@ -182,6 +186,10 @@ const BuildLinesPage = {
     const sortOrder = parseInt(document.getElementById('buildLineSortOrder').value, 10) || 0;
     const batteryAhRaw = document.getElementById('buildLineBatteryAh').value.trim();
     const batteryAh = batteryAhRaw === '' ? null : Number(batteryAhRaw);
+    const wheelbaseRaw = document.getElementById('buildLineWheelbase').value.trim();
+    const wheelbase = wheelbaseRaw === '' ? null : Number(wheelbaseRaw);
+    const trackRaw = document.getElementById('buildLineTrack').value.trim();
+    const track = trackRaw === '' ? null : Number(trackRaw);
     const errEl = document.getElementById('buildLineError');
     errEl.classList.add('hidden');
 
@@ -197,6 +205,18 @@ const BuildLinesPage = {
       return;
     }
 
+    if (wheelbase !== null && (!Number.isFinite(wheelbase) || wheelbase < 40 || wheelbase > 400)) {
+      errEl.textContent = 'Wheelbase must be between 40 and 400 inches (or blank).';
+      errEl.classList.remove('hidden');
+      return;
+    }
+
+    if (track !== null && (!Number.isFinite(track) || track < 30 || track > 120)) {
+      errEl.textContent = 'Track width must be between 30 and 120 inches (or blank).';
+      errEl.classList.remove('hidden');
+      return;
+    }
+
     const data = {
       company_id: this.companyId,
       name,
@@ -206,6 +226,8 @@ const BuildLinesPage = {
       default_year: defaultYear || null,
       sort_order: sortOrder,
       battery_capacity_ah: batteryAh,
+      wheelbase_inches: wheelbase,
+      track_width_inches: track,
       is_active: true,
     };
 

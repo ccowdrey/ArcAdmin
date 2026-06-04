@@ -22,9 +22,11 @@ const UserDetailPage = {
   userEmail: '',
   vehicleId: null,
 
-  // Stashed context for inline battery edit
+  // Stashed context for inline battery + dimensions edit
   _vehicle: null,
   _buildLineBatteryAh: null,
+  _buildLineWheelbase: null,
+  _buildLineTrack: null,
 
   // Cerbo telemetry log state
   _logs: [],
@@ -63,18 +65,22 @@ const UserDetailPage = {
       this.userName = `${p.first_name || ''} ${p.last_name || ''}`.trim() || p.email;
       this.userEmail = p.email;
 
-      // Build line + company (if present). We pull battery_capacity_ah on
-      // the build line so the vehicle row can show the effective value
-      // hierarchy (vehicle override > build line default > unset).
+      // Build line + company (if present). We pull battery_capacity_ah and
+      // the leveling dimensions on the build line so the vehicle rows can show
+      // the effective value hierarchy (vehicle override > build line > unset).
       let buildLineLabel = '—';
       let buildLineBatteryAh = null;
+      let buildLineWheelbase = null;
+      let buildLineTrack = null;
       let companyLabel = '—';
       if (v?.build_line_id) {
         try {
-          const bls = await supa(`build_lines?id=eq.${v.build_line_id}&select=name,company_id,battery_capacity_ah`);
+          const bls = await supa(`build_lines?id=eq.${v.build_line_id}&select=name,company_id,battery_capacity_ah,wheelbase_inches,track_width_inches`);
           if (bls[0]) {
             buildLineLabel = bls[0].name;
             buildLineBatteryAh = bls[0].battery_capacity_ah ?? null;
+            buildLineWheelbase = bls[0].wheelbase_inches ?? null;
+            buildLineTrack = bls[0].track_width_inches ?? null;
             if (bls[0].company_id) {
               const cos = await supa(`companies?id=eq.${bls[0].company_id}&select=name`);
               if (cos[0]) companyLabel = cos[0].name;
@@ -88,7 +94,7 @@ const UserDetailPage = {
         } catch (_) {}
       }
 
-      this._render({ profile: p, sub, vehicle: v, buildLineLabel, buildLineBatteryAh, companyLabel });
+      this._render({ profile: p, sub, vehicle: v, buildLineLabel, buildLineBatteryAh, buildLineWheelbase, buildLineTrack, companyLabel });
 
       if (v) {
         this._initLogsSection();
@@ -99,14 +105,16 @@ const UserDetailPage = {
     }
   },
 
-  _render({ profile, sub, vehicle, buildLineLabel, buildLineBatteryAh, companyLabel }) {
+  _render({ profile, sub, vehicle, buildLineLabel, buildLineBatteryAh, buildLineWheelbase, buildLineTrack, companyLabel }) {
     const contentEl = document.getElementById('userDetailContent');
     if (!contentEl) return;
 
-    // Stash the vehicle + build-line context so the inline battery edit
-    // handler can reference them without re-fetching.
+    // Stash the vehicle + build-line context so the inline battery + dimension
+    // edit handlers can reference them without re-fetching.
     this._vehicle = vehicle || null;
     this._buildLineBatteryAh = (buildLineBatteryAh != null) ? buildLineBatteryAh : null;
+    this._buildLineWheelbase = (buildLineWheelbase != null) ? buildLineWheelbase : null;
+    this._buildLineTrack = (buildLineTrack != null) ? buildLineTrack : null;
 
     const tier = sub?.tier || 'base_camp';
 
@@ -136,6 +144,7 @@ const UserDetailPage = {
             ${this._infoLine('Year', escHtml(String(vehicle.year || '—')))}
             ${this._infoLine('Build line', escHtml(buildLineLabel))}
             ${this._renderBatteryRow(vehicle, buildLineBatteryAh)}
+            ${this._renderDimensionsRow(vehicle, buildLineWheelbase, buildLineTrack)}
             ${this._infoLine('Nickname', escHtml(vehicle.nickname || vehicle.name || '—'))}
             ${this._infoLine('VIN', escHtml(vehicle.vin || '—'))}
             ${this._infoLine('Cerbo IP', `<span style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px">${escHtml(vehicle.cerbo_ip || '—')}</span>`)}
@@ -296,6 +305,135 @@ const UserDetailPage = {
     const row = document.getElementById('batteryInfoRow');
     if (!row) return;
     const newMarkup = this._renderBatteryRow(this._vehicle, this._buildLineBatteryAh);
+    row.outerHTML = newMarkup;
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // LEVELING DIMENSIONS ROW + INLINE EDIT (per-vehicle override)
+  // ═══════════════════════════════════════════════════════════════════════
+  // Effective value = vehicle.<dim> ?? build_line.<dim>. The iPad's
+  // LevelService mirrors this: vehicle override wins, else build line default,
+  // else the app's Sprinter fallback (144" / 67").
+
+  _renderDimensionsRow(vehicle, blWheelbase, blTrack) {
+    const vWb = (vehicle.wheelbase_inches != null) ? vehicle.wheelbase_inches : null;
+    const vTr = (vehicle.track_width_inches != null) ? vehicle.track_width_inches : null;
+    const effWb = vWb ?? blWheelbase ?? null;
+    const effTr = vTr ?? blTrack ?? null;
+
+    const fmt = (n) => (n != null ? `${(+n % 1 === 0) ? n : (+n).toFixed(1)}"` : '—');
+    const valueText = (effWb != null || effTr != null)
+      ? `WB ${fmt(effWb)} · Track ${fmt(effTr)}`
+      : '<span class="t-muted">Not set</span>';
+
+    // Sub-label distinguishes override / inherited / custom states.
+    const hasOverride = (vWb != null || vTr != null);
+    const hasBL = (blWheelbase != null || blTrack != null);
+    let subLabel = '';
+    if (hasOverride && hasBL) {
+      subLabel = `<div class="t-muted t-detail" style="font-size:11px;margin-top:2px">Override · build line default: WB ${fmt(blWheelbase)} · Track ${fmt(blTrack)}</div>`;
+    } else if (hasOverride && !hasBL) {
+      subLabel = `<div class="t-muted t-detail" style="font-size:11px;margin-top:2px">Custom · no build line default</div>`;
+    } else if (!hasOverride && hasBL) {
+      subLabel = `<div class="t-muted t-detail" style="font-size:11px;margin-top:2px">Inherited from build line</div>`;
+    }
+
+    return `
+      <div class="info-line" id="dimsInfoRow" style="align-items:flex-start">
+        <span class="info-line-label">Dimensions</span>
+        <span class="info-line-value" style="display:flex;flex-direction:column;align-items:flex-end;gap:0">
+          <span style="display:flex;align-items:center;gap:8px">
+            <span>${valueText}</span>
+            <button class="btn btn-ghost btn-sm" style="padding:2px 8px;font-size:12px" onclick="UserDetailPage.editDimensions()">Edit</button>
+          </span>
+          ${subLabel}
+        </span>
+      </div>
+    `;
+  },
+
+  editDimensions() {
+    const row = document.getElementById('dimsInfoRow');
+    if (!row) return;
+    const v = this._vehicle || {};
+    const curWb = (v.wheelbase_inches != null) ? v.wheelbase_inches : '';
+    const curTr = (v.track_width_inches != null) ? v.track_width_inches : '';
+    const blWb = this._buildLineWheelbase;
+    const blTr = this._buildLineTrack;
+    const wbPlaceholder = (blWb != null) ? `Default: ${blWb}` : 'e.g. 144';
+    const trPlaceholder = (blTr != null) ? `Default: ${blTr}` : 'e.g. 67';
+
+    const inputStyle = 'width:84px;padding:4px 8px;border:1px solid var(--border-default);border-radius:6px;background:var(--bg-default);color:var(--text-primary);font-size:13px;text-align:right';
+
+    row.innerHTML = `
+      <span class="info-line-label">Dimensions</span>
+      <span class="info-line-value" style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+        <span style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end">
+          <span class="t-muted t-detail" style="font-size:12px">WB</span>
+          <input id="dimWbInput" type="number" min="40" max="400" step="0.1" value="${escHtml(String(curWb))}"
+                 placeholder="${escHtml(wbPlaceholder)}" style="${inputStyle}">
+          <span class="t-muted t-detail" style="font-size:12px">Track</span>
+          <input id="dimTrInput" type="number" min="30" max="120" step="0.1" value="${escHtml(String(curTr))}"
+                 placeholder="${escHtml(trPlaceholder)}" style="${inputStyle}">
+          <span class="t-muted t-detail" style="font-size:13px">in</span>
+          <button class="btn btn-primary btn-sm" style="padding:4px 12px;font-size:12px" onclick="UserDetailPage.saveDimensions()">Save</button>
+          <button class="btn btn-ghost btn-sm" style="padding:4px 8px;font-size:12px" onclick="UserDetailPage._reloadDimensionsRow()">Cancel</button>
+        </span>
+        <span class="t-muted t-detail" style="font-size:11px">
+          ${(blWb != null || blTr != null)
+            ? `Leave blank to inherit build line default (WB ${blWb ?? '—'} · Track ${blTr ?? '—'})`
+            : 'Build line has no default. Leave blank to use the app default (Sprinter 144" / 67").'}
+        </span>
+      </span>
+    `;
+    const wb = document.getElementById('dimWbInput');
+    if (wb) { wb.focus(); wb.select(); }
+  },
+
+  async saveDimensions() {
+    if (!this.vehicleId) {
+      alert('No vehicle for this user — nothing to update.');
+      return;
+    }
+    const wbInput = document.getElementById('dimWbInput');
+    const trInput = document.getElementById('dimTrInput');
+    if (!wbInput || !trInput) return;
+
+    const parse = (raw, min, max, name) => {
+      const s = (raw || '').trim();
+      if (s === '') return { ok: true, value: null };
+      const n = Number(s);
+      if (!Number.isFinite(n) || n < min || n > max) {
+        return { ok: false, error: `${name} must be between ${min} and ${max} inches, or blank to inherit.` };
+      }
+      return { ok: true, value: n };
+    };
+
+    const wb = parse(wbInput.value, 40, 400, 'Wheelbase');
+    if (!wb.ok) { alert(wb.error); return; }
+    const tr = parse(trInput.value, 30, 120, 'Track width');
+    if (!tr.ok) { alert(tr.error); return; }
+
+    try {
+      await supaPatch(`vehicles?id=eq.${this.vehicleId}`, {
+        wheelbase_inches: wb.value,
+        track_width_inches: tr.value,
+        updated_at: new Date().toISOString(),
+      });
+      if (this._vehicle) {
+        this._vehicle.wheelbase_inches = wb.value;
+        this._vehicle.track_width_inches = tr.value;
+      }
+      this._reloadDimensionsRow();
+    } catch (e) {
+      alert(`Failed to update dimensions: ${e.message || e}`);
+    }
+  },
+
+  _reloadDimensionsRow() {
+    const row = document.getElementById('dimsInfoRow');
+    if (!row) return;
+    const newMarkup = this._renderDimensionsRow(this._vehicle, this._buildLineWheelbase, this._buildLineTrack);
     row.outerHTML = newMarkup;
   },
 

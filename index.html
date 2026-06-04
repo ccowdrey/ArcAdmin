@@ -442,6 +442,17 @@
         <input id="buildLineBatteryAh" type="number" min="0" step="1" placeholder="e.g. 600">
         <div class="t-muted t-detail" style="margin-top:6px">Total bank amp-hours at nominal voltage. Used to seed BatteryCapacityLearner so the runtime card is accurate before the learner has observed a full discharge.</div>
       </div>
+      <div style="display:flex;gap:12px">
+        <div class="field" style="flex:1">
+          <label>Wheelbase (in)</label>
+          <input id="buildLineWheelbase" type="number" min="40" max="400" step="0.1" placeholder="e.g. 144">
+        </div>
+        <div class="field" style="flex:1">
+          <label>Track Width (in)</label>
+          <input id="buildLineTrack" type="number" min="30" max="120" step="0.1" placeholder="e.g. 67">
+        </div>
+      </div>
+      <div class="t-muted t-detail" style="margin-top:-4px">Axle-to-axle wheelbase and left-to-right track. Powers the Leveling card's per-wheel block guidance. Vehicles on this build line inherit these unless overridden per-vehicle.</div>
       <div class="t-muted t-detail">Default make/model/year will pre-fill the user's vehicle info when they select this build during onboarding.</div>
     </div>
     <div class="modal-footer">
