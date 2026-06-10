@@ -1117,6 +1117,12 @@ a { color: inherit; text-decoration: none; }
 }
 .badge--source-remote svg { stroke: currentColor; }
 
+/* Driving Events severity tiers (motion_sensor rows, category 'safety').
+   moderate = noted, harsh = amber, extreme = red. */
+.badge--severity-moderate { background: var(--bg-muted); color: var(--text-secondary); }
+.badge--severity-harsh    { background: rgba(232, 163, 59, 0.12); color: var(--warning); }
+.badge--severity-extreme  { background: var(--danger-bg); color: var(--danger); }
+
 
 /* ═══════════════════════════════════════════════════════════════════════════
    15. LOGIN PAGE

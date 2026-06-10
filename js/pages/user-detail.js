@@ -182,6 +182,7 @@ const UserDetailPage = {
         </div>
       </div>
 
+      ${vehicle ? this._renderDrivingEventsCard() : ''}
       ${vehicle ? this._renderDeviceControlLogsCard() : ''}
       ${vehicle ? this._renderLogsCard() : ''}
     `;
@@ -448,6 +449,161 @@ const UserDetailPage = {
   },
 
   // ═══════════════════════════════════════════════════════════════════════
+  // DRIVING EVENTS (harsh-driving records from the WT901 motion detector)
+  // ═══════════════════════════════════════════════════════════════════════
+  // Rows arrive via the Cerbo level bridge (v1.3+) -> log-motion-event Edge
+  // Function -> device_control_logs (device_key='motion_sensor',
+  // device_category='safety', source='system'). The value payload carries
+  // the full event record (peak_g, duration_ms, raw axis data, event_id).
+  // Builders use these as supporting evidence for insurance claims, so the
+  // section leads with the summary and renders generously: peak g, duration,
+  // and both clocks live in the row tooltip.
+
+  _motionDays: '30',
+
+  _motionActionLabel(action) {
+    return ({
+      hard_brake: 'Hard braking',
+      hard_accel: 'Hard acceleration',
+      hard_corner: 'Hard cornering',
+      harsh_motion: 'Harsh motion',
+    })[action] || action || '—';
+  },
+
+  _motionSeverityBadge(severity) {
+    const s = severity || 'moderate';
+    const cls = s === 'extreme' ? 'badge--severity-extreme'
+              : s === 'harsh' ? 'badge--severity-harsh'
+              : 'badge--severity-moderate';
+    return `<span class="badge ${cls}" style="font-size:10px">${escHtml(s)}</span>`;
+  },
+
+  _renderDrivingEventsCard() {
+    return `
+      <div class="card">
+        <div class="card-title">Driving Events</div>
+        <div class="t-muted t-detail" style="margin-bottom:16px">
+          Harsh braking, acceleration, and cornering detected by the vehicle's
+          motion sensor — timestamped records builders can reference as
+          supporting evidence for insurance claims. Events are written once
+          and never edited. Requires the level sensor bridge v1.3+.
+        </div>
+        <div class="logs-filter-row" style="display:flex;gap:12px;align-items:flex-end;margin-bottom:16px;flex-wrap:wrap">
+          <div class="field" style="margin-bottom:0;flex:0 0 auto">
+            <label>Range</label>
+            <select id="userMotionRange" onchange="UserDetailPage.loadMotionEvents()">
+              <option value="7">Last 7 days</option>
+              <option value="30" selected>Last 30 days</option>
+              <option value="90">Last 90 days</option>
+              <option value="365">Last year</option>
+            </select>
+          </div>
+          <button class="btn btn-secondary btn-sm" onclick="UserDetailPage.loadMotionEvents()">Refresh</button>
+        </div>
+        <div id="userMotionContent">
+          <div class="t-muted t-detail">Loading driving events…</div>
+        </div>
+      </div>
+    `;
+  },
+
+  async loadMotionEvents() {
+    const contentEl = document.getElementById('userMotionContent');
+    if (!contentEl) return;
+    const rangeEl = document.getElementById('userMotionRange');
+    const days = parseInt(rangeEl?.value || this._motionDays, 10) || 30;
+    this._motionDays = String(days);
+
+    contentEl.innerHTML = '<div class="t-muted t-detail">Loading driving events…</div>';
+    try {
+      const sinceISO = new Date(Date.now() - days * 86400000).toISOString();
+      const rows = await supa(
+        `device_control_logs?user_id=eq.${this.userId}` +
+        `&device_category=eq.safety&device_key=eq.motion_sensor` +
+        `&occurred_at=gte.${encodeURIComponent(sinceISO)}` +
+        `&order=occurred_at.desc&limit=500` +
+        `&select=occurred_at,action,value,created_at`
+      );
+      this._renderMotionContent(rows || [], days);
+    } catch (e) {
+      console.error('Driving events load failed:', e);
+      contentEl.innerHTML = `<div class="t-danger t-detail">Failed to load driving events — ${escHtml(e.message || '')}</div>`;
+    }
+  },
+
+  _renderMotionContent(rows, days) {
+    const contentEl = document.getElementById('userMotionContent');
+    if (!contentEl) return;
+
+    if (rows.length === 0) {
+      contentEl.innerHTML = `
+        <div class="t-muted t-detail">
+          No harsh-driving events in the last ${days} days.
+          <div style="margin-top:6px;font-size:11px">
+            Events are detected by the leveling sensor's accelerometer and
+            uploaded by the Cerbo. If this vehicle should be reporting and
+            isn't, confirm the level bridge is v1.3+ and the sensor's output
+            rate is set to 10 Hz.
+          </div>
+        </div>`;
+      return;
+    }
+
+    // Summary: counts by severity + worst event.
+    let harsh = 0, extreme = 0, worst = null;
+    for (const r of rows) {
+      const v = r.value || {};
+      if (v.severity === 'harsh') harsh++;
+      if (v.severity === 'extreme') extreme++;
+      if (!worst || (v.peak_g || 0) > (worst.value?.peak_g || 0)) worst = r;
+    }
+    const chip = (label, val, color) => `
+      <div style="padding:8px 14px;border:1px solid var(--border-subtle);border-radius:8px">
+        <div class="t-muted" style="font-size:10px;text-transform:uppercase;letter-spacing:0.04em">${label}</div>
+        <div style="font-weight:600;font-size:16px;color:${color || 'var(--text-primary)'}">${val}</div>
+      </div>`;
+    const summary = `
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">
+        ${chip(`Events · ${days}d`, rows.length)}
+        ${chip('Harsh', harsh, harsh ? 'var(--warning)' : null)}
+        ${chip('Extreme', extreme, extreme ? 'var(--danger)' : null)}
+        ${chip('Worst', worst?.value?.peak_g ? `${worst.value.peak_g.toFixed(2)} g` : '—',
+               extreme ? 'var(--danger)' : null)}
+      </div>`;
+
+    const cell = (content, color = 'var(--text-primary)', style = '') =>
+      `<td style="padding:6px 10px;white-space:nowrap;color:${color};border-top:1px solid var(--border-subtle);${style}">${content}</td>`;
+
+    const body = rows.map((r) => {
+      const v = r.value || {};
+      const dur = v.duration_ms != null ? `${(v.duration_ms / 1000).toFixed(1)} s` : '—';
+      const peak = v.peak_g != null ? `${v.peak_g.toFixed(2)} g` : '—';
+      // Both clocks in the tooltip — device event time vs server receipt —
+      // exactly the provenance question an adjuster asks first.
+      const tip = `device: ${v.occurred_at || r.occurred_at} · received: ${r.created_at || '—'}`
+        + (v.event_id ? ` · id: ${v.event_id}` : '');
+      return `
+        <tr title="${escHtml(tip)}">
+          ${cell(formatDateTime(r.occurred_at), 'var(--text-secondary)', 'font-size:11px')}
+          ${cell(`<span style="font-weight:500">${escHtml(this._motionActionLabel(r.action))}</span>`)}
+          ${cell(this._motionSeverityBadge(v.severity))}
+          ${cell(peak, 'var(--text-primary)', 'font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px')}
+          ${cell(dur, 'var(--text-secondary)', 'font-size:11px')}
+        </tr>`;
+    }).join('');
+
+    const head = (t) => `<th style="text-align:left;padding:6px 10px;font-size:10px;text-transform:uppercase;letter-spacing:0.04em;color:var(--text-secondary)">${t}</th>`;
+    contentEl.innerHTML = `
+      ${summary}
+      <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead><tr>${head('Time')}${head('Event')}${head('Severity')}${head('Peak')}${head('Duration')}</tr></thead>
+          <tbody>${body}</tbody>
+        </table>
+      </div>`;
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════
   // DEVICE CONTROL LOGS (manual switch / scene activation events)
   // ═══════════════════════════════════════════════════════════════════════
 
@@ -483,6 +639,7 @@ const UserDetailPage = {
               <option value="interior">Interior</option>
               <option value="media">Media</option>
               <option value="power">Power</option>
+              <option value="safety">Safety</option>
               <option value="scene">Scenes</option>
             </select>
           </div>
@@ -756,6 +913,9 @@ const UserDetailPage = {
     this._page = 1;
     this._devLogs = [];
     this._devLogsPage = 1;
+    // Driving events auto-load (small query, and builders come to this page
+    // specifically for it when chasing an incident).
+    this.loadMotionEvents();
   },
 
   async loadLogs() {
