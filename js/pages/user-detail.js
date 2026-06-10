@@ -482,6 +482,7 @@ const UserDetailPage = {
               <option value="exterior">Exterior</option>
               <option value="interior">Interior</option>
               <option value="media">Media</option>
+              <option value="power">Power</option>
               <option value="scene">Scenes</option>
             </select>
           </div>
