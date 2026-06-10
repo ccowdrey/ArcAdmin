@@ -15,6 +15,16 @@
 // device_control_logs table. Date range, optional filters by category and
 // source, paginated. Empty state explains that the table is populated by
 // the iPad app — useful for troubleshooting "did the fan ever come on?".
+//
+// 2026-06-10 update: ArcRemote (iPhone) support in Device Activity.
+//   * source='remote' rows (inserted by the trg_log_remote_command trigger
+//     on device_commands) get a distinct purple phone badge.
+//   * "Remote (iPhone)" added to the Source filter.
+//   * Category filter options aligned with the Builder Mode tab categories
+//     the iPad's DeviceLogger actually emits (climate, heating, rooftop,
+//     exterior, interior, media, scene).
+//   * Value cell tolerates raw command payloads: JSON strings are parsed
+//     and re-rendered compactly; full value preserved in a title tooltip.
 
 const UserDetailPage = {
   userId: null,
@@ -448,9 +458,10 @@ const UserDetailPage = {
       <div class="card">
         <div class="card-title">Device Activity</div>
         <div class="t-muted t-detail" style="margin-bottom:16px">
-          User-triggered switch flips, scene activations, and remediation actions.
-          Use this to troubleshoot "did the fan ever come on last night?" or
-          spot patterns in how a client is using their build.
+          User-triggered switch flips, scene activations, ArcRemote (iPhone)
+          commands, and remediation actions. Use this to troubleshoot "did the
+          fan ever come on last night?" or spot patterns in how a client is
+          using their build.
         </div>
         <div class="logs-filter-row" style="display:flex;gap:12px;align-items:flex-end;margin-bottom:16px;flex-wrap:wrap">
           <div class="field" style="margin-bottom:0;flex:0 0 auto">
@@ -466,11 +477,11 @@ const UserDetailPage = {
             <select id="userDevLogCategory">
               <option value="">All</option>
               <option value="climate">Climate</option>
-              <option value="lighting">Lighting</option>
-              <option value="power">Power</option>
-              <option value="plumbing">Plumbing</option>
+              <option value="heating">Heating</option>
+              <option value="rooftop">Rooftop</option>
               <option value="exterior">Exterior</option>
-              <option value="entertainment">Entertainment</option>
+              <option value="interior">Interior</option>
+              <option value="media">Media</option>
               <option value="scene">Scenes</option>
             </select>
           </div>
@@ -478,7 +489,8 @@ const UserDetailPage = {
             <label>Source</label>
             <select id="userDevLogSource">
               <option value="">All</option>
-              <option value="manual">Manual tap</option>
+              <option value="manual">Manual tap (iPad)</option>
+              <option value="remote">Remote (iPhone)</option>
               <option value="scene">Scene</option>
               <option value="schedule">Schedule</option>
               <option value="bedtime">Bedtime</option>
@@ -549,9 +561,10 @@ const UserDetailPage = {
           <div class="t-muted t-detail" style="padding:12px;background:var(--bg-muted);border-radius:8px">
             No device activity logged from ${escHtml(start)} to ${escHtml(end)}.
             <div style="margin-top:6px;font-size:11px">
-              Activity logging is emitted by the ArcNode iPad app. If this client
-              has the latest app and you still see nothing, they may not have
-              toggled any devices manually in this window.
+              Activity is emitted by the ArcNode iPad app and by ArcRemote
+              (iPhone) commands. If this client has the latest app and you
+              still see nothing, they may not have toggled any devices in
+              this window.
             </div>
           </div>
         `;
@@ -631,6 +644,47 @@ const UserDetailPage = {
     contentEl.innerHTML = topMarkup + table + pagination;
   },
 
+  // Source → badge. 'remote' gets a distinct purple phone pill so iPhone
+  // actions stand out from iPad taps and scene runs at a glance. 'manual'
+  // stays as quiet muted text (it's the overwhelming majority of rows).
+  // Everything else keeps the neutral gray pill.
+  _sourceBadge(source) {
+    const s = source || 'manual';
+    if (s === 'manual') {
+      return `<span class="t-muted" style="font-size:11px">manual</span>`;
+    }
+    if (s === 'remote') {
+      const phoneIcon = `<svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px;flex-shrink:0"><rect x="7" y="2" width="10" height="20" rx="2"/><line x1="11" y1="18" x2="13" y2="18"/></svg>`;
+      return `<span class="badge badge--source-remote" style="font-size:10px">${phoneIcon}Remote</span>`;
+    }
+    return `<span class="badge badge--tier-base-camp" style="font-size:10px">${escHtml(s)}</span>`;
+  },
+
+  // Value → display text. iPad-logged values arrive as scalars or small
+  // objects; remote rows carry the raw command payload from device_commands
+  // (often a JSON string). Parse JSON strings so both render compactly, and
+  // keep the full value in a tooltip when we truncate.
+  _devLogValueText(value) {
+    if (value == null) return { text: '—', full: '' };
+    let text;
+    try {
+      let v = value;
+      if (typeof v === 'string') {
+        const trimmed = v.trim();
+        if ((trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+            (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+          try { v = JSON.parse(trimmed); } catch (_) { /* leave as string */ }
+        }
+      }
+      text = (typeof v === 'string') ? v : JSON.stringify(v);
+    } catch (_) {
+      text = String(value);
+    }
+    const full = text;
+    if (text.length > 60) text = text.slice(0, 57) + '…';
+    return { text, full };
+  },
+
   _renderDevLogRow(l) {
     const actionColors = {
       on: 'var(--success)',
@@ -640,20 +694,8 @@ const UserDetailPage = {
       set: 'var(--brand-primary)',
     };
     const actionColor = actionColors[l.action] || 'var(--text-primary)';
-    const sourceBadge = l.source && l.source !== 'manual'
-      ? `<span class="badge badge--tier-base-camp" style="font-size:10px">${escHtml(l.source)}</span>`
-      : `<span class="t-muted" style="font-size:11px">manual</span>`;
-
-    let valueText = '—';
-    if (l.value != null) {
-      try {
-        if (typeof l.value === 'string') valueText = l.value;
-        else valueText = JSON.stringify(l.value);
-      } catch (_) {
-        valueText = String(l.value);
-      }
-      if (valueText.length > 60) valueText = valueText.slice(0, 57) + '…';
-    }
+    const sourceBadge = this._sourceBadge(l.source);
+    const val = this._devLogValueText(l.value);
 
     const cell = (content, color = 'var(--text-primary)', style = '') =>
       `<td style="padding:6px 10px;white-space:nowrap;color:${color};border-top:1px solid var(--border-subtle);${style}">${content}</td>`;
@@ -665,7 +707,7 @@ const UserDetailPage = {
         ${cell(escHtml(l.device_category || '—'), 'var(--text-secondary)')}
         ${cell(`<span style="font-weight:600;text-transform:uppercase;font-size:11px;letter-spacing:0.04em">${escHtml(l.action || '—')}</span>`, actionColor)}
         ${cell(sourceBadge)}
-        ${cell(`<span style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px">${escHtml(valueText)}</span>`, 'var(--text-secondary)')}
+        ${cell(`<span title="${escHtml(val.full)}" style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px">${escHtml(val.text)}</span>`, 'var(--text-secondary)')}
       </tr>
     `;
   },

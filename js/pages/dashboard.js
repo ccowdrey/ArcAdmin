@@ -3,6 +3,11 @@
 // Combined view: greeting, 4 stat tiles (Companies, Clients, Explorers, Revenue),
 // tabbed list between All users and Companies, client-side search filter.
 // Revenue is a placeholder until Phase 2 brings in Stripe attribution.
+//
+// 2026-06-10 update: list rows now carry data-label attributes so the
+// <=900px stacked-row layout renders each value with its label, left-
+// aligned (pairs with the .data-table-cell[data-label]::before fix in
+// arcadmin.css). The name cell is marked --primary (full-width, no label).
 
 const DashboardPage = {
   allUsers: [],
@@ -219,11 +224,11 @@ const DashboardPage = {
           </div>
           ${filtered.map((u) => `
             <button class="data-table-row" onclick="Router.navigate('/clients/${escHtml(Router.getSlug(u.id))}')">
-              <div class="data-table-cell data-table-cell--bold col-name">${escHtml(u.displayName)}</div>
-              <div class="data-table-cell col-email t-muted">${escHtml(u.email || '')}</div>
-              <div class="data-table-cell col-vehicle t-muted">${escHtml(u.vehicleLabel || '—')}</div>
-              <div class="data-table-cell col-tier">${tierBadge(u.tier)}</div>
-              <div class="data-table-cell col-last-active t-muted">${escHtml(u.lastLogin ? timeAgo(u.lastLogin) : '—')}</div>
+              <div class="data-table-cell data-table-cell--bold data-table-cell--primary col-name">${escHtml(u.displayName)}</div>
+              <div class="data-table-cell col-email t-muted" data-label="Email">${escHtml(u.email || '')}</div>
+              <div class="data-table-cell col-vehicle t-muted" data-label="Vehicle">${escHtml(u.vehicleLabel || '—')}</div>
+              <div class="data-table-cell col-tier" data-label="Tier">${tierBadge(u.tier)}</div>
+              <div class="data-table-cell col-last-active t-muted" data-label="Last active">${escHtml(u.lastLogin ? timeAgo(u.lastLogin) : '—')}</div>
             </button>
           `).join('')}
         </div>
@@ -251,10 +256,10 @@ const DashboardPage = {
           </div>
           ${filtered.map((c) => `
             <button class="data-table-row" onclick="Router.navigate('/companies/${escHtml(Router.getSlug(c.id))}')">
-              <div class="data-table-cell data-table-cell--bold col-name">${escHtml(c.name)}</div>
-              <div class="data-table-cell col-email t-muted">${escHtml(c.email || '—')}</div>
-              <div class="data-table-cell col-vehicle t-muted">${c.clientCount ?? 0}</div>
-              <div class="data-table-cell col-last-active t-muted">${escHtml(c.createdAt ? formatDate(c.createdAt) : '—')}</div>
+              <div class="data-table-cell data-table-cell--bold data-table-cell--primary col-name">${escHtml(c.name)}</div>
+              <div class="data-table-cell col-email t-muted" data-label="Billing email">${escHtml(c.email || '—')}</div>
+              <div class="data-table-cell col-vehicle t-muted" data-label="Clients">${c.clientCount ?? 0}</div>
+              <div class="data-table-cell col-last-active t-muted" data-label="Created">${escHtml(c.createdAt ? formatDate(c.createdAt) : '—')}</div>
             </button>
           `).join('')}
         </div>

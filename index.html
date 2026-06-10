@@ -4,12 +4,16 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ArcAdmin</title>
-  <link rel="icon" href="favicon.png">
+  <link rel="icon" href="/favicon.png">
+  <!-- All local asset paths MUST be absolute (leading /). The SPA router
+       uses real paths (/clients/foo); on refresh Vercel rewrites the route
+       to index.html, but relative hrefs would then resolve against the
+       route path (/clients/css/arcadmin.css → 404 → unstyled dead page). -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/arcadmin.css">
+  <link rel="stylesheet" href="/css/arcadmin.css">
   <style>
     /* Spinner used by AI Questions synthesis loading state */
     @keyframes spin { to { transform: rotate(360deg); } }
@@ -23,7 +27,7 @@
 <div class="login-wrap" id="loginPage">
   <div class="login-box">
     <div class="login-title">
-      <img src="assets/logo.svg" alt="ArcAdmin" class="login-logo">
+      <img src="/assets/logo.svg" alt="ArcAdmin" class="login-logo">
       <div class="sub">Sign in to manage your ArcNode fleet</div>
     </div>
     <div class="error-box hidden" id="loginError"></div>
@@ -48,7 +52,7 @@
 <div class="login-wrap hidden" id="setPasswordPage">
   <div class="login-box">
     <div class="login-title">
-      <img src="assets/logo.svg" alt="ArcAdmin" class="login-logo">
+      <img src="/assets/logo.svg" alt="ArcAdmin" class="login-logo">
       <div class="sub">Set your password to continue</div>
     </div>
     <div class="error-box hidden" id="setPasswordError"></div>
@@ -85,7 +89,7 @@
         <line x1="3" y1="18" x2="21" y2="18"/>
       </svg>
     </button>
-    <img src="assets/logo.svg" alt="ArcAdmin" class="mobile-topbar-logo">
+    <img src="/assets/logo.svg" alt="ArcAdmin" class="mobile-topbar-logo">
     <span class="mobile-topbar-spacer" aria-hidden="true"></span>
   </header>
 
@@ -96,7 +100,7 @@
   <!-- ── Sidebar ── -->
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-brand">
-      <img src="assets/logo.svg" alt="ArcAdmin" class="sidebar-brand-logo-full">
+      <img src="/assets/logo.svg" alt="ArcAdmin" class="sidebar-brand-logo-full">
     </div>
 
     <nav class="sidebar-menu">
@@ -594,23 +598,23 @@
 <!-- Scripts                                                                  -->
 <!-- ═══════════════════════════════════════════════════════════════════════ -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="js/api.js"></script>
-<script src="js/storage.js"></script>
-<script src="js/utils.js"></script>
-<script src="js/auth.js"></script>
-<script src="js/router.js"></script>
-<script src="js/analysis.js"></script>
-<script src="js/pages/dashboard.js"></script>
-<script src="js/pages/clients.js"></script>
-<script src="js/pages/user-detail.js"></script>
-<script src="js/pages/documents.js"></script>
-<script src="js/pages/build-lines.js"></script>
-<script src="js/pages/companies.js"></script>
-<script src="js/pages/trips.js"></script>
-<script src="js/pages/firmware.js"></script>
-<script src="js/pages/models.js"></script>
-<script src="js/pages/manuals.js"></script>
-<script src="js/app.js"></script>
+<script src="/js/api.js"></script>
+<script src="/js/storage.js"></script>
+<script src="/js/utils.js"></script>
+<script src="/js/auth.js"></script>
+<script src="/js/router.js"></script>
+<script src="/js/analysis.js"></script>
+<script src="/js/pages/dashboard.js"></script>
+<script src="/js/pages/clients.js"></script>
+<script src="/js/pages/user-detail.js"></script>
+<script src="/js/pages/documents.js"></script>
+<script src="/js/pages/build-lines.js"></script>
+<script src="/js/pages/companies.js"></script>
+<script src="/js/pages/trips.js"></script>
+<script src="/js/pages/firmware.js"></script>
+<script src="/js/pages/models.js"></script>
+<script src="/js/pages/manuals.js"></script>
+<script src="/js/app.js"></script>
 
 </body>
 </html>

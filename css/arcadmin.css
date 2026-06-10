@@ -1106,6 +1106,17 @@ a { color: inherit; text-decoration: none; }
 .badge--warning       { background: rgba(232, 163, 59, 0.12); color: var(--warning); }
 .badge--danger        { background: var(--danger-bg); color: var(--danger); }
 
+/* Device Activity: source='remote' rows (ArcRemote iPhone commands logged
+   by the trg_log_remote_command trigger). Purple-tinted pill with a phone
+   icon so phone actions read differently from iPad taps and scene runs. */
+.badge--source-remote {
+  background: var(--brand-primary-10);
+  color: var(--brand-primary);
+  border: 1px solid var(--brand-primary-15);
+  gap: 0;
+}
+.badge--source-remote svg { stroke: currentColor; }
+
 
 /* ═══════════════════════════════════════════════════════════════════════════
    15. LOGIN PAGE
@@ -1346,9 +1357,13 @@ body.nav-open { overflow: hidden; }
   .info-grid { flex-direction: column; gap: var(--space-4); }
   .info-card { min-width: 0; width: 100%; }
 
-  /* Stat grid: 2-up on tablet-ish, 1-up on phone (see <=480px below) */
-  .stat-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  /* Stat grid: .stat-grid is a FLEX container (not grid), so the old
+     grid-template-columns override was a silent no-op. Size the tiles
+     directly instead: 2-up here, 1-up on phones (<=480px below). */
+  .stat-grid { gap: var(--space-3); }
+  .stat-tile {
+    flex: 1 1 calc(50% - var(--space-3));
+    min-width: calc(50% - var(--space-3));
   }
 
   /* Tabs scroll horizontally rather than wrapping awkwardly */
@@ -1387,13 +1402,25 @@ body.nav-open { overflow: hidden; }
     gap: var(--space-3);
     font-size: var(--fs-body);
   }
-  .data-table-cell::before {
+  /* THE MOBILE RIGHT-ALIGN BUG LIVED HERE.
+     The label pseudo-element must only be generated for cells that
+     actually carry a data-label attribute. attr(data-label) on a cell
+     WITHOUT the attribute still creates an (empty, zero-width) flex
+     item, and justify-content:space-between then shoves the real value
+     to the RIGHT edge — which is what broke the dashboard list on
+     mobile. Scoping to [data-label] kills the phantom flex item. */
+  .data-table-cell[data-label]::before {
     content: attr(data-label);
     color: var(--text-secondary);
     font-size: var(--fs-detail);
     text-transform: uppercase;
     letter-spacing: 0.02em;
     flex-shrink: 0;
+  }
+  /* Cells without a label: single flex item, pin it left. */
+  .data-table-cell:not([data-label]) {
+    justify-content: flex-start;
+    text-align: left;
   }
   .data-table-cell:empty::before { content: none; }
   .data-table-cell--bold { font-weight: var(--fw-bold); }
@@ -1403,10 +1430,12 @@ body.nav-open { overflow: hidden; }
   .data-table-cell--primary { display: block; }
   .data-table-cell--primary::before { content: none; }
 
-  /* Column-width helpers go full-width when stacking */
+  /* Column-width helpers go full-width when stacking. col-last-active was
+     missing from this list, leaving its desktop flex + center alignment
+     live on mobile. */
   .col-name, .col-email, .col-vehicle,
-  .col-build, .col-tier, .col-active, .col-action {
-    width: auto; flex: 0 0 auto;
+  .col-build, .col-tier, .col-active, .col-last-active, .col-action {
+    width: auto; flex: 0 0 auto; text-align: left;
   }
 
   /* Info lines on detail pages: label/value stack, both left-aligned.
@@ -1466,9 +1495,10 @@ body.nav-open { overflow: hidden; }
   .page-greeting { font-size: 20px; }
   .page-title { font-size: 20px; }
 
-  /* Single-column stat tiles */
-  .stat-grid {
-    grid-template-columns: 1fr !important;
+  /* Single-column stat tiles (flex sizing — see note in the 900px block) */
+  .stat-tile {
+    flex: 1 1 100%;
+    min-width: 100%;
   }
 
   /* Slightly tighter card padding */
