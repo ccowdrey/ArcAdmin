@@ -443,9 +443,25 @@
       </div>
       <div class="field">
         <label>Battery Capacity (Ah)</label>
-        <input id="buildLineBatteryAh" type="number" min="0" step="1" placeholder="e.g. 600">
-        <div class="t-muted t-detail" style="margin-top:6px">Total bank amp-hours at nominal voltage. Used to seed BatteryCapacityLearner so the runtime card is accurate before the learner has observed a full discharge.</div>
+        <input id="buildLineBatteryAh" type="number" min="0" step="1" placeholder="e.g. 600" oninput="BuildLinesPage._updateBatteryWhHint()">
+        <div class="t-muted t-detail" style="margin-top:6px">Total bank amp-hours at nominal voltage — the DC-side / battery-monitor figure builders set up. Energy (Wh) is derived from Ah × voltage below.</div>
       </div>
+      <div style="display:flex;gap:12px">
+        <div class="field" style="flex:1">
+          <label>Nominal Voltage</label>
+          <select id="buildLineNominalVoltage" onchange="BuildLinesPage._updateBatteryWhHint()">
+            <option value="12.8">12 V (12.8 V LiFePO₄)</option>
+            <option value="25.6">24 V (25.6 V LiFePO₄)</option>
+            <option value="51.2">48 V (51.2 V LiFePO₄)</option>
+          </select>
+        </div>
+        <div class="field" style="flex:1">
+          <label>Usable Reserve Floor (%)</label>
+          <input id="buildLineReserveFloor" type="number" min="0" max="50" step="1" value="20" placeholder="20" oninput="BuildLinesPage._updateBatteryWhHint()">
+        </div>
+      </div>
+      <div class="t-muted t-detail" id="buildLineWhHint" style="margin-top:-4px">Enter Ah and voltage to see derived energy.</div>
+      <div class="t-muted t-detail">Reserve floor defaults to 20% — the conservative lithium standard (operate 100%→20%, ~80% usable). Override only if the battery supplier recommends a different floor.</div>
       <div style="display:flex;gap:12px">
         <div class="field" style="flex:1">
           <label>Wheelbase (in)</label>

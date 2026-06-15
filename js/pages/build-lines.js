@@ -150,10 +150,13 @@ const BuildLinesPage = {
     document.getElementById('buildLineYear').value = '';
     document.getElementById('buildLineSortOrder').value = '0';
     document.getElementById('buildLineBatteryAh').value = '';
+    document.getElementById('buildLineNominalVoltage').value = '12.8';
+    document.getElementById('buildLineReserveFloor').value = '20';
     document.getElementById('buildLineWheelbase').value = '';
     document.getElementById('buildLineTrack').value = '';
     document.getElementById('buildLineError').classList.add('hidden');
     document.getElementById('buildLineSaveBtn').textContent = 'Add Build Line';
+    this._updateBatteryWhHint();
     openModal('buildLineModal');
   },
 
@@ -169,11 +172,38 @@ const BuildLinesPage = {
     document.getElementById('buildLineYear').value = bl.default_year || '';
     document.getElementById('buildLineSortOrder').value = bl.sort_order ?? 0;
     document.getElementById('buildLineBatteryAh').value = bl.battery_capacity_ah ?? '';
+    document.getElementById('buildLineNominalVoltage').value = (bl.nominal_voltage != null) ? String(bl.nominal_voltage) : '12.8';
+    document.getElementById('buildLineReserveFloor').value = (bl.reserve_floor_percent != null) ? bl.reserve_floor_percent : 20;
     document.getElementById('buildLineWheelbase').value = bl.wheelbase_inches ?? '';
     document.getElementById('buildLineTrack').value = bl.track_width_inches ?? '';
     document.getElementById('buildLineError').classList.add('hidden');
     document.getElementById('buildLineSaveBtn').textContent = 'Save Changes';
+    this._updateBatteryWhHint();
     openModal('buildLineModal');
+  },
+
+  // Live readout under the battery fields: derive nominal + usable Wh
+  // from Ah × voltage and the reserve floor, so the builder sees the
+  // energy figure (the cross-platform measure) as they type the Ah.
+  _updateBatteryWhHint() {
+    const hintEl = document.getElementById('buildLineWhHint');
+    if (!hintEl) return;
+    const ah = Number(document.getElementById('buildLineBatteryAh').value);
+    const v = Number(document.getElementById('buildLineNominalVoltage').value);
+    const floorRaw = document.getElementById('buildLineReserveFloor').value.trim();
+    const floor = floorRaw === '' ? 20 : Number(floorRaw);
+
+    if (!Number.isFinite(ah) || ah <= 0 || !Number.isFinite(v) || v <= 0) {
+      hintEl.textContent = 'Enter Ah and voltage to see derived energy.';
+      return;
+    }
+    const nominalWh = ah * v;
+    const usablePct = Number.isFinite(floor) ? Math.max(0, 100 - floor) : 80;
+    const usableWh = nominalWh * usablePct / 100;
+    const fmt = (n) => Math.round(n).toLocaleString();
+    hintEl.innerHTML =
+      `<strong>${fmt(nominalWh)} Wh</strong> nominal (${(nominalWh / 1000).toFixed(2)} kWh) • ` +
+      `<strong>${fmt(usableWh)} Wh</strong> usable at ${usablePct}%`;
   },
 
   async saveLine() {
@@ -186,6 +216,10 @@ const BuildLinesPage = {
     const sortOrder = parseInt(document.getElementById('buildLineSortOrder').value, 10) || 0;
     const batteryAhRaw = document.getElementById('buildLineBatteryAh').value.trim();
     const batteryAh = batteryAhRaw === '' ? null : Number(batteryAhRaw);
+    const nominalVoltageRaw = document.getElementById('buildLineNominalVoltage').value;
+    const nominalVoltage = nominalVoltageRaw === '' ? null : Number(nominalVoltageRaw);
+    const reserveFloorRaw = document.getElementById('buildLineReserveFloor').value.trim();
+    const reserveFloor = reserveFloorRaw === '' ? 20 : Number(reserveFloorRaw);
     const wheelbaseRaw = document.getElementById('buildLineWheelbase').value.trim();
     const wheelbase = wheelbaseRaw === '' ? null : Number(wheelbaseRaw);
     const trackRaw = document.getElementById('buildLineTrack').value.trim();
@@ -201,6 +235,18 @@ const BuildLinesPage = {
 
     if (batteryAh !== null && (!Number.isFinite(batteryAh) || batteryAh < 0)) {
       errEl.textContent = 'Battery capacity must be a positive number (Ah).';
+      errEl.classList.remove('hidden');
+      return;
+    }
+
+    if (batteryAh !== null && (!Number.isFinite(nominalVoltage) || nominalVoltage <= 0)) {
+      errEl.textContent = 'Select a nominal voltage when a battery capacity is set.';
+      errEl.classList.remove('hidden');
+      return;
+    }
+
+    if (!Number.isFinite(reserveFloor) || reserveFloor < 0 || reserveFloor > 50) {
+      errEl.textContent = 'Usable reserve floor must be between 0 and 50%.';
       errEl.classList.remove('hidden');
       return;
     }
@@ -226,6 +272,8 @@ const BuildLinesPage = {
       default_year: defaultYear || null,
       sort_order: sortOrder,
       battery_capacity_ah: batteryAh,
+      nominal_voltage: batteryAh !== null ? nominalVoltage : null,
+      reserve_floor_percent: reserveFloor,
       wheelbase_inches: wheelbase,
       track_width_inches: track,
       is_active: true,
@@ -300,9 +348,17 @@ const BuildLinesPage = {
       if (bcEl) bcEl.textContent = companyName || 'Back';
 
       if (infoEl) {
-        const battery = (this.lineData.battery_capacity_ah != null)
-          ? `${escHtml(String(this.lineData.battery_capacity_ah))} Ah`
-          : '—';
+        const ah = this.lineData.battery_capacity_ah;
+        const v = this.lineData.nominal_voltage ?? 12.8;
+        const floor = this.lineData.reserve_floor_percent ?? 20;
+        let battery = '—';
+        if (ah != null) {
+          const nominalWh = Number(ah) * Number(v);
+          const usableWh = nominalWh * Math.max(0, 100 - Number(floor)) / 100;
+          const fmt = (n) => Math.round(n).toLocaleString();
+          battery = `${escHtml(String(ah))} Ah @ ${escHtml(String(v))} V · `
+            + `${fmt(nominalWh)} Wh nominal · ${fmt(usableWh)} Wh usable (${Math.max(0, 100 - Number(floor))}%)`;
+        }
         infoEl.innerHTML = `
           <div class="flex flex-col gap-2">
             ${this._infoRow('Default make', escHtml(this.lineData.default_make || '—'))}

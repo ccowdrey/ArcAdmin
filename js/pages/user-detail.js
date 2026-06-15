@@ -57,10 +57,16 @@ const UserDetailPage = {
     if (contentEl) contentEl.innerHTML = '<div class="data-empty">Loading user...</div>';
 
     try {
-      const [profiles, subs, vehicles] = await Promise.all([
+      const [profiles, subs, vehicles, lastLog, lastDevLog] = await Promise.all([
         supa(`profiles?id=eq.${this.userId}&select=*`),
         supa(`subscriptions?user_id=eq.${this.userId}&select=*`),
         supa(`vehicles?user_id=eq.${this.userId}&select=*`),
+        // Strongest "last active" signals beyond last_login_at: the most
+        // recent telemetry log and the most recent device-control action.
+        // last_login_at writes are best-effort (silent try? on the client),
+        // so we don't rely on them alone — we take the newest of all three.
+        supa(`system_logs?user_id=eq.${this.userId}&order=logged_at.desc&limit=1&select=logged_at`).catch(() => []),
+        supa(`device_control_logs?user_id=eq.${this.userId}&order=created_at.desc&limit=1&select=created_at`).catch(() => []),
       ]);
 
       const p = profiles[0];
@@ -74,6 +80,13 @@ const UserDetailPage = {
       this.vehicleId = v?.id || null;
       this.userName = `${p.first_name || ''} ${p.last_name || ''}`.trim() || p.email;
       this.userEmail = p.email;
+
+      // Newest of: login, last telemetry log, last device-control action.
+      const lastActiveAt = this._maxTimestamp([
+        p.last_login_at,
+        lastLog?.[0]?.logged_at,
+        lastDevLog?.[0]?.created_at,
+      ]);
 
       // Build line + company (if present). We pull battery_capacity_ah and
       // the leveling dimensions on the build line so the vehicle rows can show
@@ -104,7 +117,7 @@ const UserDetailPage = {
         } catch (_) {}
       }
 
-      this._render({ profile: p, sub, vehicle: v, buildLineLabel, buildLineBatteryAh, buildLineWheelbase, buildLineTrack, companyLabel });
+      this._render({ profile: p, sub, vehicle: v, lastActiveAt, buildLineLabel, buildLineBatteryAh, buildLineWheelbase, buildLineTrack, companyLabel });
 
       if (v) {
         this._initLogsSection();
@@ -115,7 +128,7 @@ const UserDetailPage = {
     }
   },
 
-  _render({ profile, sub, vehicle, buildLineLabel, buildLineBatteryAh, buildLineWheelbase, buildLineTrack, companyLabel }) {
+  _render({ profile, sub, vehicle, lastActiveAt, buildLineLabel, buildLineBatteryAh, buildLineWheelbase, buildLineTrack, companyLabel }) {
     const contentEl = document.getElementById('userDetailContent');
     if (!contentEl) return;
 
@@ -142,7 +155,7 @@ const UserDetailPage = {
           <div class="info-card-title">ACCOUNT INFO</div>
           ${this._infoLine('User ID', `<span style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;word-break:break-all">${escHtml(this.userId)}</span>`)}
           ${this._infoLine('Joined', escHtml(formatDate(profile.created_at)))}
-          ${this._infoLine('Last active', escHtml(profile.last_login_at ? timeAgo(profile.last_login_at) : 'Never'))}
+          ${this._infoLine('Last active', escHtml(lastActiveAt ? timeAgo(lastActiveAt) : 'Never'))}
           ${this._infoLine('Company', escHtml(companyLabel))}
         </div>
 
@@ -166,7 +179,7 @@ const UserDetailPage = {
           <div class="info-card-title">SUBSCRIPTION</div>
           ${this._infoLine('Tier', tierBadge(tier))}
           ${this._infoLine('Status', escHtml(sub?.status || '—'))}
-          ${this._infoLine('Platform', escHtml(sub?.platform || '—'))}
+          ${this._infoLine('Platform', escHtml(this._platformLabel(sub?.platform)))}
           ${this._infoLine('Started', escHtml(sub?.started_at ? formatDate(sub.started_at) : '—'))}
           ${this._infoLine('Renews', escHtml(sub?.current_period_end ? formatDate(sub.current_period_end) : '—'))}
         </div>
@@ -186,6 +199,40 @@ const UserDetailPage = {
       ${vehicle ? this._renderDeviceControlLogsCard() : ''}
       ${vehicle ? this._renderLogsCard() : ''}
     `;
+  },
+
+  // Normalize the subscription platform for display. We moved off Stripe
+  // to Apple in-app subscriptions, so legacy 'stripe' rows are stale
+  // billing-provider tags, not live Stripe subs — all active billing now
+  // runs through the App Store. 'admin' stays distinct so manually-comped
+  // accounts (set via the buttons below) are obvious. Change the stripe
+  // fallback to '—' or 'Legacy' here if you'd rather not normalize it.
+  // Return the newest of a set of ISO timestamps (ignores null/blank).
+  // Used to derive "Last active" from whichever signal is freshest.
+  _maxTimestamp(values) {
+    const valid = (values || []).filter(Boolean);
+    if (!valid.length) return null;
+    return valid.reduce((newest, t) =>
+      (new Date(t).getTime() > new Date(newest).getTime() ? t : newest)
+    );
+  },
+
+  _platformLabel(platform) {
+    if (!platform) return '—';
+    switch (String(platform).toLowerCase()) {
+      case 'app_store':
+      case 'appstore':
+      case 'apple':
+      case 'ios':
+      case 'storekit':
+        return 'App Store';
+      case 'admin':
+      case 'manual':
+        return 'Admin (manual)';
+      case 'stripe':
+      default:
+        return 'App Store';
+    }
   },
 
   _infoLine(label, value) {
