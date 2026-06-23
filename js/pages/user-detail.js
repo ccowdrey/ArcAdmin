@@ -51,6 +51,13 @@ const UserDetailPage = {
   _devLogsDateRange: { start: '', end: '' },
   _devLogsFilters: { category: '', action: '', source: '' },
 
+  // Harsh-driving event state. Per-page is smaller than device activity
+  // because each row carries denser info (peak g, duration, severity badge)
+  // and the section is consulted incident-by-incident, not scanned in bulk.
+  _motionEvents: [],
+  _motionPage: 1,
+  _motionPerPage: 25,
+
   async load(params) {
     this.userId = Router.resolveId(params.userId);
     const contentEl = document.getElementById('userDetailContent');
@@ -571,16 +578,22 @@ const UserDetailPage = {
         `&order=occurred_at.desc&limit=500` +
         `&select=occurred_at,action,value,created_at`
       );
-      this._renderMotionContent(rows || [], days);
+      // Stash for paginated rendering; reset to page 1 on every fresh fetch
+      // so a range change always lands the user on the first (newest) page.
+      this._motionEvents = rows || [];
+      this._motionPage = 1;
+      this._renderMotionContent(days);
     } catch (e) {
       console.error('Driving events load failed:', e);
       contentEl.innerHTML = `<div class="t-danger t-detail">Failed to load driving events — ${escHtml(e.message || '')}</div>`;
     }
   },
 
-  _renderMotionContent(rows, days) {
+  _renderMotionContent(days) {
     const contentEl = document.getElementById('userMotionContent');
     if (!contentEl) return;
+
+    const rows = this._motionEvents;
 
     if (rows.length === 0) {
       contentEl.innerHTML = `
@@ -596,7 +609,9 @@ const UserDetailPage = {
       return;
     }
 
-    // Summary: counts by severity + worst event.
+    // Summary always reflects the FULL result set, not the current page —
+    // page-scoped counts would mislead anyone reading the chips for a
+    // quick incident gut-check.
     let harsh = 0, extreme = 0, worst = null;
     for (const r of rows) {
       const v = r.value || {};
@@ -618,10 +633,20 @@ const UserDetailPage = {
                extreme ? 'var(--danger)' : null)}
       </div>`;
 
+    // Page slice — mirrors _renderDevLogsPage so behavior is identical
+    // across the two activity sections on this page.
+    const total = rows.length;
+    const perPage = this._motionPerPage;
+    const totalPages = Math.max(1, Math.ceil(total / perPage));
+    const page = Math.min(Math.max(1, this._motionPage), totalPages);
+    const startIdx = (page - 1) * perPage;
+    const endIdx = Math.min(startIdx + perPage, total);
+    const pageRows = rows.slice(startIdx, endIdx);
+
     const cell = (content, color = 'var(--text-primary)', style = '') =>
       `<td style="padding:6px 10px;white-space:nowrap;color:${color};border-top:1px solid var(--border-subtle);${style}">${content}</td>`;
 
-    const body = rows.map((r) => {
+    const body = pageRows.map((r) => {
       const v = r.value || {};
       const dur = v.duration_ms != null ? `${(v.duration_ms / 1000).toFixed(1)} s` : '—';
       const peak = v.peak_g != null ? `${v.peak_g.toFixed(2)} g` : '—';
@@ -640,6 +665,18 @@ const UserDetailPage = {
     }).join('');
 
     const head = (t) => `<th style="text-align:left;padding:6px 10px;font-size:10px;text-transform:uppercase;letter-spacing:0.04em;color:var(--text-secondary)">${t}</th>`;
+
+    const pagination = totalPages > 1 ? `
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:16px;flex-wrap:wrap">
+        <span class="t-muted t-detail">Showing ${(startIdx + 1).toLocaleString()}–${endIdx.toLocaleString()} of ${total.toLocaleString()}</span>
+        <div style="display:flex;align-items:center;gap:4px">
+          <button class="btn btn-ghost btn-sm" onclick="UserDetailPage._goToMotionPage(${page - 1})" ${page === 1 ? 'disabled' : ''}>‹ Prev</button>
+          <span class="t-muted" style="padding:0 8px">Page ${page} of ${totalPages}</span>
+          <button class="btn btn-ghost btn-sm" onclick="UserDetailPage._goToMotionPage(${page + 1})" ${page === totalPages ? 'disabled' : ''}>Next ›</button>
+        </div>
+      </div>
+    ` : '';
+
     contentEl.innerHTML = `
       ${summary}
       <div style="overflow-x:auto">
@@ -647,7 +684,19 @@ const UserDetailPage = {
           <thead><tr>${head('Time')}${head('Event')}${head('Severity')}${head('Peak')}${head('Duration')}</tr></thead>
           <tbody>${body}</tbody>
         </table>
-      </div>`;
+      </div>
+      ${pagination}`;
+  },
+
+  _goToMotionPage(page) {
+    const totalPages = Math.ceil(this._motionEvents.length / this._motionPerPage);
+    this._motionPage = Math.max(1, Math.min(totalPages, page));
+    // We need to know `days` for the summary chip label; re-derive it from
+    // the dropdown so a Refresh-then-paginate sequence stays consistent
+    // with what the user picked.
+    const rangeEl = document.getElementById('userMotionRange');
+    const days = parseInt(rangeEl?.value || this._motionDays, 10) || 30;
+    this._renderMotionContent(days);
   },
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -960,6 +1009,8 @@ const UserDetailPage = {
     this._page = 1;
     this._devLogs = [];
     this._devLogsPage = 1;
+    this._motionEvents = [];
+    this._motionPage = 1;
     // Driving events auto-load (small query, and builders come to this page
     // specifically for it when chasing an incident).
     this.loadMotionEvents();
