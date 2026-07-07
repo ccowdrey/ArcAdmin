@@ -17,6 +17,8 @@ const TripsPage = {
         `trips?select=*,profiles(email,first_name,last_name)&order=started_at.desc&limit=200`
       );
       this.trips = trips;
+      this._searchQ = '';
+      this._dayFilter = '';
       this.filtered = trips;
       this.render();
     } catch (e) {
@@ -84,20 +86,30 @@ const TripsPage = {
       </div>
     `;
 
+    const days = this._tripDays();
+    const dayOptions = ['<option value="">All days</option>']
+      .concat(days.map((d) => `<option value="${d}"${d === this._dayFilter ? ' selected' : ''}>${escHtml(this._dayLabel(d))}</option>`))
+      .join('');
     const searchMarkup = `
-      <div class="search-input">
-        <input type="text" id="tripsSearch" placeholder="Search by driver, email, or location" oninput="TripsPage.filter()">
-        <div class="search-input-icon">
-          <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="11" cy="11" r="8"/>
-            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-          </svg>
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:4px">
+        <div class="search-input" style="flex:1 1 260px;margin-bottom:0">
+          <input type="text" id="tripsSearch" value="${escHtml(this._searchQ || '')}" placeholder="Search by driver, email, or location" oninput="TripsPage.filter()">
+          <div class="search-input-icon">
+            <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8"/>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+          </div>
         </div>
+        <select id="tripsDay" onchange="TripsPage.setDay(this.value)" style="padding:10px 12px;border-radius:8px;min-width:150px">
+          ${dayOptions}
+        </select>
       </div>
     `;
 
     if (trips.length === 0) {
       listEl.innerHTML = `${statsMarkup}${searchMarkup}<div class="data-empty">No trips match.</div>`;
+      this._restoreSearchFocus();
       return;
     }
 
@@ -137,6 +149,18 @@ const TripsPage = {
         <div id="tripsMap" style="height:380px;border-radius:8px;overflow:hidden;border:1px solid var(--border-subtle)"></div>
       </div>
     `;
+    this._restoreSearchFocus();
+  },
+
+  // The innerHTML rebuild on each keystroke drops input focus; restore it so
+  // typing in the search box stays smooth.
+  _restoreSearchFocus() {
+    if (!this._searchQ) return;
+    const inp = document.getElementById('tripsSearch');
+    if (inp) {
+      inp.focus();
+      try { inp.setSelectionRange(inp.value.length, inp.value.length); } catch (e) {}
+    }
   },
 
   // Replay a trip's breadcrumb route on an inline Leaflet map. OpenStreetMap
@@ -186,19 +210,59 @@ const TripsPage = {
   },
 
   filter() {
-    const q = (document.getElementById('tripsSearch')?.value || '').toLowerCase();
-    if (!q) {
-      this.filtered = this.trips;
-    } else {
-      this.filtered = this.trips.filter((t) => {
-        const name = `${t.profiles?.first_name || ''} ${t.profiles?.last_name || ''}`.toLowerCase();
-        const email = (t.profiles?.email || '').toLowerCase();
-        const start = (t.start_location_name || '').toLowerCase();
-        const end = (t.end_location_name || '').toLowerCase();
-        return name.includes(q) || email.includes(q) || start.includes(q) || end.includes(q);
-      });
-    }
+    this._searchQ = document.getElementById('tripsSearch')?.value || '';
+    this.applyFilters();
+  },
+
+  setDay(day) {
+    this._dayFilter = day || '';
+    this.applyFilters();
+  },
+
+  applyFilters() {
+    const q = (this._searchQ || '').toLowerCase();
+    const day = this._dayFilter || '';
+    this.filtered = this.trips.filter((t) => {
+      if (day && this._dayKey(t.started_at) !== day) return false;
+      if (!q) return true;
+      const name = `${t.profiles?.first_name || ''} ${t.profiles?.last_name || ''}`.toLowerCase();
+      const email = (t.profiles?.email || '').toLowerCase();
+      const start = (t.start_location_name || '').toLowerCase();
+      const end = (t.end_location_name || '').toLowerCase();
+      return name.includes(q) || email.includes(q) || start.includes(q) || end.includes(q);
+    });
     this.render();
+  },
+
+  // Distinct local-day keys ('YYYY-MM-DD') present in the loaded trips, newest first.
+  _tripDays() {
+    const seen = {};
+    for (const t of this.trips) {
+      const k = this._dayKey(t.started_at);
+      if (k) seen[k] = true;
+    }
+    return Object.keys(seen).sort().reverse();
+  },
+
+  _dayKey(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return String(iso).slice(0, 10);
+    const p = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  },
+
+  _dayLabel(key) {
+    const [y, m, day] = key.split('-').map(Number);
+    if (!y || !m || !day) return key;
+    const date = new Date(y, m - 1, day);
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const diff = Math.round((today - date) / 86400000);
+    if (diff === 0) return 'Today';
+    if (diff === 1) return 'Yesterday';
+    const opts = { weekday: 'short', month: 'short', day: 'numeric' };
+    if (date.getFullYear() !== today.getFullYear()) opts.year = 'numeric';
+    return date.toLocaleDateString(undefined, opts);
   },
 
   _formatDuration(seconds) {
