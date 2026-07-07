@@ -382,3 +382,8 @@ s3_region = "env(S3_REGION)"
 s3_access_key = "env(S3_ACCESS_KEY)"
 # Configures AWS_SECRET_ACCESS_KEY for S3 bucket
 s3_secret_key = "env(S3_SECRET_KEY)"
+
+# ingest-trip-gps is called by the Cerbo relay with a per-vehicle x-api-key,
+# not a Supabase JWT — it does its own auth against vehicles.cerbo_api_key.
+[functions.ingest-trip-gps]
+verify_jwt = false
