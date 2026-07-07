@@ -685,9 +685,11 @@ const UserDetailPage = {
     // Lazily create the Leaflet map; reuse it across trip selections.
     if (!this._tripMap) {
       this._tripMap = L.map(mapEl, { zoomControl: true });
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      // OpenStreetMap is the only tile host allowed by the site CSP
+      // (img-src in vercel.json). Other tile providers render blank here.
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
-        attribution: '© OpenStreetMap © CARTO',
+        attribution: '© OpenStreetMap',
       }).addTo(this._tripMap);
     }
     // Clear the previous route's layers.
