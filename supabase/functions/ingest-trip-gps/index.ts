@@ -106,6 +106,15 @@ Deno.serve(async (req) => {
     return json({ error: "unauthorized" }, 401);
   }
 
+  // ── Ensure the parent trip row exists BEFORE inserting points ──
+  // trip_points.trip_id is a FK to trips.id, so the trip must exist first.
+  // We create/patch a stub here and fill in the summary + ended_at below.
+  const { error: stubErr } = await supa.from("trips").upsert(
+    { id: tripId, user_id: veh.user_id, vehicle_id: vehicleId, started_at: startedAt, source },
+    { onConflict: "id" },
+  );
+  if (stubErr) return json({ error: "trip create failed", detail: stubErr.message }, 500);
+
   // ── Insert breadcrumbs (idempotent on trip_id + timestamp) ──
   // deno-lint-ignore no-explicit-any
   const pointRows = (points as any[])
