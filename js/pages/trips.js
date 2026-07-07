@@ -20,15 +20,21 @@ const TripsPage = {
       this.filtered = trips;
       this.render();
     } catch (e) {
-      console.warn('Trips fetch failed (table may not exist):', e);
+      // Surface the real error instead of masking every failure as "empty".
+      // A successful-but-empty result is NOT an error and never reaches here —
+      // it renders the normal empty state in render(). So an error card here
+      // means a genuine fetch failure (e.g. PGRST200 = missing trips↔profiles
+      // FK, PGRST205 = table missing, 401/403 = auth/RLS) and the message says
+      // which — rather than the old catch-all that hid the cause.
+      console.error('Trips fetch failed:', e);
       this.trips = [];
       this.filtered = [];
       if (listEl) {
         listEl.innerHTML = `
           <div class="card" style="text-align:center;padding:60px 20px">
-            <div style="font-size:32px;margin-bottom:12px">🚐</div>
-            <div class="t-body t-muted" style="margin-bottom:6px">No trips recorded yet</div>
-            <div class="t-detail t-muted">Trips will appear here once users start driving with ArcNode installed.</div>
+            <div style="font-size:32px;margin-bottom:12px">⚠️</div>
+            <div class="t-body" style="margin-bottom:6px">Couldn't load trips</div>
+            <div class="t-detail t-muted" style="word-break:break-word">${escHtml(e.message || String(e))}</div>
           </div>
         `;
       }

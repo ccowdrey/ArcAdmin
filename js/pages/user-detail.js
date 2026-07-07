@@ -202,6 +202,7 @@ const UserDetailPage = {
         </div>
       </div>
 
+      ${vehicle ? this._renderTripsCard() : ''}
       ${vehicle ? this._renderDrivingEventsCard() : ''}
       ${vehicle ? this._renderDeviceControlLogsCard() : ''}
       ${vehicle ? this._renderLogsCard() : ''}
@@ -530,6 +531,229 @@ const UserDetailPage = {
               : s === 'harsh' ? 'badge--severity-harsh'
               : 'badge--severity-moderate';
     return `<span class="badge ${cls}" style="font-size:10px">${escHtml(s)}</span>`;
+  },
+
+  // ── Trips ─────────────────────────────────────────────────────────────
+  // Recorded drives for this customer: GPS route + battery/solar/alternator
+  // captured along the way. Grouped by day; selecting a trip replays its
+  // route on a Leaflet map. Reads the `trips` / `trip_points` tables the iPad
+  // recorder writes. Trips are user_id-scoped today (no vehicle_id column yet),
+  // so this keys on the customer's user_id like the other activity sections.
+  _renderTripsCard() {
+    return `
+      <div class="card">
+        <div class="card-title">Trips</div>
+        <div class="t-muted t-detail" style="margin-bottom:16px">
+          Recorded drives — GPS route plus battery, solar, and alternator data
+          captured along the way. Pick a day to see that day's trips, then tap a
+          trip to replay its route on the map.
+        </div>
+        <div class="logs-filter-row" style="display:flex;gap:12px;align-items:flex-end;margin-bottom:16px;flex-wrap:wrap">
+          <div class="field" style="margin-bottom:0;flex:0 0 auto">
+            <label>Day</label>
+            <select id="userTripDay" onchange="UserDetailPage.renderTripsForDay()">
+              <option value="">Loading…</option>
+            </select>
+          </div>
+          <button class="btn btn-secondary btn-sm" onclick="UserDetailPage.loadTrips()">Refresh</button>
+        </div>
+        <div id="userTripsSummary"></div>
+        <div id="userTripsContent">
+          <div class="t-muted t-detail">Loading trips…</div>
+        </div>
+        <div id="userTripMapWrap" style="display:none;margin-top:16px">
+          <div id="userTripMap" style="height:340px;border-radius:8px;overflow:hidden;border:1px solid var(--border-subtle)"></div>
+        </div>
+      </div>
+    `;
+  },
+
+  async loadTrips() {
+    const contentEl = document.getElementById('userTripsContent');
+    const dayEl = document.getElementById('userTripDay');
+    if (!contentEl) return;
+    contentEl.innerHTML = '<div class="t-muted t-detail">Loading trips…</div>';
+    try {
+      const trips = await supa(
+        `trips?user_id=eq.${this.userId}` +
+        `&order=started_at.desc&limit=500` +
+        `&select=id,started_at,ended_at,distance_km,duration_seconds,avg_speed_kmh,max_speed_kmh,start_location_name,end_location_name,point_count`
+      );
+      this._trips = trips || [];
+
+      // Group by the viewer's local calendar day (we don't store the driver's
+      // timezone; local grouping matches how the builder reads the page).
+      this._tripsByDay = {};
+      for (const t of this._trips) {
+        const key = this._tripDayKey(t.started_at);
+        if (!key) continue;
+        (this._tripsByDay[key] = this._tripsByDay[key] || []).push(t);
+      }
+
+      const days = Object.keys(this._tripsByDay).sort().reverse();
+      if (dayEl) {
+        dayEl.innerHTML = days.length === 0
+          ? '<option value="">No trips</option>'
+          : days.map((d) => {
+              const n = this._tripsByDay[d].length;
+              return `<option value="${d}">${escHtml(this._tripDayLabel(d))} · ${n} trip${n > 1 ? 's' : ''}</option>`;
+            }).join('');
+      }
+      this.renderTripsForDay();
+    } catch (e) {
+      console.error('Trips load failed:', e);
+      contentEl.innerHTML = `<div class="t-danger t-detail">Failed to load trips — ${escHtml(e.message || '')}</div>`;
+    }
+  },
+
+  renderTripsForDay() {
+    const contentEl = document.getElementById('userTripsContent');
+    const summaryEl = document.getElementById('userTripsSummary');
+    const dayEl = document.getElementById('userTripDay');
+    if (!contentEl) return;
+
+    // Hide the map when switching days so a stale route isn't shown.
+    const mapWrap = document.getElementById('userTripMapWrap');
+    if (mapWrap) mapWrap.style.display = 'none';
+
+    const day = dayEl && dayEl.value ? dayEl.value : '';
+    const trips = (this._tripsByDay && this._tripsByDay[day]) ? this._tripsByDay[day] : [];
+
+    if (trips.length === 0) {
+      if (summaryEl) summaryEl.innerHTML = '';
+      contentEl.innerHTML = '<div class="t-muted t-detail">No trips recorded for this day.</div>';
+      return;
+    }
+
+    const totalKm = trips.reduce((s, t) => s + (t.distance_km || 0), 0);
+    const totalSec = trips.reduce((s, t) => s + (t.duration_seconds || 0), 0);
+    const chip = (label, val) => `
+      <div style="padding:8px 14px;border:1px solid var(--border-subtle);border-radius:8px">
+        <div class="t-muted" style="font-size:10px;text-transform:uppercase;letter-spacing:0.04em">${label}</div>
+        <div style="font-weight:600;font-size:16px">${val}</div>
+      </div>`;
+    if (summaryEl) summaryEl.innerHTML = `
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">
+        ${chip('Trips', trips.length)}
+        ${chip('Miles', (totalKm * 0.621371).toFixed(1))}
+        ${chip('Drive time', this._fmtTripDur(totalSec))}
+      </div>`;
+
+    const cell = (content, style = '') =>
+      `<td style="padding:8px 10px;border-top:1px solid var(--border-subtle);${style}">${content}</td>`;
+    const rows = trips.map((t) => {
+      const miles = t.distance_km != null ? (t.distance_km * 0.621371).toFixed(1) + ' mi' : '—';
+      const dur = this._fmtTripDur(t.duration_seconds);
+      const time = t.started_at
+        ? new Date(t.started_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+        : '—';
+      const route = `${escHtml(t.start_location_name || '—')} → ${escHtml(t.end_location_name || '—')}`;
+      return `
+        <tr style="cursor:pointer" onclick="UserDetailPage.showTripRoute('${t.id}')">
+          ${cell(`<span style="font-weight:600">${time}</span>`, 'white-space:nowrap')}
+          ${cell(`<span class="t-muted">${route}</span>`)}
+          ${cell(miles, 'white-space:nowrap')}
+          ${cell(dur, 'white-space:nowrap')}
+          ${cell(`<span class="t-muted">${t.point_count != null ? t.point_count : '—'} pts</span>`, 'white-space:nowrap')}
+        </tr>`;
+    }).join('');
+
+    contentEl.innerHTML = `
+      <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead>
+            <tr class="t-muted" style="text-align:left;font-size:11px;text-transform:uppercase">
+              <th style="padding:6px 10px">Start</th>
+              <th style="padding:6px 10px">Route</th>
+              <th style="padding:6px 10px">Distance</th>
+              <th style="padding:6px 10px">Duration</th>
+              <th style="padding:6px 10px">Points</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      <div class="t-muted t-detail" style="margin-top:8px;font-size:11px">Tap a trip to replay its route on the map.</div>`;
+  },
+
+  async showTripRoute(tripId) {
+    const mapWrap = document.getElementById('userTripMapWrap');
+    const mapEl = document.getElementById('userTripMap');
+    if (!mapWrap || !mapEl || typeof L === 'undefined') return;
+    mapWrap.style.display = 'block';
+
+    // Lazily create the Leaflet map; reuse it across trip selections.
+    if (!this._tripMap) {
+      this._tripMap = L.map(mapEl, { zoomControl: true });
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        maxZoom: 19,
+        attribution: '© OpenStreetMap © CARTO',
+      }).addTo(this._tripMap);
+    }
+    // Clear the previous route's layers.
+    if (this._tripLayers) this._tripLayers.forEach((l) => this._tripMap.removeLayer(l));
+    this._tripLayers = [];
+
+    try {
+      const points = await supa(
+        `trip_points?trip_id=eq.${tripId}` +
+        `&order=timestamp.asc&limit=5000` +
+        `&select=latitude,longitude`
+      );
+      const coords = (points || [])
+        .filter((p) => p.latitude != null && p.longitude != null)
+        .map((p) => [p.latitude, p.longitude]);
+
+      if (coords.length === 0) {
+        this._tripMap.setView([39.5, -98.35], 4); // continental US fallback
+        setTimeout(() => this._tripMap.invalidateSize(), 50);
+        return;
+      }
+
+      const line = L.polyline(coords, { color: '#767BFB', weight: 4, opacity: 0.9 });
+      line.addTo(this._tripMap);
+      const start = L.circleMarker(coords[0], { radius: 6, color: '#fff', weight: 2, fillColor: '#2ABC53', fillOpacity: 1 }).addTo(this._tripMap);
+      const end = L.circleMarker(coords[coords.length - 1], { radius: 6, color: '#fff', weight: 2, fillColor: '#E7B400', fillOpacity: 1 }).addTo(this._tripMap);
+      this._tripLayers.push(line, start, end);
+
+      this._tripMap.fitBounds(line.getBounds(), { padding: [30, 30] });
+      // Leaflet mis-sizes when its container was display:none at creation, so
+      // invalidate once it's visible.
+      setTimeout(() => this._tripMap.invalidateSize(), 50);
+      mapEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    } catch (e) {
+      console.error('Trip route load failed:', e);
+    }
+  },
+
+  // 'YYYY-MM-DD' in the viewer's local timezone (falls back to the raw ISO
+  // date slice if the timestamp can't be parsed).
+  _tripDayKey(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return String(iso).slice(0, 10);
+    const p = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  },
+
+  _tripDayLabel(key) {
+    const [y, m, day] = key.split('-').map(Number);
+    if (!y || !m || !day) return key;
+    const date = new Date(y, m - 1, day);
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const diff = Math.round((today - date) / 86400000);
+    if (diff === 0) return 'Today';
+    if (diff === 1) return 'Yesterday';
+    const opts = { weekday: 'short', month: 'short', day: 'numeric' };
+    if (date.getFullYear() !== today.getFullYear()) opts.year = 'numeric';
+    return date.toLocaleDateString(undefined, opts);
+  },
+
+  _fmtTripDur(seconds) {
+    if (!seconds) return '0m';
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    return h > 0 ? `${h}h ${m}m` : `${m}m`;
   },
 
   _renderDrivingEventsCard() {
@@ -1011,9 +1235,13 @@ const UserDetailPage = {
     this._devLogsPage = 1;
     this._motionEvents = [];
     this._motionPage = 1;
+    this._trips = [];
+    this._tripsByDay = {};
     // Driving events auto-load (small query, and builders come to this page
     // specifically for it when chasing an incident).
     this.loadMotionEvents();
+    // Trips auto-load too — builders open a customer to review recent drives.
+    this.loadTrips();
   },
 
   async loadLogs() {
