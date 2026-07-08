@@ -145,8 +145,9 @@ const TripsPage = {
         ${rows}
       </div>
       <div id="tripsMapWrap" style="display:none;margin-top:20px">
-        <div class="t-muted t-detail" style="margin-bottom:8px">Route — tap a trip above to replay it</div>
+        <div class="t-muted t-detail" style="margin-bottom:8px">Route — colored by speed. Tap any point for exact mph + time.</div>
         <div id="tripsMap" style="height:380px;border-radius:8px;overflow:hidden;border:1px solid var(--border-subtle)"></div>
+        ${tripSpeedLegendHtml()}
       </div>
     `;
     this._restoreSearchFocus();
@@ -183,25 +184,16 @@ const TripsPage = {
 
     try {
       const points = await supa(
-        `trip_points?trip_id=eq.${tripId}&order=timestamp.asc&limit=5000&select=latitude,longitude`
+        `trip_points?trip_id=eq.${tripId}&order=timestamp.asc&limit=5000&select=latitude,longitude,speed,timestamp`
       );
-      const coords = (points || [])
-        .filter((p) => p.latitude != null && p.longitude != null)
-        .map((p) => [p.latitude, p.longitude]);
-
-      if (coords.length === 0) {
+      if (!points || points.length === 0) {
         this._map.setView([39.5, -98.35], 4);
         setTimeout(() => this._map.invalidateSize(), 50);
         return;
       }
 
-      const line = L.polyline(coords, { color: '#767BFB', weight: 4, opacity: 0.9 });
-      line.addTo(this._map);
-      const start = L.circleMarker(coords[0], { radius: 6, color: '#fff', weight: 2, fillColor: '#2ABC53', fillOpacity: 1 }).addTo(this._map);
-      const end = L.circleMarker(coords[coords.length - 1], { radius: 6, color: '#fff', weight: 2, fillColor: '#E7B400', fillOpacity: 1 }).addTo(this._map);
-      this._mapLayers.push(line, start, end);
-
-      this._map.fitBounds(line.getBounds(), { padding: [30, 30] });
+      // Speed-graded route + tappable per-interval speed points.
+      this._mapLayers = drawTripRoute(this._map, points);
       setTimeout(() => this._map.invalidateSize(), 50);
       wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     } catch (e) {

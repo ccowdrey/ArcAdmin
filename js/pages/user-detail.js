@@ -562,7 +562,9 @@ const UserDetailPage = {
           <div class="t-muted t-detail">Loading trips…</div>
         </div>
         <div id="userTripMapWrap" style="display:none;margin-top:16px">
+          <div class="t-muted t-detail" style="margin-bottom:8px;font-size:11px">Route colored by speed — tap any point for exact mph + time.</div>
           <div id="userTripMap" style="height:340px;border-radius:8px;overflow:hidden;border:1px solid var(--border-subtle)"></div>
+          ${tripSpeedLegendHtml()}
         </div>
       </div>
     `;
@@ -700,25 +702,16 @@ const UserDetailPage = {
       const points = await supa(
         `trip_points?trip_id=eq.${tripId}` +
         `&order=timestamp.asc&limit=5000` +
-        `&select=latitude,longitude`
+        `&select=latitude,longitude,speed,timestamp`
       );
-      const coords = (points || [])
-        .filter((p) => p.latitude != null && p.longitude != null)
-        .map((p) => [p.latitude, p.longitude]);
-
-      if (coords.length === 0) {
+      if (!points || points.length === 0) {
         this._tripMap.setView([39.5, -98.35], 4); // continental US fallback
         setTimeout(() => this._tripMap.invalidateSize(), 50);
         return;
       }
 
-      const line = L.polyline(coords, { color: '#767BFB', weight: 4, opacity: 0.9 });
-      line.addTo(this._tripMap);
-      const start = L.circleMarker(coords[0], { radius: 6, color: '#fff', weight: 2, fillColor: '#2ABC53', fillOpacity: 1 }).addTo(this._tripMap);
-      const end = L.circleMarker(coords[coords.length - 1], { radius: 6, color: '#fff', weight: 2, fillColor: '#E7B400', fillOpacity: 1 }).addTo(this._tripMap);
-      this._tripLayers.push(line, start, end);
-
-      this._tripMap.fitBounds(line.getBounds(), { padding: [30, 30] });
+      // Speed-graded route + tappable per-interval speed points.
+      this._tripLayers = drawTripRoute(this._tripMap, points);
       // Leaflet mis-sizes when its container was display:none at creation, so
       // invalidate once it's visible.
       setTimeout(() => this._tripMap.invalidateSize(), 50);
