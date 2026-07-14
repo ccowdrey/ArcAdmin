@@ -138,14 +138,27 @@ Deno.serve(async (req) => {
   }
 
   // ── Recompute the trip summary from ALL of its points (authoritative) ──
-  const { data: allPts, error: aErr } = await supa
-    .from("trip_points")
-    .select("timestamp, latitude, longitude, speed")
-    .eq("trip_id", tripId)
-    .order("timestamp", { ascending: true });
-  if (aErr) return json({ error: "summary read failed", detail: aErr.message }, 500);
+  // PostgREST caps a single response at the project's max-rows (1000 by
+  // default), so we MUST page through — otherwise a trip longer than 1000
+  // points (~2.5–4 h) would freeze its summary at the 1000th point. Recomputing
+  // from all points keeps this idempotent against batch retries.
+  const PAGE = 1000;
+  // deno-lint-ignore no-explicit-any
+  const allPts: any[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supa
+      .from("trip_points")
+      .select("timestamp, latitude, longitude, speed")
+      .eq("trip_id", tripId)
+      .order("timestamp", { ascending: true })
+      .range(from, from + PAGE - 1);
+    if (error) return json({ error: "summary read failed", detail: error.message }, 500);
+    if (!data || data.length === 0) break;
+    allPts.push(...data);
+    if (data.length < PAGE) break;
+  }
 
-  const summary = summarize(allPts || []);
+  const summary = summarize(allPts);
 
   // On trip end, discard trips too short to be meaningful (matches the iPad).
   if (ended && (summary.duration_seconds < MIN_TRIP_SECONDS || summary.point_count < MIN_TRIP_POINTS)) {

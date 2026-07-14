@@ -150,6 +150,24 @@ window.showToast = showToast;
 // so the caller can remove them before the next render.
 //
 // points: [{ latitude, longitude, speed (m/s), timestamp }], ordered by time.
+
+// Fetch ALL rows for a PostgREST query, paging past the project's max-rows cap
+// (1000 by default). Pass the path WITHOUT limit/offset — they're added here.
+// Needed for trips longer than 1000 points (~2.5–4 h), which a single request
+// would silently truncate.
+async function supaAll(pathWithoutRange, pageSize) {
+  const size = pageSize || 1000;
+  const all = [];
+  for (let offset = 0; ; offset += size) {
+    const sep = pathWithoutRange.includes('?') ? '&' : '?';
+    const chunk = await supa(`${pathWithoutRange}${sep}limit=${size}&offset=${offset}`);
+    if (!chunk || chunk.length === 0) break;
+    all.push(...chunk);
+    if (chunk.length < size) break;
+  }
+  return all;
+}
+
 function tripSpeedMph(mps) { return mps == null ? 0 : mps * 2.23694; }
 
 function tripSpeedColor(mph) {
@@ -166,16 +184,27 @@ function drawTripRoute(map, points) {
   const pts = (points || []).filter((p) => p.latitude != null && p.longitude != null);
   if (pts.length === 0) return layers;
 
-  // Speed-colored route: one segment per consecutive pair, colored by its speed.
+  // Speed-colored route, grouped into contiguous same-color bands so a long
+  // trip is a handful of polylines instead of thousands (keeps it fast).
+  let band = [[pts[0].latitude, pts[0].longitude]];
+  let bandColor = tripSpeedColor(tripSpeedMph(pts[0].speed));
+  const flush = () => {
+    if (band.length >= 2) {
+      const line = L.polyline(band, { color: bandColor, weight: 5, opacity: 0.9, lineCap: 'round' });
+      line.addTo(map);
+      layers.push(line);
+    }
+  };
   for (let i = 1; i < pts.length; i++) {
-    const segMph = tripSpeedMph(((pts[i - 1].speed || 0) + (pts[i].speed || 0)) / 2);
-    const line = L.polyline(
-      [[pts[i - 1].latitude, pts[i - 1].longitude], [pts[i].latitude, pts[i].longitude]],
-      { color: tripSpeedColor(segMph), weight: 5, opacity: 0.9, lineCap: 'round' },
-    );
-    line.addTo(map);
-    layers.push(line);
+    const c = tripSpeedColor(tripSpeedMph(pts[i].speed));
+    band.push([pts[i].latitude, pts[i].longitude]);
+    if (c !== bandColor) {
+      flush();
+      band = [[pts[i].latitude, pts[i].longitude]]; // continue the next band from here
+      bandColor = c;
+    }
   }
+  flush();
 
   // Start (green) / end (gold) markers.
   const first = pts[0], last = pts[pts.length - 1];
@@ -225,3 +254,4 @@ function tripSpeedLegendHtml() {
 
 window.drawTripRoute = drawTripRoute;
 window.tripSpeedLegendHtml = tripSpeedLegendHtml;
+window.supaAll = supaAll;

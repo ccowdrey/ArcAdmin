@@ -183,8 +183,9 @@ const TripsPage = {
     this._mapLayers = [];
 
     try {
-      const points = await supa(
-        `trip_points?trip_id=eq.${tripId}&order=timestamp.asc&limit=5000&select=latitude,longitude,speed,timestamp`
+      // Page past the 1000-row API cap so long trips draw in full.
+      const points = await supaAll(
+        `trip_points?trip_id=eq.${tripId}&order=timestamp.asc&select=latitude,longitude,speed,timestamp`
       );
       if (!points || points.length === 0) {
         this._map.setView([39.5, -98.35], 4);

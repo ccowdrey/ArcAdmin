@@ -699,9 +699,10 @@ const UserDetailPage = {
     this._tripLayers = [];
 
     try {
-      const points = await supa(
+      // Page past the 1000-row API cap so long trips draw in full.
+      const points = await supaAll(
         `trip_points?trip_id=eq.${tripId}` +
-        `&order=timestamp.asc&limit=5000` +
+        `&order=timestamp.asc` +
         `&select=latitude,longitude,speed,timestamp`
       );
       if (!points || points.length === 0) {
