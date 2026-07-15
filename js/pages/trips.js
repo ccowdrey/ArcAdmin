@@ -172,6 +172,13 @@ const TripsPage = {
     if (!wrap || !mapEl || typeof L === 'undefined') return;
     wrap.style.display = 'block';
 
+    // Drop a cached map bound to a detached container (after a re-render/nav),
+    // otherwise it renders into a removed node.
+    if (this._map && this._map.getContainer() !== mapEl) {
+      try { this._map.remove(); } catch (e) {}
+      this._map = null;
+      this._mapLayers = [];
+    }
     if (!this._map) {
       this._map = L.map(mapEl, { zoomControl: true });
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {

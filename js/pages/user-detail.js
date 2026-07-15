@@ -684,6 +684,15 @@ const UserDetailPage = {
     if (!mapWrap || !mapEl || typeof L === 'undefined') return;
     mapWrap.style.display = 'block';
 
+    // A cached map from a PREVIOUS user's page is bound to a now-detached
+    // container (this page re-renders its HTML on navigation). Reusing it would
+    // draw into the removed node — the "second user's map is blank" bug. If the
+    // cached map isn't bound to the current div, tear it down and recreate.
+    if (this._tripMap && this._tripMap.getContainer() !== mapEl) {
+      try { this._tripMap.remove(); } catch (e) {}
+      this._tripMap = null;
+      this._tripLayers = [];
+    }
     // Lazily create the Leaflet map; reuse it across trip selections.
     if (!this._tripMap) {
       this._tripMap = L.map(mapEl, { zoomControl: true });
