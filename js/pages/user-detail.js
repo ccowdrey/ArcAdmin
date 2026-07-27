@@ -1032,6 +1032,20 @@ const UserDetailPage = {
         filters.push(`source=eq.${encodeURIComponent(this._devLogsFilters.source)}`);
       }
 
+      // Driving events (device_key='motion_sensor', category='safety',
+      // source='system') from the WT901 harsh-driving detector have their own
+      // "Driving Events" section below. They're high-frequency and would
+      // otherwise dominate this feed and bury actual device controls, so
+      // exclude them from Device Activity by default. Escape hatch: if the
+      // admin explicitly filters for Safety category or System source, honor
+      // that and let them through.
+      const wantsDrivingEvents =
+        this._devLogsFilters.category === 'safety' ||
+        this._devLogsFilters.source === 'system';
+      if (!wantsDrivingEvents) {
+        filters.push('device_key=neq.motion_sensor');
+      }
+
       const url = `device_control_logs?${filters.join('&')}&order=occurred_at.desc&limit=5000&select=*`;
       const logs = await supa(url);
 
