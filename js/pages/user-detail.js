@@ -1043,7 +1043,12 @@ const UserDetailPage = {
         this._devLogsFilters.category === 'safety' ||
         this._devLogsFilters.source === 'system';
       if (!wantsDrivingEvents) {
-        filters.push('device_key=neq.motion_sensor');
+        // NULL-safe exclusion: a bare `device_key=neq.motion_sensor` maps to
+        // SQL `device_key <> 'motion_sensor'`, which is NULL (not true) for
+        // rows whose device_key is null — silently dropping legitimate device
+        // controls that were logged without a device_key. The or-group keeps
+        // those rows and only removes the actual motion_sensor driving events.
+        filters.push('or=(device_key.is.null,device_key.neq.motion_sensor)');
       }
 
       const url = `device_control_logs?${filters.join('&')}&order=occurred_at.desc&limit=5000&select=*`;
