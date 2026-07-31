@@ -1024,6 +1024,12 @@ const UserDetailPage = {
         `user_id=eq.${this.userId}`,
         `occurred_at=gte.${startISO}`,
         `occurred_at=lte.${endISO}`,
+        // Exclude WT901 harsh-driving / motion-sensor rows. They are emitted
+        // by the Cerbo level bridge (device_key='motion_sensor',
+        // device_category='safety') at high volume and would otherwise flood
+        // the Device Activity feed and bury the DeviceLogger activity. Those
+        // events have their own "Driving Events" section on this page.
+        `device_key=neq.motion_sensor`,
       ];
       if (this._devLogsFilters.category) {
         filters.push(`device_category=eq.${encodeURIComponent(this._devLogsFilters.category)}`);
