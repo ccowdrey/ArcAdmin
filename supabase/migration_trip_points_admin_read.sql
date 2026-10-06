@@ -30,8 +30,18 @@
 --
 -- ── 2. Fix: admin read policy on trip_points (mirrors the trips policy) ────
 -- profiles.is_admin is the super-admin flag ArcAdmin already keys on.
+--
+-- Locking note: CREATE/DROP POLICY take an exclusive lock on trip_points, and
+-- the Cerbo ingest function writes to that table continuously. Running this
+-- while a batch is in flight deadlocked once ("40P01: deadlock detected" —
+-- harmless, the transaction rolled back). Fail fast instead of deadlocking;
+-- if it times out, just run it again a moment later.
+set lock_timeout = '5s';
 
-alter table trip_points enable row level security;
+-- RLS is already enabled on trip_points (that's why admin reads return []),
+-- so don't ALTER TABLE here — it takes another exclusive lock for nothing.
+-- Confirm with:  select relrowsecurity from pg_class where relname = 'trip_points';
+-- If it ever reads false, run:  alter table trip_points enable row level security;
 
 drop policy if exists "trip_points_admin_read" on trip_points;
 create policy "trip_points_admin_read"
