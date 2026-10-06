@@ -8,6 +8,15 @@
 -- (source is null, id in uppercase) whose summary row synced but whose
 -- breadcrumbs never reached trip_points. Cerbo trips (source = 'cerbo_relay')
 -- store every point.
+--
+-- Root cause (fixed in ArcOS-iPad, TripRecorderService.syncTripToSupabase):
+-- the iPad re-captured the same GPS fix while stationary, producing points
+-- with identical timestamps; trip_points is unique on (trip_id, timestamp)
+-- (index trip_points_trip_ts_uident, added for the Cerbo ingest), and the
+-- iPad sent all points in one plain INSERT, so the whole batch was rejected.
+-- The iPad now de-duplicates, upserts with ignoreDuplicates, and tags rows
+-- with source = 'ipad'. Trips synced before that fix stay route-less; their
+-- points only ever existed on the iPad.
 
 -- 1. Claimed vs stored points per trip. stored = 0 with point_count > 0 is a
 --    trip whose breadcrumb upload failed.
