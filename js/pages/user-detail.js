@@ -563,6 +563,7 @@ const UserDetailPage = {
         </div>
         <div id="userTripMapWrap" style="display:none;margin-top:16px">
           <div class="t-muted t-detail" style="margin-bottom:8px;font-size:11px">Route colored by speed — tap any point for exact mph + time.</div>
+          <div id="userTripRouteStatus" class="t-detail t-muted" style="display:none;margin-bottom:8px"></div>
           <div id="userTripMap" style="height:340px;border-radius:8px;overflow:hidden;border:1px solid var(--border-subtle)"></div>
           ${tripSpeedLegendHtml()}
         </div>
@@ -683,6 +684,8 @@ const UserDetailPage = {
     const mapEl = document.getElementById('userTripMap');
     if (!mapWrap || !mapEl || typeof L === 'undefined') return;
     mapWrap.style.display = 'block';
+    this._setTripRouteStatus('Loading route…');
+    mapEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
     // A cached map from a PREVIOUS user's page is bound to a now-detached
     // container (this page re-renders its HTML on navigation). Reusing it would
@@ -707,6 +710,9 @@ const UserDetailPage = {
     if (this._tripLayers) this._tripLayers.forEach((l) => this._tripMap.removeLayer(l));
     this._tripLayers = [];
 
+    // Tag this request so a newer click (or a page re-render while fetching)
+    // can't draw stale points into the wrong map.
+    const reqId = (this._tripRouteReq = (this._tripRouteReq || 0) + 1);
     try {
       // Page past the 1000-row API cap so long trips draw in full.
       const points = await supaAll(
@@ -714,9 +720,24 @@ const UserDetailPage = {
         `&order=timestamp.asc` +
         `&select=latitude,longitude,speed,timestamp`
       );
+      if (reqId !== this._tripRouteReq) return;
+      if (!this._tripMap || this._tripMap.getContainer() !== document.getElementById('userTripMap')) return;
+
       if (!points || points.length === 0) {
         this._tripMap.setView([39.5, -98.35], 4); // continental US fallback
         setTimeout(() => this._tripMap.invalidateSize(), 50);
+        // Same diagnosis as the Trips tab: point_count > 0 with nothing returned
+        // means the points exist but this account can't read them (trip_points
+        // RLS — see supabase/migration_trip_points_admin_read.sql); 0 / null
+        // means the breadcrumbs were never stored.
+        const trip = (this._trips || []).find((t) => t.id === tripId);
+        const reported = trip && trip.point_count != null ? Number(trip.point_count) : 0;
+        this._setTripRouteStatus(
+          reported > 0
+            ? `This trip has ${reported.toLocaleString()} recorded GPS points, but none were returned to this account. ` +
+              `Admin reads of trip_points are being blocked — check the trip_points SELECT policy (RLS).`
+            : 'No GPS points were stored for this trip, so there is no route to draw.',
+          'error');
         return;
       }
 
@@ -725,10 +746,21 @@ const UserDetailPage = {
       // Leaflet mis-sizes when its container was display:none at creation, so
       // invalidate once it's visible.
       setTimeout(() => this._tripMap.invalidateSize(), 50);
-      mapEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      this._setTripRouteStatus(`${points.length.toLocaleString()} GPS points`);
     } catch (e) {
       console.error('Trip route load failed:', e);
+      if (reqId !== this._tripRouteReq) return;
+      this._setTripRouteStatus(`Couldn't load route: ${e.message || e}`, 'error');
     }
+  },
+
+  // Status line above the trip map: loading / point count / why there's no route.
+  _setTripRouteStatus(msg, kind) {
+    const el = document.getElementById('userTripRouteStatus');
+    if (!el) return;
+    el.className = `t-detail ${kind === 'error' ? 't-danger' : 't-muted'}`;
+    el.textContent = msg || '';
+    el.style.display = msg ? 'block' : 'none';
   },
 
   // 'YYYY-MM-DD' in the viewer's local timezone (falls back to the raw ISO

@@ -61,6 +61,23 @@ the app mid-recording and confirm points keep accumulating.
 
 ---
 
+## Trip is listed but clicking it shows no route
+
+The map area now says why. Read the status line above the map:
+
+- **"Loading route…" never changes / "Couldn't load route: …"** — the
+  `trip_points` request failed; the message carries the API error.
+- **"This trip has N recorded GPS points, but none were returned to this
+  account"** — the points exist, but the `trip_points` SELECT policy only
+  grants the trip's owner, so admins get an empty result (RLS filters
+  silently, no 403). Run `supabase/migration_trip_points_admin_read.sql`.
+- **"No GPS points were stored for this trip"** — the trip summary row exists
+  but no breadcrumbs ever landed in `trip_points`. The list's `pts` count shows
+  this before you click. Check the recorder side: iPad point sync, or for Cerbo
+  trips the `ingest-trip-gps` function logs (it creates the trip stub before
+  inserting points, so a failed insert leaves a trip with no route). The
+  diagnostic queries at the top of that same SQL file find these trips.
+
 ## What to watch for
 - **App launches clean.** The recorder sets `allowsBackgroundLocationUpdates`
   only when the `location` background mode is declared — verify no launch crash.

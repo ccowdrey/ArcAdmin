@@ -686,6 +686,9 @@ a { color: inherit; text-decoration: none; }
 .data-table-row--static { cursor: default; }
 .data-table-row--static:hover { background: var(--bg-surface); }
 .data-table-row--static:active { transform: none; }
+/* Row whose detail (e.g. a trip's route map) is currently shown below the list. */
+.data-table-row--selected,
+.data-table-row--selected:hover { background: var(--bg-hover); box-shadow: inset 0 0 0 1px var(--brand-primary); }
 
 .data-table-cell {
   font-weight: var(--fw-regular);

@@ -1,8 +1,9 @@
 // ArcAdmin — Trips Page
 // ======================
-// 2026-04-23 lean rewrite for new design. List view only in this cut —
-// the leaflet map + timeline detail panel from the legacy build is deferred
-// until there's a proper /trips/:id detail page to host them.
+// 2026-04-23 lean rewrite for new design. Clicking a row replays the trip's
+// breadcrumb route on an inline Leaflet map below the list (showRoute). The
+// map area always reports what happened — loading, point count, "no points",
+// or the fetch error — so a trip with no drawable route is never silent.
 
 const TripsPage = {
   trips: [],
@@ -118,13 +119,17 @@ const TripsPage = {
       const startLoc = t.start_location_name || (t.start_lat != null ? `${t.start_lat.toFixed(2)}, ${t.start_lng.toFixed(2)}` : '—');
       const endLoc = t.end_location_name || (t.end_lat != null ? `${t.end_lat.toFixed(2)}, ${t.end_lng.toFixed(2)}` : '—');
       const dist = t.distance_km ? (t.distance_km * 0.621371).toFixed(1) + ' mi' : '—';
+      // Breadcrumb count from the trip summary. A trip showing 0 / — here has
+      // no route to draw (its points never reached trip_points), which is the
+      // common reason a row "does nothing" when clicked.
+      const pts = t.point_count != null ? `${t.point_count} pts` : '— pts';
       const duration = this._formatDuration(t.duration_seconds);
 
       return `
-        <div class="data-table-row" style="cursor:pointer" onclick="TripsPage.showRoute('${t.id}')">
+        <div class="data-table-row" data-trip-id="${t.id}" style="cursor:pointer" onclick="TripsPage.showRoute('${t.id}')">
           <div class="data-table-cell data-table-cell--bold col-name">${escHtml(name)}</div>
           <div class="data-table-cell col-email t-muted">${escHtml(startLoc)} → ${escHtml(endLoc)}</div>
-          <div class="data-table-cell col-vehicle t-muted">${dist}</div>
+          <div class="data-table-cell col-vehicle t-muted">${dist} <span class="t-detail">· ${pts}</span></div>
           <div class="data-table-cell col-tier t-muted">${duration}</div>
           <div class="data-table-cell col-last-active t-muted">${escHtml(t.started_at ? formatDate(t.started_at) : '—')}</div>
         </div>
@@ -146,6 +151,7 @@ const TripsPage = {
       </div>
       <div id="tripsMapWrap" style="display:none;margin-top:20px">
         <div class="t-muted t-detail" style="margin-bottom:8px">Route — colored by speed. Tap any point for exact mph + time.</div>
+        <div id="tripsRouteStatus" class="t-detail t-muted" style="display:none;margin-bottom:8px"></div>
         <div id="tripsMap" style="height:380px;border-radius:8px;overflow:hidden;border:1px solid var(--border-subtle)"></div>
         ${tripSpeedLegendHtml()}
       </div>
@@ -171,6 +177,12 @@ const TripsPage = {
     const mapEl = document.getElementById('tripsMap');
     if (!wrap || !mapEl || typeof L === 'undefined') return;
     wrap.style.display = 'block';
+    this._selectRow(tripId);
+    this._setRouteStatus('Loading route…');
+    // The map sits below a list of up to 200 rows. Scroll to it immediately
+    // (not only after points arrive) so a click near the top of the list
+    // visibly does something even when the route turns out to be empty.
+    wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
     // Drop a cached map bound to a detached container (after a re-render/nav),
     // otherwise it renders into a removed node.
@@ -189,24 +201,67 @@ const TripsPage = {
     if (this._mapLayers) this._mapLayers.forEach((l) => this._map.removeLayer(l));
     this._mapLayers = [];
 
+    // Tag this request so a newer click (or a re-render that tore the map
+    // down while we were fetching) can't draw stale points into the wrong map.
+    const reqId = (this._routeReq = (this._routeReq || 0) + 1);
     try {
       // Page past the 1000-row API cap so long trips draw in full.
       const points = await supaAll(
         `trip_points?trip_id=eq.${tripId}&order=timestamp.asc&select=latitude,longitude,speed,timestamp`
       );
+      if (reqId !== this._routeReq) return;
+      if (!this._map || this._map.getContainer() !== document.getElementById('tripsMap')) return;
+
       if (!points || points.length === 0) {
         this._map.setView([39.5, -98.35], 4);
         setTimeout(() => this._map.invalidateSize(), 50);
+        // Tell the two "empty" cases apart. The trips row carries point_count
+        // (written by the recorder / ingest function from the points it stored):
+        //  - point_count > 0 but nothing came back → the points exist and this
+        //    account can't read them: the trip_points SELECT policy (RLS) only
+        //    grants the trip's owner. See supabase/migration_trip_points_admin_read.sql.
+        //  - point_count 0 / null → the breadcrumbs were never written, so there
+        //    is genuinely no route (recorder/ingest problem, not an admin one).
+        const trip = this.trips.find((t) => t.id === tripId);
+        const reported = trip && trip.point_count != null ? Number(trip.point_count) : 0;
+        if (reported > 0) {
+          this._setRouteStatus(
+            `This trip has ${reported.toLocaleString()} recorded GPS points, but none were returned to this account. ` +
+            `Admin reads of trip_points are being blocked — check the trip_points SELECT policy (RLS).`,
+            'error');
+        } else {
+          this._setRouteStatus(
+            'No GPS points were stored for this trip, so there is no route to draw. ' +
+            'The trip summary exists but its breadcrumbs never reached trip_points.',
+            'error');
+        }
         return;
       }
 
       // Speed-graded route + tappable per-interval speed points.
       this._mapLayers = drawTripRoute(this._map, points);
       setTimeout(() => this._map.invalidateSize(), 50);
-      wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      this._setRouteStatus(`${points.length.toLocaleString()} GPS points`);
     } catch (e) {
       console.error('Trip route load failed:', e);
+      if (reqId !== this._routeReq) return;
+      this._setRouteStatus(`Couldn't load route: ${e.message || e}`, 'error');
     }
+  },
+
+  // Status line above the map: loading / point count / why there's no route.
+  _setRouteStatus(msg, kind) {
+    const el = document.getElementById('tripsRouteStatus');
+    if (!el) return;
+    el.className = `t-detail ${kind === 'error' ? 't-danger' : 't-muted'}`;
+    el.textContent = msg || '';
+    el.style.display = msg ? 'block' : 'none';
+  },
+
+  _selectRow(tripId) {
+    document.querySelectorAll('#tripsList .data-table-row[data-trip-id]').forEach((row) => {
+      row.classList.toggle('data-table-row--selected', row.dataset.tripId === tripId);
+    });
   },
 
   filter() {
