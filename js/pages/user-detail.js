@@ -580,7 +580,7 @@ const UserDetailPage = {
       const trips = await supa(
         `trips?user_id=eq.${this.userId}` +
         `&order=started_at.desc&limit=500` +
-        `&select=id,started_at,ended_at,distance_km,duration_seconds,avg_speed_kmh,max_speed_kmh,start_location_name,end_location_name,point_count`
+        `&select=id,source,started_at,ended_at,distance_km,duration_seconds,avg_speed_kmh,max_speed_kmh,start_location_name,end_location_name,point_count`
       );
       this._trips = trips || [];
 
@@ -657,7 +657,7 @@ const UserDetailPage = {
           ${cell(`<span class="t-muted">${route}</span>`)}
           ${cell(miles, 'white-space:nowrap')}
           ${cell(dur, 'white-space:nowrap')}
-          ${cell(`<span class="t-muted">${t.point_count != null ? t.point_count : '—'} pts</span>`, 'white-space:nowrap')}
+          ${cell(`<span class="t-muted">${t.point_count != null ? t.point_count : '—'} pts · ${t.source === 'cerbo_relay' ? 'Cerbo' : t.source ? escHtml(t.source) : 'iPad'}</span>`, 'white-space:nowrap')}
         </tr>`;
     }).join('');
 
@@ -726,17 +726,16 @@ const UserDetailPage = {
       if (!points || points.length === 0) {
         this._tripMap.setView([39.5, -98.35], 4); // continental US fallback
         setTimeout(() => this._tripMap.invalidateSize(), 50);
-        // Same diagnosis as the Trips tab: point_count > 0 with nothing returned
-        // means the points exist but this account can't read them (trip_points
-        // RLS — see supabase/migration_trip_points_admin_read.sql); 0 / null
-        // means the breadcrumbs were never stored.
+        // Same diagnosis as the Trips tab (see trips.js showRoute): admins can
+        // read trip_points, so empty means the breadcrumbs were never stored.
         const trip = (this._trips || []).find((t) => t.id === tripId);
         const reported = trip && trip.point_count != null ? Number(trip.point_count) : 0;
+        const src = trip && trip.source === 'cerbo_relay' ? 'the Cerbo' : trip && trip.source ? trip.source : 'the iPad';
         this._setTripRouteStatus(
           reported > 0
-            ? `This trip has ${reported.toLocaleString()} recorded GPS points, but none were returned to this account. ` +
-              `Either the trip_points SELECT policy (RLS) is blocking admin reads, or the breadcrumbs never reached trip_points and the count is stale.`
-            : 'No GPS points were stored for this trip, so there is no route to draw.',
+            ? `No route stored for this trip. Its summary (from ${src}) says ${reported.toLocaleString()} GPS points, ` +
+              `but none are in trip_points — the trip synced, its breadcrumbs did not.`
+            : `No GPS points were stored for this trip (recorded by ${src}), so there is no route to draw.`,
           'error');
         return;
       }

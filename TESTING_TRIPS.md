@@ -63,20 +63,23 @@ the app mid-recording and confirm points keep accumulating.
 
 ## Trip is listed but clicking it shows no route
 
-The map area now says why. Read the status line above the map:
+The status line above the map says why:
 
-- **"Loading route…" never changes / "Couldn't load route: …"** — the
-  `trip_points` request failed; the message carries the API error.
-- **"This trip has N recorded GPS points, but none were returned to this
-  account"** — the points exist, but the `trip_points` SELECT policy only
-  grants the trip's owner, so admins get an empty result (RLS filters
-  silently, no 403). Run `supabase/migration_trip_points_admin_read.sql`.
-- **"No GPS points were stored for this trip"** — the trip summary row exists
-  but no breadcrumbs ever landed in `trip_points`. The list's `pts` count shows
-  this before you click. Check the recorder side: iPad point sync, or for Cerbo
-  trips the `ingest-trip-gps` function logs (it creates the trip stub before
-  inserting points, so a failed insert leaves a trip with no route). The
-  diagnostic queries at the top of that same SQL file find these trips.
+- **"Couldn't load route: …"** — the `trip_points` request failed; the message
+  carries the API error.
+- **"No route stored for this trip … the trip synced, its breadcrumbs did
+  not"** — the trip summary row exists (with the recorder's point count) but
+  no rows landed in `trip_points`. Admins can read all trip points (policy
+  "Admins can read all trip points"), so this is a recorder-side upload
+  failure, not permissions. As of 2026-10-06 every Cerbo trip stores all its
+  points and every iPad trip stores none, so the iPad's trip-point sync is
+  the thing to fix. `supabase/diagnose_trip_routes.sql` lists affected trips
+  and the constraints the iPad's insert must satisfy; the failing request is
+  in Supabase → Logs → API, path `/rest/v1/trip_points`, status ≥ 400.
+
+> The company-admin note above is out of date: `trips_company_admin_read` and
+> `trip_points_company_admin_read` now exist, so company admins see their
+> customers' trips and routes.
 
 ## What to watch for
 - **App launches clean.** The recorder sets `allowsBackgroundLocationUpdates`

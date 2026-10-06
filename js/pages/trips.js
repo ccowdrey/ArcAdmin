@@ -123,13 +123,14 @@ const TripsPage = {
       // no route to draw (its points never reached trip_points), which is the
       // common reason a row "does nothing" when clicked.
       const pts = t.point_count != null ? `${t.point_count} pts` : '— pts';
+      const src = t.source === 'cerbo_relay' ? 'Cerbo' : t.source ? escHtml(t.source) : 'iPad';
       const duration = this._formatDuration(t.duration_seconds);
 
       return `
         <div class="data-table-row" data-trip-id="${t.id}" style="cursor:pointer" onclick="TripsPage.showRoute('${t.id}')">
           <div class="data-table-cell data-table-cell--bold col-name">${escHtml(name)}</div>
           <div class="data-table-cell col-email t-muted">${escHtml(startLoc)} → ${escHtml(endLoc)}</div>
-          <div class="data-table-cell col-vehicle t-muted">${dist} <span class="t-detail">· ${pts}</span></div>
+          <div class="data-table-cell col-vehicle t-muted">${dist} <span class="t-detail">· ${pts} · ${src}</span></div>
           <div class="data-table-cell col-tier t-muted">${duration}</div>
           <div class="data-table-cell col-last-active t-muted">${escHtml(t.started_at ? formatDate(t.started_at) : '—')}</div>
         </div>
@@ -215,26 +216,21 @@ const TripsPage = {
       if (!points || points.length === 0) {
         this._map.setView([39.5, -98.35], 4);
         setTimeout(() => this._map.invalidateSize(), 50);
-        // Tell the two "empty" cases apart. The trips row carries point_count
-        // (written by the recorder / ingest function from the points it stored):
-        //  - point_count > 0 but nothing came back → the points exist and this
-        //    account can't read them: the trip_points SELECT policy (RLS) only
-        //    grants the trip's owner. See supabase/migration_trip_points_admin_read.sql.
-        //  - point_count 0 / null → the breadcrumbs were never written, so there
-        //    is genuinely no route (recorder/ingest problem, not an admin one).
+        // trips.point_count is written by the recorder, so it can claim points
+        // that never reached trip_points. Admin reads of trip_points are
+        // granted by the "Admins can read all trip points" policy, so an empty
+        // result here means the breadcrumbs are not stored — seen with iPad
+        // trips (source null) whose summary synced but whose points upload
+        // failed. See supabase/diagnose_trip_routes.sql.
         const trip = this.trips.find((t) => t.id === tripId);
         const reported = trip && trip.point_count != null ? Number(trip.point_count) : 0;
-        if (reported > 0) {
-          this._setRouteStatus(
-            `This trip has ${reported.toLocaleString()} recorded GPS points, but none were returned to this account. ` +
-            `Either the trip_points SELECT policy (RLS) is blocking admin reads, or the breadcrumbs never reached trip_points and the count is stale.`,
-            'error');
-        } else {
-          this._setRouteStatus(
-            'No GPS points were stored for this trip, so there is no route to draw. ' +
-            'The trip summary exists but its breadcrumbs never reached trip_points.',
-            'error');
-        }
+        const src = trip && trip.source === 'cerbo_relay' ? 'the Cerbo' : trip && trip.source ? trip.source : 'the iPad';
+        this._setRouteStatus(
+          reported > 0
+            ? `No route stored for this trip. Its summary (from ${src}) says ${reported.toLocaleString()} GPS points, ` +
+              `but none are in trip_points — the trip synced, its breadcrumbs did not.`
+            : `No GPS points were stored for this trip (recorded by ${src}), so there is no route to draw.`,
+          'error');
         return;
       }
 
