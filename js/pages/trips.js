@@ -227,7 +227,7 @@ const TripsPage = {
         if (reported > 0) {
           this._setRouteStatus(
             `This trip has ${reported.toLocaleString()} recorded GPS points, but none were returned to this account. ` +
-            `Admin reads of trip_points are being blocked — check the trip_points SELECT policy (RLS).`,
+            `Either the trip_points SELECT policy (RLS) is blocking admin reads, or the breadcrumbs never reached trip_points and the count is stale.`,
             'error');
         } else {
           this._setRouteStatus(
