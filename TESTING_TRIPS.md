@@ -81,6 +81,12 @@ The status line above the map says why:
 > `trip_points_company_admin_read` now exist, so company admins see their
 > customers' trips and routes.
 
+> **Root cause of the iPad gap (2026-10-06):** stationary re-captures of the
+> same GPS fix gave points identical timestamps, and the `(trip_id, timestamp)`
+> unique index rejected the iPad's single-batch insert. Fixed in ArcOS-iPad
+> (`TripRecorderService`): dedupe before upload, upsert with ignoreDuplicates,
+> rows tagged `source = 'ipad'`. Trips synced before that build keep no route.
+
 ## What to watch for
 - **App launches clean.** The recorder sets `allowsBackgroundLocationUpdates`
   only when the `location` background mode is declared — verify no launch crash.
