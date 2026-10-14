@@ -131,6 +131,12 @@ const DashboardPage = {
 
       this._renderTiles();
       this._renderList();
+
+      // Fill "Last active" with the same signals as the client detail page.
+      const listed = this.allUsers;
+      const lastActive = await fetchLastActive(listed);
+      listed.forEach((u) => { u.lastActive = lastActive.get(u.id) || null; });
+      if (listed === this.allUsers) this._renderList();
     } catch (e) {
       console.error('Dashboard load failed:', e);
       // Show the error in-page so blank pages don't happen silently.
@@ -228,7 +234,7 @@ const DashboardPage = {
               <div class="data-table-cell col-email t-muted" data-label="Email">${escHtml(u.email || '')}</div>
               <div class="data-table-cell col-vehicle t-muted" data-label="Vehicle">${escHtml(u.vehicleLabel || '—')}</div>
               <div class="data-table-cell col-tier" data-label="Tier">${tierBadge(u.tier)}</div>
-              <div class="data-table-cell col-last-active t-muted" data-label="Last active">${escHtml(u.lastLogin ? timeAgo(u.lastLogin) : '—')}</div>
+              <div class="data-table-cell col-last-active t-muted" data-label="Last active">${escHtml(u.lastActive !== undefined ? (u.lastActive ? timeAgo(u.lastActive) : '—') : '…')}</div>
             </button>
           `).join('')}
         </div>
