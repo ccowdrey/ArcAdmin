@@ -12,6 +12,37 @@
 const DashboardPage = {
   allUsers: [],
   allCompanies: [],
+
+  usersView: new ListView({
+    ref: 'DashboardPage.usersView',
+    columns: CLIENT_COLUMNS,
+    sortKey: 'name',
+    noun: 'user',
+    rowHtml: (u) => clientRowHtml(u, `/clients/${Router.getSlug(u.id)}`),
+    onChange: () => DashboardPage._renderList({ keepPage: true }),
+  }),
+
+  companiesView: new ListView({
+    ref: 'DashboardPage.companiesView',
+    columns: [
+      { key: 'name',    label: 'Name',          cls: 'col-name',        sortValue: (c) => sortText(c.name) },
+      { key: 'email',   label: 'Billing email', cls: 'col-email',       sortValue: (c) => sortText(c.email) },
+      { key: 'clients', label: 'Clients',       cls: 'col-vehicle',     sortValue: (c) => c.clientCount ?? 0, defaultDir: 'desc' },
+      { key: 'created', label: 'Created',       cls: 'col-last-active', sortValue: (c) => sortTime(c.createdAt), defaultDir: 'desc' },
+    ],
+    sortKey: 'name',
+    noun: 'company',
+    nounPlural: 'companies',
+    rowHtml: (c) => `
+      <button class="data-table-row" onclick="Router.navigate('/companies/${escHtml(Router.getSlug(c.id))}')">
+        <div class="data-table-cell data-table-cell--bold data-table-cell--primary col-name">${escHtml(c.name)}</div>
+        <div class="data-table-cell col-email t-muted" data-label="Billing email">${escHtml(c.email || '—')}</div>
+        <div class="data-table-cell col-vehicle t-muted" data-label="Clients">${c.clientCount ?? 0}</div>
+        <div class="data-table-cell col-last-active t-muted" data-label="Created">${escHtml(c.createdAt ? formatDate(c.createdAt) : '—')}</div>
+      </button>
+    `,
+    onChange: () => DashboardPage._renderList({ keepPage: true }),
+  }),
   activeTab: 'all-users',
   stats: null,
 
@@ -136,7 +167,7 @@ const DashboardPage = {
       const listed = this.allUsers;
       const lastActive = await fetchLastActive(listed);
       listed.forEach((u) => { u.lastActive = lastActive.get(u.id) || null; });
-      if (listed === this.allUsers) this._renderList();
+      if (listed === this.allUsers) this._renderList({ keepPage: true });
     } catch (e) {
       console.error('Dashboard load failed:', e);
       // Show the error in-page so blank pages don't happen silently.
@@ -200,7 +231,9 @@ const DashboardPage = {
     if (list) list.innerHTML = '<div class="data-empty">Loading...</div>';
   },
 
-  _renderList() {
+  // keepPage: re-render in place (sort/page click, last-active fill-in)
+  // instead of jumping back to page 1 as a new search does.
+  _renderList({ keepPage = false } = {}) {
     const search = (document.getElementById('dashboardSearch')?.value || '').toLowerCase();
     const list = document.getElementById('dashboardList');
     if (!list) return;
@@ -219,26 +252,8 @@ const DashboardPage = {
         return;
       }
 
-      list.innerHTML = `
-        <div class="data-table">
-          <div class="data-table-headers">
-            <div class="data-table-header col-name">Name</div>
-            <div class="data-table-header col-email">Email</div>
-            <div class="data-table-header col-vehicle">Vehicle</div>
-            <div class="data-table-header col-tier">Tier</div>
-            <div class="data-table-header col-last-active">Last active</div>
-          </div>
-          ${filtered.map((u) => `
-            <button class="data-table-row" onclick="Router.navigate('/clients/${escHtml(Router.getSlug(u.id))}')">
-              <div class="data-table-cell data-table-cell--bold data-table-cell--primary col-name">${escHtml(u.displayName)}</div>
-              <div class="data-table-cell col-email t-muted" data-label="Email">${escHtml(u.email || '')}</div>
-              <div class="data-table-cell col-vehicle t-muted" data-label="Vehicle">${escHtml(u.vehicleLabel || '—')}</div>
-              <div class="data-table-cell col-tier" data-label="Tier">${tierBadge(u.tier)}</div>
-              <div class="data-table-cell col-last-active t-muted" data-label="Last active">${escHtml(u.lastActive !== undefined ? (u.lastActive ? timeAgo(u.lastActive) : '—') : '…')}</div>
-            </button>
-          `).join('')}
-        </div>
-      `;
+      this.usersView.setRows(filtered, { keepPage: keepPage });
+      list.innerHTML = this.usersView.html();
     } else {
       const filtered = search
         ? this.allCompanies.filter((c) =>
@@ -252,24 +267,8 @@ const DashboardPage = {
         return;
       }
 
-      list.innerHTML = `
-        <div class="data-table">
-          <div class="data-table-headers">
-            <div class="data-table-header col-name">Name</div>
-            <div class="data-table-header col-email">Billing email</div>
-            <div class="data-table-header col-vehicle">Clients</div>
-            <div class="data-table-header col-last-active">Created</div>
-          </div>
-          ${filtered.map((c) => `
-            <button class="data-table-row" onclick="Router.navigate('/companies/${escHtml(Router.getSlug(c.id))}')">
-              <div class="data-table-cell data-table-cell--bold data-table-cell--primary col-name">${escHtml(c.name)}</div>
-              <div class="data-table-cell col-email t-muted" data-label="Billing email">${escHtml(c.email || '—')}</div>
-              <div class="data-table-cell col-vehicle t-muted" data-label="Clients">${c.clientCount ?? 0}</div>
-              <div class="data-table-cell col-last-active t-muted" data-label="Created">${escHtml(c.createdAt ? formatDate(c.createdAt) : '—')}</div>
-            </button>
-          `).join('')}
-        </div>
-      `;
+      this.companiesView.setRows(filtered, { keepPage: keepPage });
+      list.innerHTML = this.companiesView.html();
     }
   },
 

@@ -16,6 +16,20 @@ const CompaniesPage = {
   // ── List state ──
   all: [],
 
+  // Company detail → Clients card (sortable, 25 per page)
+  clientsView: new ListView({
+    ref: 'CompaniesPage.clientsView',
+    columns: CLIENT_COLUMNS,
+    sortKey: 'name',
+    noun: 'client',
+    rowHtml: (u) => clientRowHtml(u, `/companies/${Router.getSlug(CompaniesPage.companyId)}/clients/${Router.getSlug(u.id)}`),
+    // Re-render just the clients card, not the whole overview tab.
+    onChange: () => {
+      const el = document.getElementById('companyClientsList');
+      if (el) el.innerHTML = CompaniesPage.clientsView.html();
+    },
+  }),
+
   // ── Detail state ──
   companyId: null,
   company: null,
@@ -200,6 +214,7 @@ const CompaniesPage = {
         })
       );
       this.clients = enrichedClients;
+      this.clientsView.setRows(enrichedClients);
 
       // Enrich admins
       const enrichedAdmins = await Promise.all(
@@ -288,26 +303,10 @@ const CompaniesPage = {
           </div>
         `).join('');
 
+    this.clientsView.setRows(this.clients, { keepPage: true });
     const clientsMarkup = this.clients.length === 0
       ? '<div class="t-muted t-detail">No clients yet.</div>'
-      : `
-        <div class="data-table-headers">
-          <div class="data-table-header col-name">Name</div>
-          <div class="data-table-header col-email">Email</div>
-          <div class="data-table-header col-vehicle">Vehicle</div>
-          <div class="data-table-header col-tier">Tier</div>
-          <div class="data-table-header col-last-active">Last active</div>
-        </div>
-        ${this.clients.map((cl) => `
-          <button class="data-table-row" onclick="Router.navigate('/companies/${escHtml(Router.getSlug(CompaniesPage.companyId))}/clients/${escHtml(Router.getSlug(cl.id))}')">
-            <div class="data-table-cell data-table-cell--bold col-name">${escHtml(cl.displayName)}</div>
-            <div class="data-table-cell col-email t-muted">${escHtml(cl.email || '')}</div>
-            <div class="data-table-cell col-vehicle t-muted">${escHtml(cl.vehicleLabel || '—')}</div>
-            <div class="data-table-cell col-tier">${tierBadge(cl.tier)}</div>
-            <div class="data-table-cell col-last-active t-muted">${escHtml(cl.lastActive !== undefined ? (cl.lastActive ? timeAgo(cl.lastActive) : '—') : '…')}</div>
-          </button>
-        `).join('')}
-      `;
+      : this.clientsView.html();
 
     // Brand / logo section
     // Preview box is sized for horizontal logos up to 200×56 (the iPad app
@@ -402,7 +401,7 @@ const CompaniesPage = {
 
         <div class="card">
           <div class="card-title">Clients</div>
-          <div class="data-table">${clientsMarkup}</div>
+          <div id="companyClientsList">${clientsMarkup}</div>
         </div>
 
       </div>
