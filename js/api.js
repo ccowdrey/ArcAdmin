@@ -254,6 +254,78 @@ async function supaInvite(email, metadata = {}) {
   return data;
 }
 
+// ── MFA (TOTP) ──
+// Builder-portal admins must reach AAL2 (password + authenticator code).
+// The database enforces this too (see supabase/migration_admin_mfa.sql), so
+// a stolen password alone can't read client data even by calling the REST
+// API directly.
+
+async function supaAuthRequest(path, method = 'GET', body) {
+  const res = await withAuthRetry(() => fetch(`${SUPA_URL}/auth/v1/${path}`, {
+    method,
+    headers: {
+      apikey: SUPA_KEY,
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  }));
+  const text = await res.text();
+  let data = null;
+  try { data = text ? JSON.parse(text) : null; } catch (e) {}
+  if (!res.ok) {
+    throw new Error(data?.msg || data?.message || data?.error_description || `Auth error (HTTP ${res.status})`);
+  }
+  return data;
+}
+
+// Current session's assurance level from the JWT: 'aal1' or 'aal2'.
+function currentAal() {
+  const payload = parseJwt(token);
+  return payload?.aal || 'aal1';
+}
+
+function parseJwt(jwt) {
+  try {
+    const part = jwt.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    return JSON.parse(atob(part + '='.repeat((4 - part.length % 4) % 4)));
+  } catch (e) {
+    return null;
+  }
+}
+
+async function mfaListTotpFactors() {
+  const user = await supaAuthRequest('user');
+  return (user?.factors || []).filter(f => f.factor_type === 'totp');
+}
+
+async function mfaEnrollTotp() {
+  return supaAuthRequest('factors', 'POST', {
+    factor_type: 'totp',
+    friendly_name: `ArcNode Admin ${new Date().toISOString().slice(0, 10)}`,
+    issuer: 'ArcNode Admin',
+  });
+}
+
+async function mfaUnenroll(factorId) {
+  return supaAuthRequest(`factors/${factorId}`, 'DELETE');
+}
+
+// Challenge + verify in one step. On success the session is upgraded to
+// AAL2 and the new tokens are persisted.
+async function mfaChallengeAndVerify(factorId, code) {
+  const challenge = await supaAuthRequest(`factors/${factorId}/challenge`, 'POST', {});
+  const data = await supaAuthRequest(`factors/${factorId}/verify`, 'POST', {
+    challenge_id: challenge.id,
+    code,
+  });
+  if (!data?.access_token) throw new Error('Verification failed.');
+  token = data.access_token;
+  refreshToken = data.refresh_token || refreshToken;
+  saveSession();
+  return data;
+}
+
 // ── Background refresh timer ──
 // Refresh every 45 minutes to stay well ahead of the 60-minute expiry.
 // This keeps long-open tabs alive without needing a 401 retry to trigger.
@@ -285,6 +357,11 @@ window.supaDelete = supaDelete;
 window.supaLogin = supaLogin;
 window.supaSignup = supaSignup;
 window.supaInvite = supaInvite;
+window.currentAal = currentAal;
+window.mfaListTotpFactors = mfaListTotpFactors;
+window.mfaEnrollTotp = mfaEnrollTotp;
+window.mfaUnenroll = mfaUnenroll;
+window.mfaChallengeAndVerify = mfaChallengeAndVerify;
 window.loadSession = loadSession;
 window.clearSession = clearSession;
 window.saveSession = saveSession;

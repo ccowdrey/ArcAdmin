@@ -73,6 +73,37 @@
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- TWO-FACTOR PAGE (authenticator app — enroll on first use, then verify)   -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="login-wrap hidden" id="mfaPage">
+  <div class="login-box">
+    <div class="login-title">
+      <img src="/assets/logo.svg" alt="ArcAdmin" class="login-logo">
+      <div class="sub" id="mfaSubtitle">Enter the 6-digit code from your authenticator app</div>
+    </div>
+    <div class="error-box hidden" id="mfaError"></div>
+    <div class="hidden" id="mfaEnroll" style="text-align:center;margin-bottom:16px">
+      <p style="font-size:13px;color:var(--text-secondary);margin:0 0 12px">
+        Two-factor authentication is required for the builder portal. Scan this code with
+        Google Authenticator, 1Password, Authy, or a similar app.
+      </p>
+      <img id="mfaQr" alt="Authenticator QR code" style="width:180px;height:180px;background:#fff;padding:8px;border-radius:8px">
+      <p style="font-size:12px;color:var(--text-secondary);margin:12px 0 0;word-break:break-all">
+        Can't scan? Enter this key: <code id="mfaSecret"></code>
+      </p>
+    </div>
+    <div class="field">
+      <label for="mfaCode">Authentication code</label>
+      <input type="text" id="mfaCode" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="123456" autocomplete="one-time-code">
+    </div>
+    <button class="btn btn-primary" style="width:100%" id="mfaBtn" onclick="Auth.verifyMfa()">Verify</button>
+    <div style="text-align:center;margin-top:16px">
+      <a href="#" style="color:var(--text-secondary);font-size:13px" onclick="Auth.signout();return false">Use a different account</a>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
 <!-- APP SHELL                                                                -->
 <!-- ═══════════════════════════════════════════════════════════════════════ -->
 <div class="app-shell hidden" id="appShell">

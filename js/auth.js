@@ -18,6 +18,8 @@ const Auth = {
   _lockedUntil: 0,
   _userEmail: null,
   _userName: null,
+  _mfaFactorId: null,
+  _mfaFailures: 0,
 
   // ── Entry point from the login button ──
   async login() {
@@ -53,45 +55,10 @@ const Auth = {
     this._lastLoginAttempt = now;
 
     try {
-      const data = await supaLogin(email, password);
+      await supaLogin(email, password);
       // supaLogin now also stashes the refresh_token automatically
       this._loginAttempts = 0;
       this._userEmail = email;
-
-      const userId = data.user.id;
-
-      // Fetch profile — needed for name and admin flag
-      const profile = await supa(`profiles?id=eq.${userId}&select=is_admin,email,first_name,last_name`);
-      const p = profile[0] || {};
-      const fullName = [p.first_name, p.last_name].filter(Boolean).join(' ').trim();
-      this._userName = fullName || email;
-
-      // Check super admin
-      if (p.is_admin) {
-        userRole = 'super_admin';
-        this._startSessionTimers();
-        this._enterApp('super_admin');
-        return;
-      }
-
-      // Check company admin
-      const ca = await supa(`company_admins?user_id=eq.${userId}&select=company_id,role`);
-      if (ca.length > 0) {
-        userRole = 'company_admin';
-        userCompanyId = ca[0].company_id;
-
-        const companies = await supa(`companies?id=eq.${userCompanyId}&select=name`);
-        userCompanyName = companies[0]?.name || 'Company';
-        Router.registerSlug(userCompanyId, userCompanyName);
-
-        this._startSessionTimers();
-        this._enterApp('company_admin');
-        return;
-      }
-
-      // Not an admin
-      clearSession();
-      throw new Error('Access denied. You must be an admin to use this dashboard.');
     } catch (e) {
       this._loginAttempts++;
       if (this._loginAttempts >= MAX_LOGIN_ATTEMPTS) {
@@ -100,6 +67,136 @@ const Auth = {
       }
       throw e;
     }
+
+    // Password alone is not enough — every portal session must pass a
+    // second factor before any company/client data is loaded.
+    await this.beginMfa();
+  },
+
+  // ── Two-factor (TOTP) step ──
+  // Shows the MFA page. Users with a verified authenticator get a code
+  // prompt; users without one are enrolled (QR code) first. Also used by
+  // app.js when a stored session is still AAL1 (e.g. right after an invitee
+  // sets their password).
+  async beginMfa() {
+    if (currentAal() === 'aal2') {
+      await this._finishLogin();
+      return;
+    }
+
+    document.getElementById('loginPage').classList.add('hidden');
+    const setPw = document.getElementById('setPasswordPage');
+    if (setPw) setPw.classList.add('hidden');
+    document.getElementById('appShell').classList.add('hidden');
+    document.getElementById('mfaPage').classList.remove('hidden');
+
+    const errBox = document.getElementById('mfaError');
+    const enrollBox = document.getElementById('mfaEnroll');
+    const subtitle = document.getElementById('mfaSubtitle');
+    errBox.classList.add('hidden');
+    enrollBox.classList.add('hidden');
+    document.getElementById('mfaCode').value = '';
+    this._mfaFailures = 0;
+
+    try {
+      const factors = await mfaListTotpFactors();
+      const verified = factors.find(f => f.status === 'verified');
+      if (verified) {
+        this._mfaFactorId = verified.id;
+        subtitle.textContent = 'Enter the 6-digit code from your authenticator app';
+      } else {
+        // Clear abandoned enrollments so the new one doesn't collide.
+        for (const f of factors) {
+          await mfaUnenroll(f.id).catch(() => {});
+        }
+        const enrolled = await mfaEnrollTotp();
+        this._mfaFactorId = enrolled.id;
+        document.getElementById('mfaQr').src = enrolled.totp.qr_code;
+        document.getElementById('mfaSecret').textContent = enrolled.totp.secret;
+        enrollBox.classList.remove('hidden');
+        subtitle.textContent = 'Set up two-factor authentication';
+      }
+      document.getElementById('mfaCode').focus();
+    } catch (e) {
+      errBox.textContent = e.message || 'Could not start two-factor sign-in.';
+      errBox.classList.remove('hidden');
+    }
+  },
+
+  async verifyMfa() {
+    const errBox = document.getElementById('mfaError');
+    const code = document.getElementById('mfaCode').value.replace(/\s/g, '');
+    errBox.classList.add('hidden');
+
+    if (!/^\d{6}$/.test(code)) {
+      errBox.textContent = 'Enter the 6-digit code.';
+      errBox.classList.remove('hidden');
+      return;
+    }
+    if (!this._mfaFactorId) {
+      errBox.textContent = 'Two-factor setup did not load. Sign in again.';
+      errBox.classList.remove('hidden');
+      return;
+    }
+
+    const btn = document.getElementById('mfaBtn');
+    btn.disabled = true;
+    try {
+      await mfaChallengeAndVerify(this._mfaFactorId, code);
+      this._mfaFactorId = null;
+      await this._finishLogin();
+    } catch (e) {
+      this._mfaFailures = (this._mfaFailures || 0) + 1;
+      if (this._mfaFailures >= MAX_LOGIN_ATTEMPTS) {
+        // Too many bad codes — throw away the password session entirely.
+        this.signout();
+        return;
+      }
+      errBox.textContent = e.message || 'Invalid code.';
+      errBox.classList.remove('hidden');
+    } finally {
+      btn.disabled = false;
+    }
+  },
+
+  // Runs once the session is AAL2: derive role, then enter the app.
+  async _finishLogin() {
+    const userId = parseJwt(token)?.sub;
+    if (!userId) throw new Error('Session is invalid. Sign in again.');
+
+    // Fetch profile — needed for name and admin flag
+    const profile = await supa(`profiles?id=eq.${userId}&select=is_admin,email,first_name,last_name`);
+    const p = profile[0] || {};
+    if (!this._userEmail) this._userEmail = p.email || parseJwt(token)?.email || '';
+    const fullName = [p.first_name, p.last_name].filter(Boolean).join(' ').trim();
+    this._userName = fullName || this._userEmail;
+
+    // Check super admin
+    if (p.is_admin) {
+      userRole = 'super_admin';
+      this._startSessionTimers();
+      this._enterApp('super_admin');
+      return;
+    }
+
+    // Check company admin
+    const ca = await supa(`company_admins?user_id=eq.${userId}&select=company_id,role`);
+    if (ca.length > 0) {
+      userRole = 'company_admin';
+      userCompanyId = ca[0].company_id;
+
+      const companies = await supa(`companies?id=eq.${userCompanyId}&select=name`);
+      userCompanyName = companies[0]?.name || 'Company';
+      Router.registerSlug(userCompanyId, userCompanyName);
+
+      this._startSessionTimers();
+      this._enterApp('company_admin');
+      return;
+    }
+
+    // Not an admin
+    clearSession();
+    throw new Error('Access denied. You must be an admin to use this dashboard.');
   },
 
   _enterApp(role) {
@@ -112,6 +209,7 @@ const Auth = {
     document.getElementById('loginPage').classList.add('hidden');
     const setPw = document.getElementById('setPasswordPage');
     if (setPw) setPw.classList.add('hidden');
+    document.getElementById('mfaPage').classList.add('hidden');
     document.getElementById('appShell').classList.remove('hidden');
 
     // Turn on proactive 45-minute refresh
@@ -173,6 +271,15 @@ const Auth = {
   signout() {
     this._clearTimers();
     if (typeof stopBackgroundRefresh === 'function') stopBackgroundRefresh();
+    // Revoke the session server-side so a copied refresh token stops working.
+    // keepalive lets the request finish across the reload below.
+    if (token) {
+      fetch(`${SUPA_URL}/auth/v1/logout`, {
+        method: 'POST',
+        headers: { apikey: SUPA_KEY, Authorization: `Bearer ${token}` },
+        keepalive: true,
+      }).catch(() => {});
+    }
     clearSession();
     this._userEmail = null;
     this._userName = null;
@@ -315,6 +422,9 @@ const Auth = {
     };
     if (spwNew) spwNew.addEventListener('keydown', triggerSetPw);
     if (spwConfirm) spwConfirm.addEventListener('keydown', triggerSetPw);
+
+    const mfaCode = document.getElementById('mfaCode');
+    if (mfaCode) mfaCode.addEventListener('keydown', (e) => { if (e.key === 'Enter') this.verifyMfa(); });
   },
 };
 
