@@ -23,12 +23,37 @@ const CompaniesPage = {
     sortKey: 'name',
     noun: 'client',
     rowHtml: (u) => clientRowHtml(u, `/companies/${Router.getSlug(CompaniesPage.companyId)}/clients/${Router.getSlug(u.id)}`),
-    // Re-render just the clients card, not the whole overview tab.
-    onChange: () => {
-      const el = document.getElementById('companyClientsList');
-      if (el) el.innerHTML = CompaniesPage.clientsView.html();
-    },
+    // Re-render just the clients list, not the whole overview tab.
+    onChange: () => CompaniesPage._renderClientsList(),
   }),
+  _clientsQuery: '',
+
+  filterClients(q) {
+    this._clientsQuery = q || '';
+    this.clientsView.setRows(this._filteredClients());
+    this._renderClientsList();
+  },
+
+  _filteredClients() {
+    const q = this._clientsQuery.trim().toLowerCase();
+    if (!q) return this.clients;
+    return this.clients.filter((u) =>
+      u.displayName.toLowerCase().includes(q) ||
+      (u.email || '').toLowerCase().includes(q) ||
+      (u.vehicleLabel || '').toLowerCase().includes(q)
+    );
+  },
+
+  _clientsListMarkup() {
+    if (this.clients.length === 0) return '<div class="t-muted t-detail">No clients yet.</div>';
+    if (this.clientsView.rows.length === 0) return '<div class="t-muted t-detail">No clients match your search.</div>';
+    return this.clientsView.html();
+  },
+
+  _renderClientsList() {
+    const el = document.getElementById('companyClientsList');
+    if (el) el.innerHTML = this._clientsListMarkup();
+  },
 
   // ── Detail state ──
   companyId: null,
@@ -214,6 +239,7 @@ const CompaniesPage = {
         })
       );
       this.clients = enrichedClients;
+      this._clientsQuery = '';
       this.clientsView.setRows(enrichedClients);
 
       // Enrich admins
@@ -244,7 +270,11 @@ const CompaniesPage = {
       const clients = this.clients;
       const lastActive = await fetchLastActive(clients);
       clients.forEach((cl) => { cl.lastActive = lastActive.get(cl.id) || null; });
-      if (clients === this.clients) this._renderTab();
+      if (clients === this.clients) {
+        // Refresh only the list so a search in progress keeps focus.
+        this.clientsView.setRows(this._filteredClients(), { keepPage: true });
+        this._renderClientsList();
+      }
     } catch (e) {
       console.error('Company detail load failed:', e);
       if (contentEl) contentEl.innerHTML = `<div class="data-empty">Failed to load — ${escHtml(e.message || '')}</div>`;
@@ -303,10 +333,8 @@ const CompaniesPage = {
           </div>
         `).join('');
 
-    this.clientsView.setRows(this.clients, { keepPage: true });
-    const clientsMarkup = this.clients.length === 0
-      ? '<div class="t-muted t-detail">No clients yet.</div>'
-      : this.clientsView.html();
+    this.clientsView.setRows(this._filteredClients(), { keepPage: true });
+    const clientsMarkup = this._clientsListMarkup();
 
     // Brand / logo section
     // Preview box is sized for horizontal logos up to 200×56 (the iPad app
@@ -401,6 +429,18 @@ const CompaniesPage = {
 
         <div class="card">
           <div class="card-title">Clients</div>
+          ${this.clients.length > 0 ? `
+            <div class="search-input" style="margin-bottom:16px">
+              <input type="text" id="companyClientsSearch" placeholder="Search by name, email, or vehicle"
+                value="${escHtml(this._clientsQuery)}" oninput="CompaniesPage.filterClients(this.value)">
+              <div class="search-input-icon">
+                <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="11" cy="11" r="8"/>
+                  <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                </svg>
+              </div>
+            </div>
+          ` : ''}
           <div id="companyClientsList">${clientsMarkup}</div>
         </div>
 
