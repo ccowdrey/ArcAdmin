@@ -15,6 +15,19 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+// Reads the `aal` claim from the caller's JWT. Only call after
+// auth.getUser() has validated the token with the auth server.
+function jwtAal(authHeader: string): string {
+  try {
+    const part = authHeader.replace(/^Bearer\s+/i, "").split(".")[1]
+      .replace(/-/g, "+").replace(/_/g, "/");
+    const padded = part + "=".repeat((4 - (part.length % 4)) % 4);
+    return JSON.parse(atob(padded)).aal ?? "aal1";
+  } catch {
+    return "aal1";
+  }
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -31,9 +44,63 @@ serve(async (req) => {
       );
     }
 
-    // Create admin client with service_role key (from secrets)
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SERVICE_ROLE_KEY")!;
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+
+    // Only signed-in admins with a two-factor (AAL2) session may invite.
+    // Without this, anyone holding the public anon key could create accounts.
+    const authHeader = req.headers.get("authorization");
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const callerClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } },
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+
+    const { data: callerData, error: callerError } = await callerClient.auth.getUser();
+    if (callerError || !callerData.user) {
+      return new Response(
+        JSON.stringify({ error: "Invalid token" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (jwtAal(authHeader) !== "aal2") {
+      return new Response(
+        JSON.stringify({ error: "Two-factor authentication required" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const { data: callerProfile } = await callerClient
+      .from("profiles")
+      .select("is_admin")
+      .eq("id", callerData.user.id)
+      .single();
+
+    const { data: companyAdmin } = await callerClient
+      .from("company_admins")
+      .select("role")
+      .eq("user_id", callerData.user.id)
+      .limit(1);
+
+    const isSuper = callerProfile?.is_admin === true;
+    const isCompanyAdmin = companyAdmin && companyAdmin.length > 0;
+
+    if (!isSuper && !isCompanyAdmin) {
+      return new Response(
+        JSON.stringify({ error: "Admin access required" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Create admin client with service_role key (from secrets)
 
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
       auth: {

@@ -15,6 +15,19 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+// Reads the `aal` claim from the caller's JWT. Only call after
+// auth.getUser() has validated the token with the auth server.
+function jwtAal(authHeader: string): string {
+  try {
+    const part = authHeader.replace(/^Bearer\s+/i, "").split(".")[1]
+      .replace(/-/g, "+").replace(/_/g, "/");
+    const padded = part + "=".repeat((4 - (part.length % 4)) % 4);
+    return JSON.parse(atob(padded)).aal ?? "aal1";
+  } catch {
+    return "aal1";
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -77,6 +90,14 @@ serve(async (req) => {
     if (!isSuper && !isCompanyAdmin) {
       return new Response(
         JSON.stringify({ error: "Admin access required" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Admin actions require a session that passed two-factor (AAL2).
+    if (jwtAal(authHeader) !== "aal2") {
+      return new Response(
+        JSON.stringify({ error: "Two-factor authentication required" }),
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }

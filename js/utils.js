@@ -31,6 +31,36 @@ function timeAgo(dateStr) {
   return `${days}d ago`;
 }
 
+// Newest of a set of ISO timestamps (ignores null/blank).
+function maxTimestamp(values) {
+  const valid = (values || []).filter(Boolean);
+  if (!valid.length) return null;
+  return valid.reduce((newest, t) =>
+    (new Date(t).getTime() > new Date(newest).getTime() ? t : newest)
+  );
+}
+
+// "Last active" per user, using the same signals as the client detail page:
+// newest of last login, latest telemetry log, latest device-control action.
+// `users` is [{ id, lastLogin }]. Returns Map(userId → ISO timestamp | null).
+// Two limit=1 lookups per user, run a few at a time to avoid a request burst.
+async function fetchLastActive(users, concurrency = 6) {
+  const result = new Map();
+  const queue = [...users];
+  const worker = async () => {
+    while (queue.length) {
+      const u = queue.shift();
+      const [log, devLog] = await Promise.all([
+        supa(`system_logs?user_id=eq.${u.id}&order=logged_at.desc&limit=1&select=logged_at`).catch(() => []),
+        supa(`device_control_logs?user_id=eq.${u.id}&order=created_at.desc&limit=1&select=created_at`).catch(() => []),
+      ]);
+      result.set(u.id, maxTimestamp([u.lastLogin, log[0]?.logged_at, devLog[0]?.created_at]));
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(concurrency, queue.length) }, worker));
+  return result;
+}
+
 // Returns a badge element. Matches CSS in arcadmin.css (.badge + modifier).
 // Known tiers: explorer, base_camp, base, launching, pro (future).
 function tierBadge(tier) {
@@ -132,6 +162,8 @@ window.formatDate = formatDate;
 window.formatTime = formatTime;
 window.formatDateTime = formatDateTime;
 window.timeAgo = timeAgo;
+window.maxTimestamp = maxTimestamp;
+window.fetchLastActive = fetchLastActive;
 window.tierBadge = tierBadge;
 window.infoRow = infoRow;
 window.localDate = localDate;

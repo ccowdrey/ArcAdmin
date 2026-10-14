@@ -224,6 +224,12 @@ const CompaniesPage = {
       if (emailEl) emailEl.textContent = this.company.billing_email || ownerAdmin?.email || '';
 
       this._renderTab();
+
+      // Fill "Last active" with the same signals as the client detail page.
+      const clients = this.clients;
+      const lastActive = await fetchLastActive(clients);
+      clients.forEach((cl) => { cl.lastActive = lastActive.get(cl.id) || null; });
+      if (clients === this.clients) this._renderTab();
     } catch (e) {
       console.error('Company detail load failed:', e);
       if (contentEl) contentEl.innerHTML = `<div class="data-empty">Failed to load — ${escHtml(e.message || '')}</div>`;
@@ -298,7 +304,7 @@ const CompaniesPage = {
             <div class="data-table-cell col-email t-muted">${escHtml(cl.email || '')}</div>
             <div class="data-table-cell col-vehicle t-muted">${escHtml(cl.vehicleLabel || '—')}</div>
             <div class="data-table-cell col-tier">${tierBadge(cl.tier)}</div>
-            <div class="data-table-cell col-last-active t-muted">${escHtml(cl.lastLogin ? timeAgo(cl.lastLogin) : '—')}</div>
+            <div class="data-table-cell col-last-active t-muted">${escHtml(cl.lastActive !== undefined ? (cl.lastActive ? timeAgo(cl.lastActive) : '—') : '…')}</div>
           </button>
         `).join('')}
       `;

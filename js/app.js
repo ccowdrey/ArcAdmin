@@ -182,6 +182,13 @@ async function bootstrapFromStoredSession() {
     }
     const userId = payload.sub;
 
+    // Password-only session (e.g. invitee who just set a password, or a
+    // reload mid-login) — finish the two-factor step before loading anything.
+    if (payload.aal !== 'aal2') {
+      await Auth.beginMfa();
+      return;
+    }
+
     const profile = await supa(`profiles?id=eq.${userId}&select=is_admin,email,first_name,last_name`);
     const p = profile[0] || {};
     const fullName = [p.first_name, p.last_name].filter(Boolean).join(' ').trim();
