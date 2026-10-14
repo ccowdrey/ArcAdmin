@@ -61,6 +61,154 @@ async function fetchLastActive(users, concurrency = 6) {
   return result;
 }
 
+// ── Sortable, paginated list (data-table card rows) ──
+// Shared by the Clients page, the dashboard lists and the company client
+// list. `ref` is the global expression for this instance (used in inline
+// onclick handlers), e.g. 'ClientsPage.listView'.
+//   columns: [{ key, label, cls, sortValue(row) }]   (sortValue → string | number | null)
+//   rowHtml(row): markup for one row
+//   onChange(): owner re-renders (call view.html() again)
+class ListView {
+  constructor({ ref, columns, rowHtml, onChange, perPage = 25, sortKey, sortDir = 'asc', noun = 'item', nounPlural }) {
+    Object.assign(this, { ref, columns, rowHtml, onChange, perPage, sortKey, sortDir, noun });
+    this.nounPlural = nounPlural || `${noun}s`;
+    this.rows = [];
+    this.page = 1;
+  }
+
+  setRows(rows, { keepPage = false } = {}) {
+    this.rows = [...rows];
+    if (!keepPage) this.page = 1;
+    this._sort();
+  }
+
+  sortBy(key) {
+    if (this.sortKey === key) {
+      this.sortDir = this.sortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+      this.sortKey = key;
+      const col = this.columns.find((c) => c.key === key);
+      this.sortDir = col?.defaultDir || 'asc';
+    }
+    this.page = 1;
+    this._sort();
+    this.onChange();
+  }
+
+  goToPage(page) {
+    this.page = Math.max(1, Math.min(this._totalPages(), page));
+    this.onChange();
+  }
+
+  _totalPages() {
+    return Math.max(1, Math.ceil(this.rows.length / this.perPage));
+  }
+
+  _sort() {
+    const col = this.columns.find((c) => c.key === this.sortKey);
+    if (!col?.sortValue) return;
+    const dir = this.sortDir === 'asc' ? 1 : -1;
+    const tie = this.columns[0].sortValue;
+    this.rows.sort((a, b) => {
+      const va = col.sortValue(a);
+      const vb = col.sortValue(b);
+      // Blanks (no vehicle, never active) sink to the bottom either way.
+      const blankA = va === null || va === undefined || va === '';
+      const blankB = vb === null || vb === undefined || vb === '';
+      if (blankA !== blankB) return blankA ? 1 : -1;
+      if (va < vb) return -dir;
+      if (va > vb) return dir;
+      const ta = tie(a), tb = tie(b);
+      return ta < tb ? -1 : ta > tb ? 1 : 0;
+    });
+  }
+
+  html() {
+    const total = this.rows.length;
+    const totalPages = this._totalPages();
+    const page = Math.min(Math.max(1, this.page), totalPages);
+    const startIdx = (page - 1) * this.perPage;
+    const endIdx = Math.min(startIdx + this.perPage, total);
+
+    const header = (c) => {
+      if (!c.sortValue) return `<div class="data-table-header ${c.cls}">${c.label}</div>`;
+      const active = this.sortKey === c.key;
+      const arrow = active ? (this.sortDir === 'asc' ? ' ▲' : ' ▼') : '';
+      return `<div class="data-table-header ${c.cls}" role="button" tabindex="0" style="cursor:pointer;user-select:none"
+        aria-sort="${active ? (this.sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}"
+        onclick="${this.ref}.sortBy('${c.key}')"
+        onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();${this.ref}.sortBy('${c.key}')}">${c.label}${arrow}</div>`;
+    };
+
+    const btn = (p) => `<button class="btn ${p === page ? 'btn-primary' : 'btn-ghost'} btn-sm" onclick="${this.ref}.goToPage(${p})" style="min-width:32px;padding:4px 8px">${p}</button>`;
+    const pagination = totalPages > 1 ? `
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:16px;flex-wrap:wrap">
+        <span class="t-muted t-detail">Showing ${(startIdx + 1).toLocaleString()}–${endIdx.toLocaleString()} of ${total.toLocaleString()}</span>
+        <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
+          <button class="btn btn-ghost btn-sm" onclick="${this.ref}.goToPage(1)" ${page === 1 ? 'disabled' : ''} title="First">«</button>
+          <button class="btn btn-ghost btn-sm" onclick="${this.ref}.goToPage(${page - 1})" ${page === 1 ? 'disabled' : ''}>‹</button>
+          ${pageNumberButtons(page, totalPages, btn)}
+          <button class="btn btn-ghost btn-sm" onclick="${this.ref}.goToPage(${page + 1})" ${page === totalPages ? 'disabled' : ''}>›</button>
+          <button class="btn btn-ghost btn-sm" onclick="${this.ref}.goToPage(${totalPages})" ${page === totalPages ? 'disabled' : ''} title="Last">»</button>
+        </div>
+      </div>
+    ` : `<div class="t-muted t-detail" style="margin-top:12px">${total.toLocaleString()} ${total === 1 ? this.noun : this.nounPlural}</div>`;
+
+    return `
+      <div class="data-table">
+        <div class="data-table-headers">${this.columns.map(header).join('')}</div>
+        ${this.rows.slice(startIdx, endIdx).map(this.rowHtml).join('')}
+      </div>
+      ${pagination}
+    `;
+  }
+}
+
+// Numbered page buttons with ellipses (same pattern as the telemetry log pager).
+function pageNumberButtons(current, total, btn) {
+  const ellipsis = `<span class="t-muted" style="padding:0 4px">…</span>`;
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1).map(btn).join('');
+  const pages = [...new Set([1, 2, current - 1, current, current + 1, total - 1, total])]
+    .filter((p) => p >= 1 && p <= total).sort((a, b) => a - b);
+  let html = '';
+  let prev = 0;
+  for (const p of pages) {
+    if (p - prev > 1) html += ellipsis;
+    html += btn(p);
+    prev = p;
+  }
+  return html;
+}
+
+// Column sort helpers shared by the client lists.
+const sortText = (s) => (s || '').toLowerCase();
+const sortTime = (t) => (t ? new Date(t).getTime() : null);
+const lastActiveLabel = (row) =>
+  row.lastActive !== undefined ? (row.lastActive ? timeAgo(row.lastActive) : '—') : '…';
+
+// Shared column set + row markup for client lists (Clients page, dashboard
+// All Users tab, company detail page).
+const CLIENT_COLUMNS = [
+  { key: 'name',       label: 'Name',        cls: 'col-name',        sortValue: (u) => sortText(u.displayName) },
+  { key: 'email',      label: 'Email',       cls: 'col-email',       sortValue: (u) => sortText(u.email) },
+  { key: 'vehicle',    label: 'Vehicle',     cls: 'col-vehicle',     sortValue: (u) => sortText(u.vehicleLabel) },
+  { key: 'tier',       label: 'Tier',        cls: 'col-tier',        sortValue: (u) => sortText(u.tier) },
+  // Most-recent-first is the useful first click for activity.
+  { key: 'lastActive', label: 'Last active', cls: 'col-last-active', sortValue: (u) => sortTime(u.lastActive), defaultDir: 'desc' },
+];
+
+function clientRowHtml(u, href) {
+  return `
+    <button class="data-table-row" onclick="Router.navigate('${escHtml(href)}')">
+      <div class="data-table-cell data-table-cell--bold data-table-cell--primary col-name">${escHtml(u.displayName)}</div>
+      <div class="data-table-cell col-email t-muted" data-label="Email">${escHtml(u.email || '')}</div>
+      <div class="data-table-cell col-vehicle t-muted" data-label="Vehicle">${escHtml(u.vehicleLabel || '—')}</div>
+      <div class="data-table-cell col-tier" data-label="Tier">${tierBadge(u.tier)}</div>
+      <div class="data-table-cell col-last-active t-muted" data-label="Last active">${escHtml(lastActiveLabel(u))}</div>
+    </button>
+  `;
+}
+
 // Returns a badge element. Matches CSS in arcadmin.css (.badge + modifier).
 // Known tiers: explorer, base_camp, base, launching, pro (future).
 function tierBadge(tier) {
@@ -164,6 +312,12 @@ window.formatDateTime = formatDateTime;
 window.timeAgo = timeAgo;
 window.maxTimestamp = maxTimestamp;
 window.fetchLastActive = fetchLastActive;
+window.ListView = ListView;
+window.sortText = sortText;
+window.sortTime = sortTime;
+window.lastActiveLabel = lastActiveLabel;
+window.CLIENT_COLUMNS = CLIENT_COLUMNS;
+window.clientRowHtml = clientRowHtml;
 window.tierBadge = tierBadge;
 window.infoRow = infoRow;
 window.localDate = localDate;
