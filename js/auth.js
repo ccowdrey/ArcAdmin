@@ -111,7 +111,7 @@ const Auth = {
         }
         const enrolled = await mfaEnrollTotp();
         this._mfaFactorId = enrolled.id;
-        document.getElementById('mfaQr').src = enrolled.totp.qr_code;
+        document.getElementById('mfaQr').src = this._qrDataUri(enrolled.totp.qr_code);
         document.getElementById('mfaSecret').textContent = enrolled.totp.secret;
         enrollBox.classList.remove('hidden');
         subtitle.textContent = 'Set up two-factor authentication';
@@ -121,6 +121,19 @@ const Auth = {
       errBox.textContent = e.message || 'Could not start two-factor sign-in.';
       errBox.classList.remove('hidden');
     }
+  },
+
+  // Supabase returns the QR as `data:img/svg+xml;utf-8,<svg ...>`: wrong
+  // MIME type and raw, un-escaped SVG (its `#` colors cut the URI short), so
+  // <img> renders it as broken. Re-wrap the SVG markup as a valid data URI.
+  _qrDataUri(qr) {
+    if (!qr) return '';
+    const comma = qr.indexOf(',');
+    let svg = comma >= 0 && qr.startsWith('data:') ? qr.slice(comma + 1) : qr;
+    if (!svg.trimStart().startsWith('<')) {
+      try { svg = decodeURIComponent(svg); } catch (e) {}
+    }
+    return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
   },
 
   async verifyMfa() {
