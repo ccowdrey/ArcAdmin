@@ -626,6 +626,9 @@ const BuildLinesPage = {
     if (pa.instance != null && pa.instance !== '') s += ` · inst ${pa.instance}`;
     if (pa.channel != null && pa.channel !== '') s += ` · ch ${pa.channel}`;
     if (pa.role) s += ` · ${pa.role}`;
+    if (Array.isArray(pa.units) && pa.units.length) {
+      s += ` · ${pa.units.map((u) => u.label).join(' / ')}`;
+    }
     return s;
   },
 
@@ -708,11 +711,30 @@ const BuildLinesPage = {
     document.getElementById('portAssignmentRole').value = pa.role || '';
     document.getElementById('portAssignmentNotes').value = pa.notes || '';
 
+    // Per-fan labels (MaxxAir only): port_assignment.units = [{instance, label}].
+    const isFan = this._isMaxxFan(device);
+    const fanWrap = document.getElementById('portAssignmentFanLabelsWrap');
+    if (fanWrap) fanWrap.style.display = isFan ? '' : 'none';
+    const units = Array.isArray(pa.units) ? pa.units : [];
+    for (let i = 1; i <= 4; i++) {
+      const el = document.getElementById(`portAssignmentFanLabel${i}`);
+      if (el) el.value = units.find((u) => u && u.instance === i)?.label || '';
+    }
+
     const errEl = document.getElementById('portAssignmentError');
     if (errEl) errEl.classList.add('hidden');
 
     this._togglePortFields();
     openModal('portAssignmentModal');
+  },
+
+  // MaxxAir / MaxxFan roof fans can be installed more than once per van
+  // (one per RV-C instance), so they get per-fan labels.
+  _isMaxxFan(device) {
+    if (!device) return false;
+    const key = (device.device_key || '').toLowerCase();
+    const name = (device.device_name || '').toLowerCase();
+    return key === 'maxxfan' || name.includes('maxxair') || name.includes('maxxfan');
   },
 
   // Hide irrelevant fields based on the chosen port. VE.CAN ports use
@@ -746,6 +768,18 @@ const BuildLinesPage = {
       role,
       notes,
     };
+
+    // Per-fan labels → units [{instance, label}] (MaxxAir only). The iPad uses
+    // these as default fan names; a label set on the vehicle itself wins.
+    const device = this._catalog.find((d) => d.id === deviceCatalogId);
+    if (this._isMaxxFan(device)) {
+      const units = [];
+      for (let i = 1; i <= 4; i++) {
+        const label = document.getElementById(`portAssignmentFanLabel${i}`)?.value.trim();
+        if (label) units.push({ instance: i, label });
+      }
+      portAssignment.units = units.length ? units : null;
+    }
 
     // Validation:
     if (port === 'vecan0' || port === 'vecan1') {
