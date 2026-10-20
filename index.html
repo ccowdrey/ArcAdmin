@@ -625,6 +625,17 @@
         <div class="t-muted t-detail" style="margin-top:4px">Optional human label shown in the device tab.</div>
       </div>
 
+      <div class="field" id="portAssignmentFanLabelsWrap" style="display:none">
+        <label>Fan labels (optional)</label>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px">
+          <input id="portAssignmentFanLabel1" placeholder="Fan 1 — e.g. Galley">
+          <input id="portAssignmentFanLabel2" placeholder="Fan 2 — e.g. Bedroom">
+          <input id="portAssignmentFanLabel3" placeholder="Fan 3">
+          <input id="portAssignmentFanLabel4" placeholder="Fan 4">
+        </div>
+        <div class="t-muted t-detail" style="margin-top:4px">For builds with more than one MaxxAir fan. Fan N is the fan set to RV-C instance N on its controller — each fan needs its own instance. ArcNode finds every fan on the Cerbo and shows these names to the customer. Leave blank for the default name. Can be changed per vehicle in Builder Mode on the iPad.</div>
+      </div>
+
       <div class="field">
         <label>Notes (optional)</label>
         <input id="portAssignmentNotes" placeholder="e.g. CMD1 + CMD2 lid sequence required">
