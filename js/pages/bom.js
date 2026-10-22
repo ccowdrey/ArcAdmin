@@ -498,21 +498,19 @@ const BomPage = {
     });
   },
 
-  // Rasterizes the ArcNode mark to a PNG data URL (jsPDF can't embed SVG).
-  // The "ArcNode" wordmark is set as text next to it in _buildPdf.
+  // Loads the ArcNode logo as a PNG data URL for jsPDF.
   _logoPng() {
     return new Promise((resolve) => {
       const img = new Image();
       img.onload = () => {
-        const scale = 8;
         const canvas = document.createElement('canvas');
-        canvas.width = (img.naturalWidth || 42) * scale;
-        canvas.height = (img.naturalHeight || 26) * scale;
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
         canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
         resolve({ data: canvas.toDataURL('image/png'), ratio: canvas.height / canvas.width });
       };
       img.onerror = () => resolve(null);
-      img.src = '/assets/arcnode-mark.svg';
+      img.src = '/assets/arcnode-logo.png';
     });
   },
 
@@ -548,14 +546,13 @@ const BomPage = {
     // Brand bar + header
     doc.setFillColor(...BOM_BRAND_RGB);
     doc.rect(0, 0, W, 6, 'F');
-    let wordX = M;
     if (logo) {
-      const lw = 40;
-      doc.addImage(logo.data, 'PNG', M, 42, lw, lw * logo.ratio);
-      wordX = M + lw + 8;
+      const lw = 170;
+      doc.addImage(logo.data, 'PNG', M, 44, lw, lw * logo.ratio);
+    } else {
+      doc.setFont('helvetica', 'bold').setFontSize(24).setTextColor(...BOM_DARK_RGB);
+      doc.text('ArcNode', M, 66);
     }
-    doc.setFont('helvetica', 'bold').setFontSize(24).setTextColor(...BOM_DARK_RGB);
-    doc.text('ArcNode', wordX, 66);
 
     doc.setFont('helvetica', 'bold').setFontSize(22).setTextColor(...BOM_BRAND_RGB);
     doc.text('Estimate', W - M, 58, { align: 'right' });
