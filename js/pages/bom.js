@@ -577,7 +577,7 @@ const BomPage = {
       linesArr.filter(Boolean).forEach((line, i) => doc.text(String(line), x, y + 15 + i * 13));
     };
     block('Prepared for', [q.customerName || '—', q.customerCompany, q.customerEmail], M);
-    block('From', ['ArcNode', 'Arc Energy Labs, Inc.', 'San Diego, CA', q.preparedBy], W / 2 + 20);
+    block('From', ['Arc Energy Labs, Inc', '1204 Woodland Ave, Unit A', 'Austin, TX 78704', q.preparedBy], W / 2 + 20);
     y += 15 + 4 * 13 + 18;
 
     // Line items
