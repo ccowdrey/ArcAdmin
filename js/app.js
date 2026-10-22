@@ -144,6 +144,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (window.FirmwarePage) FirmwarePage.load();
   }));
 
+  Router.on('/bom', requireAuth(() => {
+    if (!Auth.isSuper()) { Router.navigate('dashboard'); return; }
+    Router.showPage('pageBom');
+    if (window.BomPage) BomPage.load();
+  }));
+
   Router.on('/', () => {
     if (!token) { showLogin(); return; }
     Router.navigate('dashboard', false);
