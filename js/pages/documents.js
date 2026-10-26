@@ -4,6 +4,18 @@
 const Documents = {
   // Track uploads in progress
   _uploading: false,
+  // Doc ids this tab is processing right now (so a retry isn't shown as stuck)
+  _inFlight: new Set(),
+  // A doc still pending/processing after this long has lost its pipeline
+  // (tab closed mid-run, Edge Function killed) and will never finish on its own.
+  STUCK_AFTER_MS: 15 * 60 * 1000,
+
+  isStuck(d) {
+    if (d.processing_status !== 'pending' && d.processing_status !== 'processing') return false;
+    if (this._inFlight.has(d.id)) return false;
+    const age = Date.now() - new Date(d.uploaded_at).getTime();
+    return age > this.STUCK_AFTER_MS;
+  },
 
   /**
    * Render the documents card for a vehicle within a company
@@ -145,13 +157,17 @@ const Documents = {
       processing: 'badge--tier-explorer',
       ready:      'badge--success',
       failed:     'badge--danger',
+      stuck:      'badge--warning',
     };
     const statusLabel = {
       pending:    'Queued',
       processing: 'Processing…',
       ready:      'Ready',
       failed:     'Failed',
+      stuck:      'Stuck',
     };
+    const statusOf = (d) => (this.isStuck(d) ? 'stuck' : d.processing_status);
+    const canRetry = (d) => statusOf(d) === 'stuck' || d.processing_status === 'failed';
 
     const typeLabels = {
       manual: 'Manual', wiring: 'Wiring Diagram', appliance: 'Appliance Spec',
@@ -173,8 +189,9 @@ const Documents = {
               ${d.description ? `<div class="t-muted" style="font-size:11px;margin-top:2px">${escHtml(d.description)}</div>` : ''}
               ${d.error_message ? `<div class="t-danger" style="font-size:11px;margin-top:4px">${escHtml(d.error_message)}</div>` : ''}
             </div>
-            <span class="badge ${statusBadgeClass[d.processing_status] || 'badge--tier-base-camp'}">${statusLabel[d.processing_status] || d.processing_status || '—'}</span>
+            <span class="badge ${statusBadgeClass[statusOf(d)] || 'badge--tier-base-camp'}">${statusLabel[statusOf(d)] || d.processing_status || '—'}</span>
             <div style="display:flex;gap:6px">
+              ${canRetry(d) ? `<button class="btn btn-secondary btn-sm" onclick="Documents.retryBuildLineDoc('${escHtml(d.id)}','${escHtml(buildLineId)}','${escHtml(companyId)}')">Retry</button>` : ''}
               <button class="btn btn-secondary btn-sm" onclick="Documents.preview('${escHtml(d.id)}','${escHtml(d.file_url)}')">View</button>
               <button class="btn btn-ghost btn-sm t-danger" onclick="Documents.removeBuildLineDoc('${escHtml(d.id)}','${escHtml(buildLineId)}','${escHtml(companyId)}')">Delete</button>
             </div>
@@ -258,6 +275,25 @@ const Documents = {
     } catch (e) {
       console.error("Delete build line document failed:", e);
       alert("Failed to delete document: " + e.message);
+    }
+  },
+
+  // Re-run the processing pipeline for a failed or stuck build-line doc.
+  // The Edge Function deletes the doc's old chunks before storing new ones.
+  async retryBuildLineDoc(docId, buildLineId, companyId) {
+    if (this._inFlight.has(docId)) return;
+    try {
+      const docs = await supa(`vehicle_documents?id=eq.${docId}&select=document_type`);
+      if (!docs.length) throw new Error('Document not found');
+      this._inFlight.add(docId);
+      await supaPatch(`vehicle_documents?id=eq.${docId}`, { processing_status: 'pending', error_message: null });
+      const container = document.getElementById('buildLineDocsContainer');
+      if (container) await this.loadForBuildLine(buildLineId, companyId, container);
+      this.processViaVercel(docId, null, buildLineId, companyId, docs[0].document_type || 'manual');
+    } catch (e) {
+      this._inFlight.delete(docId);
+      console.error("Retry build line document failed:", e);
+      alert("Failed to retry document: " + e.message);
     }
   },
 
@@ -534,6 +570,7 @@ const Documents = {
   VERCEL_PROCESS_URL: 'https://arcnode-processor.vercel.app/api/process-pdf',
 
   async processViaVercel(documentId, vehicleId, buildLineId, companyId, docType) {
+    this._inFlight.add(documentId);
     try {
       console.log('🚀 Starting Vercel processing...');
 
@@ -572,7 +609,7 @@ const Documents = {
 
       const embedRes = await fetch(`${SUPA_URL}/functions/v1/process-document`, {
         method: 'POST',
-        headers: { apikey: SUPA_KEY, 'Content-Type': 'application/json' },
+        headers: { apikey: SUPA_KEY, Authorization: `Bearer ${token || SUPA_KEY}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(embedPayload),
       });
 
@@ -583,6 +620,7 @@ const Documents = {
 
       const result = await embedRes.json();
       console.log(`✅ Done: ${result.chunk_count} chunks`);
+      this._inFlight.delete(documentId);
 
       // Reload
       if (buildLineId) {
@@ -599,6 +637,7 @@ const Documents = {
 
     } catch (e) {
       console.error('Processing failed:', e);
+      this._inFlight.delete(documentId);
       try {
         await supaPatch(`vehicle_documents?id=eq.${documentId}`, {
           processing_status: 'failed',

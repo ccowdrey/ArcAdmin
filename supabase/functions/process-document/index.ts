@@ -22,6 +22,10 @@ serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: cors() });
   }
+  // Hoisted so the catch-all below can mark the row failed instead of
+  // leaving it at "processing" forever.
+  let failId: string | null = null;
+  let failTable = "vehicle_documents";
   try {
     let body: any = {};
     try { const t = await req.text(); if (t.length > 0) body = JSON.parse(t); } catch (_) { return resp({ error: "Invalid body" }, 400); }
@@ -39,6 +43,8 @@ serve(async (req) => {
     const statusTable = isGlobalManual ? "global_manuals"
       : isCompanyManual ? "company_manuals"
       : "vehicle_documents";
+    failTable = statusTable;
+    failId = company_manual_id || global_manual_id || document_id;
 
     console.log(`📄 Embedding ${document_id} (${extracted_text.length} chars) — scope: ${
       isGlobalManual ? 'global_manual' :
@@ -57,7 +63,7 @@ serve(async (req) => {
     // Chunk
     const chunks = chunk(text, document_type || "manual");
     console.log(`🧩 ${chunks.length} chunks`);
-    if (chunks.length === 0) { await fail(document_id, "No chunks", statusTable); return resp({ error: "No chunks" }, 422); }
+    if (chunks.length === 0) { await fail(failId!, "No chunks", statusTable); return resp({ error: "No chunks" }, 422); }
 
     // Embed
     console.log(`🔢 Embedding...`);
@@ -91,29 +97,35 @@ serve(async (req) => {
     });
     for (let i = 0; i < rows.length; i += 50) {
       const { error } = await supabase.from("document_chunks").insert(rows.slice(i, i + 50));
-      if (error) { console.error("Insert error:", error); await fail(document_id, error.message, statusTable); return resp({ error: "Insert failed: " + error.message }, 500); }
+      if (error) { console.error("Insert error:", error); await fail(failId!, error.message, statusTable); return resp({ error: "Insert failed: " + error.message }, 500); }
     }
 
     // Update status in the appropriate table.
     // global_manuals + company_manuals use: pending | processing | completed | failed
     // vehicle_documents uses: pending | processing | ready | failed (legacy)
+    let statusRes;
     if (isGlobalManual) {
-      await supabase.from("global_manuals")
+      statusRes = await supabase.from("global_manuals")
         .update({ processing_status: "completed", error_message: null })
         .eq("id", global_manual_id);
     } else if (isCompanyManual) {
-      await supabase.from("company_manuals")
+      statusRes = await supabase.from("company_manuals")
         .update({ processing_status: "completed", error_message: null })
         .eq("id", company_manual_id);
     } else {
-      await supabase.from("vehicle_documents")
+      statusRes = await supabase.from("vehicle_documents")
         .update({ processing_status: "ready", chunk_count: chunks.length, error_message: null })
         .eq("id", document_id);
     }
+    if (statusRes.error) throw new Error("Status update failed: " + statusRes.error.message);
 
     console.log(`✅ ${chunks.length} chunks stored`);
     return resp({ success: true, chunk_count: chunks.length });
-  } catch (err) { console.error("Err:", err); return resp({ error: err.message }, 500); }
+  } catch (err) {
+    console.error("Err:", err);
+    if (failId) { try { await fail(failId, String(err.message || err).slice(0, 500), failTable); } catch (_) {} }
+    return resp({ error: err.message }, 500);
+  }
 });
 
 // ════════════════════════════════════════════════
