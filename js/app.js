@@ -224,20 +224,27 @@ async function bootstrapFromStoredSession() {
       if (ca.length > 0) {
         userRole = 'company_admin';
         userCompanyId = ca[0].company_id;
-        userCompanyRole = ca[0].role || 'admin';
         const companies = await supa(`companies?id=eq.${userCompanyId}&select=name`);
         userCompanyName = companies[0]?.name || 'Company';
         Router.registerSlug(userCompanyId, userCompanyName);
       } else {
-        clearSession();
-        showLogin();
-        return;
+        // Builder support staff (Support tab only); see Auth._finishLogin.
+        const sm = await supa(`support_members?user_id=eq.${userId}&select=company_id`).catch(() => []);
+        if (sm.length === 0) {
+          clearSession();
+          showLogin();
+          return;
+        }
+        userRole = 'support_member';
+        userCompanyId = sm[0].company_id;
+        const companies = await supa(`companies?id=eq.${userCompanyId}&select=name`);
+        userCompanyName = companies[0]?.name || 'Company';
       }
     }
 
     Auth._startSessionTimers();
     if (typeof startBackgroundRefresh === 'function') startBackgroundRefresh();
-    Router.renderSidebar(Auth.isSupportMember() ? 'support_member' : userRole, { name: Auth._userName, email: Auth._userEmail });
+    Router.renderSidebar(userRole, { name: Auth._userName, email: Auth._userEmail });
 
     document.getElementById('loginPage').classList.add('hidden');
     document.getElementById('appShell').classList.remove('hidden');

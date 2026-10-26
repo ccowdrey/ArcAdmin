@@ -12,10 +12,9 @@ const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsI
 // ── State ──
 let token = null;
 let refreshToken = null;
-let userRole = null;         // 'super_admin' | 'company_admin'
+let userRole = null;         // 'super_admin' | 'company_admin' | 'support_member'
 let userCompanyId = null;
 let userCompanyName = null;
-let userCompanyRole = null;  // company_admins.role: 'owner' | 'admin' | 'support'
 
 // Prevents concurrent refresh storms: if 10 parallel requests all see a 401,
 // they should share a single refresh call. This holds the in-flight refresh
@@ -58,7 +57,6 @@ function clearSession() {
   userRole = null;
   userCompanyId = null;
   userCompanyName = null;
-  userCompanyRole = null;
   try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
 }
 

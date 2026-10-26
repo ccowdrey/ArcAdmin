@@ -7,7 +7,9 @@
 -- Roles, mapped onto ArcAdmin's existing model (no new role columns):
 --   Arc staff       profiles.is_admin = true            (portal super admin)
 --   Builder admin   company_admins.role in owner/admin  (company admin)
---   Builder member  company_admins.role = 'support'     (Support tab only)
+--   Builder member  support_members row                 (Support tab only)
+--                   added by migration_support_members.sql, which also
+--                   redefines the helpers below; re-run it after this file.
 -- A user's company comes from company_admins, same as the portal's login.
 -- iPad / ArcRemote customers (no company_admins row) can't read anything here.
 --
