@@ -495,11 +495,22 @@ const SupportPage = {
       const lines = await supa(`build_lines?company_id=eq.${companyId}&select=id`);
       const ids = (lines || []).map((l) => l.id);
       if (ids.length) {
-        const vs = await supa(`vehicles?build_line_id=in.(${ids.join(',')})&select=id,nickname,make,model,year`);
-        list = (vs || []).map((v) => ({
-          id: v.id,
-          label: v.nickname || [v.year, v.make, v.model].filter(Boolean).join(' ') || 'Vehicle',
-        })).sort((a, b) => a.label.localeCompare(b.label));
+        const vs = await supa(`vehicles?build_line_id=in.(${ids.join(',')})&select=id,user_id,nickname,make,model,year`) || [];
+        // Vehicle names repeat across a builder's fleet, so label by owner:
+        // "First · email", plus the vehicle name only when one owner has several.
+        const userIds = [...new Set(vs.map((v) => v.user_id).filter(Boolean))];
+        const owners = {};
+        for (let i = 0; i < userIds.length; i += 100) {
+          const rows = await supa(`profiles?id=in.(${userIds.slice(i, i + 100).join(',')})&select=id,first_name,email`).catch(() => []);
+          for (const r of rows || []) owners[r.id] = r;
+        }
+        const perOwner = vs.reduce((m, v) => { m[v.user_id] = (m[v.user_id] || 0) + 1; return m; }, {});
+        list = vs.map((v) => {
+          const vehicle = v.nickname || [v.year, v.make, v.model].filter(Boolean).join(' ') || 'Vehicle';
+          const o = owners[v.user_id];
+          const owner = o ? [o.first_name, o.email].filter(Boolean).join(' · ') : '';
+          return { id: v.id, label: owner ? (perOwner[v.user_id] > 1 ? `${owner} (${vehicle})` : owner) : vehicle };
+        }).sort((a, b) => a.label.localeCompare(b.label));
       }
     } catch (e) { /* free-text fallback still works */ }
     this.vehicleCache[companyId] = list;

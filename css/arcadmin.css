@@ -1644,9 +1644,11 @@ body.nav-open { overflow: hidden; }
   padding: 4px 12px;
   cursor: pointer;
   color: var(--text-dark);
+  white-space: nowrap;
 }
 .support-seg label:has(input:checked) { border-color: var(--brand-primary); background: var(--brand-primary-10); }
-.support-seg input { accent-color: var(--brand-primary); }
+/* Undo .field input's full-width text-box styling for the radios. */
+.support-seg input { accent-color: var(--brand-primary); width: auto; padding: 0; margin: 0; border: none; flex: none; }
 
 /* Insights + hours */
 .support-tile { padding: var(--space-6); min-width: 160px; gap: var(--space-1); }
