@@ -72,13 +72,6 @@ const FLEET_CHECKS = [
       return null;
     },
   },
-  {
-    key: 'gaps', label: 'Data gaps',
-    test: (r) => {
-      const g = fleetNum(r.day?.gaps) || 0;
-      return g >= 3 ? { text: `${g} gaps over 20 min in 24 h`, rank: -g } : null;
-    },
-  },
 ];
 
 const FLEET_STATUS = {
