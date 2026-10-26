@@ -192,7 +192,7 @@ const UserDetailPage = {
         </div>
       </div>
 
-      <div class="card">
+      ${Auth.isSupportMember() ? '' : `<div class="card">
         <div class="card-title">Account actions</div>
         <div class="t-muted t-detail" style="margin-bottom:16px">Change subscription tier or remove the account entirely.</div>
         <div style="display:flex;gap:10px;flex-wrap:wrap">
@@ -200,7 +200,7 @@ const UserDetailPage = {
           <button class="btn btn-secondary btn-sm" onclick="UserDetailPage.changeTier('base_camp')">Set Base Camp</button>
           <button class="btn btn-ghost btn-sm t-danger" onclick="UserDetailPage.deleteUser()">Delete user</button>
         </div>
-      </div>
+      </div>`}
 
       ${vehicle ? this._renderTripsCard() : ''}
       ${vehicle ? this._renderDrivingEventsCard() : ''}
@@ -293,7 +293,7 @@ const UserDetailPage = {
         <span class="info-line-value" style="display:flex;flex-direction:column;align-items:flex-end;gap:0">
           <span style="display:flex;align-items:center;gap:8px">
             <span>${valueText}</span>
-            <button class="btn btn-ghost btn-sm" style="padding:2px 8px;font-size:12px" onclick="UserDetailPage.editBattery()">Edit</button>
+            ${Auth.isSupportMember() ? '' : `<button class="btn btn-ghost btn-sm" style="padding:2px 8px;font-size:12px" onclick="UserDetailPage.editBattery()">Edit</button>`}
           </span>
           ${subLabel}
         </span>
@@ -410,7 +410,7 @@ const UserDetailPage = {
         <span class="info-line-value" style="display:flex;flex-direction:column;align-items:flex-end;gap:0">
           <span style="display:flex;align-items:center;gap:8px">
             <span>${valueText}</span>
-            <button class="btn btn-ghost btn-sm" style="padding:2px 8px;font-size:12px" onclick="UserDetailPage.editDimensions()">Edit</button>
+            ${Auth.isSupportMember() ? '' : `<button class="btn btn-ghost btn-sm" style="padding:2px 8px;font-size:12px" onclick="UserDetailPage.editDimensions()">Edit</button>`}
           </span>
           ${subLabel}
         </span>
