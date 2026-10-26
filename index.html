@@ -194,6 +194,34 @@
       </div>
     </div>
 
+    <!-- ═══════════════ FLEET HEALTH PAGE ═══════════════ -->
+    <div class="page" id="pageFleet">
+      <div class="page-greeting">Fleet Health</div>
+      <div class="fleet-toolbar">
+        <span id="fleetSummary" class="t-muted t-detail"></span>
+        <div class="fleet-actions">
+          <button class="btn btn-ghost btn-sm" onclick="FleetHealthPage.load()">Refresh</button>
+          <button class="btn btn-ghost btn-sm" onclick="FleetHealthPage.exportCsv()">Export CSV</button>
+        </div>
+      </div>
+
+      <div id="fleetChips" class="support-chips"></div>
+
+      <div class="search-input">
+        <input type="text" id="fleetSearch" placeholder="Search customers or vehicles" oninput="FleetHealthPage.apply()">
+        <div class="search-input-icon">
+          <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"/>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+        </div>
+      </div>
+
+      <div id="fleetList" class="w-full">
+        <div class="data-empty">Loading fleet...</div>
+      </div>
+    </div>
+
     <!-- ═══════════════ USER DETAIL PAGE ═══════════════ -->
     <div class="page" id="pageUserDetail">
       <div class="page-breadcrumb">
@@ -670,6 +698,7 @@
 <script src="/js/analysis.js"></script>
 <script src="/js/pages/dashboard.js"></script>
 <script src="/js/pages/clients.js"></script>
+<script src="/js/pages/fleet-health.js"></script>
 <script src="/js/pages/user-detail.js"></script>
 <script src="/js/pages/documents.js"></script>
 <script src="/js/pages/build-lines.js"></script>

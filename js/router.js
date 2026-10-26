@@ -127,6 +127,7 @@ const Router = {
     super_admin: [
       { id: 'dashboard', label: 'Dashboard', icon: 'home' },
       { id: 'clients',   label: 'Clients',   icon: 'users' },
+      { id: 'fleet',     label: 'Fleet Health', icon: 'activity' },
       { id: 'companies', label: 'Companies', icon: 'luggage' },
       { id: 'trips',     label: 'Trips',     icon: 'map' },
       { id: 'firmware',  label: 'Firmware',  icon: 'code' },
@@ -136,6 +137,7 @@ const Router = {
     company_admin: [
       { id: 'dashboard', label: 'Dashboard', icon: 'home' },
       { id: 'clients',   label: 'Clients',   icon: 'users' },
+      { id: 'fleet',     label: 'Fleet Health', icon: 'activity' },
       { id: 'models',    label: 'Models',    icon: 'luggage' },
       { id: 'support',       label: 'Support', icon: 'lifebuoy' },
       { id: 'support/hours', label: 'Hours',   icon: 'clock' },
@@ -143,6 +145,7 @@ const Router = {
     // Builder support staff (support_members row): read-only Clients
     support_member: [
       { id: 'clients', label: 'Clients', icon: 'users' },
+      { id: 'fleet',   label: 'Fleet Health', icon: 'activity' },
       { id: 'support', label: 'Support', icon: 'lifebuoy' },
     ],
   },
@@ -200,6 +203,7 @@ const Router = {
       map: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>`,
       code: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>`,
       lifebuoy: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><line x1="4.93" y1="4.93" x2="9.17" y2="9.17"/><line x1="14.83" y1="14.83" x2="19.07" y2="19.07"/><line x1="14.83" y1="9.17" x2="19.07" y2="4.93"/><line x1="4.93" y1="19.07" x2="9.17" y2="14.83"/></svg>`,
+      activity: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>`,
       clock: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
       logout: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>`,
     };

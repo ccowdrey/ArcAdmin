@@ -1719,3 +1719,24 @@ body.nav-open { overflow: hidden; }
   .support-bar { grid-template-columns: minmax(0, 110px) 1fr 56px; }
   .support-branch { grid-template-columns: minmax(0, 1fr); gap: 2px; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Fleet Health (js/pages/fleet-health.js). Chips reuse .support-chip.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+#pageFleet.page.active { gap: var(--space-4); }
+.fleet-toolbar { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; width: 100%; }
+.fleet-actions { display: flex; gap: var(--space-2); }
+.fleet-chip-count { font-size: 11px; opacity: 0.7; }
+.col-finding { flex: 1 0 0; min-width: 160px; white-space: normal; }
+/* Narrower identity columns than the Clients table so the reading fits. */
+#pageFleet .col-name    { width: 200px; }
+#pageFleet .col-email   { width: 230px; }
+#pageFleet .col-vehicle { width: 170px; }
+
+@media (max-width: 900px) {
+  .col-finding,
+  #pageFleet .col-name, #pageFleet .col-email, #pageFleet .col-vehicle {
+    width: auto; flex: 0 0 auto; min-width: 0; text-align: left;
+  }
+}
