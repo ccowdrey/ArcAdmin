@@ -22,18 +22,19 @@ const ClientsPage = {
     const seq = ++this._loadSeq;
 
     try {
-      const [users, subs, companyAdmins, vehicles] = await Promise.all([
+      const [users, subs, companyAdmins, vehicles, supportStaff] = await Promise.all([
         supa('profiles?select=*&order=created_at.desc'),
         supa('subscriptions?select=user_id,tier,status'),
         supa('company_admins?select=user_id,company_id,role'),
         supa('vehicles?select=user_id,make,model,year,build_line_id'),
+        supa('support_members?select=user_id').catch(() => []),
       ]);
 
       const subMap = {};
       subs.forEach((s) => { subMap[s.user_id] = s; });
       const vehicleMap = {};
       vehicles.forEach((v) => { if (!vehicleMap[v.user_id]) vehicleMap[v.user_id] = v; });
-      const adminUserIds = new Set(companyAdmins.map((a) => a.user_id));
+      const adminUserIds = new Set([...companyAdmins, ...supportStaff].map((a) => a.user_id));
       const vehicleUserIds = new Set(vehicles.map((v) => v.user_id));
 
       // Company-scope filter for company admins and support staff: must match either
@@ -73,7 +74,7 @@ const ClientsPage = {
             vehicleLabel: v ? [v.year, v.make, v.model].filter(Boolean).join(' ').trim() : '',
           };
         })
-        // Admin-only rows (company_admins with no vehicle, not super admin) belong on the Companies page
+        // Staff-only rows (company_admins / support_members with no vehicle, not super admin) belong on the Companies page
         .filter((u) => vehicleUserIds.has(u.id) || u.isAdmin || !adminUserIds.has(u.id))
         // Company admins only see their own clients
         .filter((u) => !companyClientIds || companyClientIds.has(u.id));

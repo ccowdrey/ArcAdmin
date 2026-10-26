@@ -183,7 +183,7 @@ const CompaniesPage = {
         supa(`companies?id=eq.${companyId}&select=*`),
         supa(`profiles?company_id=eq.${companyId}&select=*`),
         supa('subscriptions?select=user_id,tier,status'),
-        supa(`company_admins?company_id=eq.${companyId}&select=*`),
+        this.fetchStaff(companyId),
         supa(`build_lines?company_id=eq.${companyId}&select=id`),
       ]);
 
@@ -324,11 +324,9 @@ const CompaniesPage = {
           <div class="data-table-row data-table-row--static" style="padding:12px 16px">
             <div class="data-table-cell data-table-cell--bold" style="flex:1 1 200px;min-width:150px">${escHtml(a.name)}</div>
             <div class="data-table-cell t-muted" style="flex:1 1 220px;min-width:150px">${escHtml(a.email)}</div>
-            <div class="data-table-cell" style="width:100px">
-              <span class="badge ${a.role === 'owner' ? 'badge--tier-explorer' : 'badge--tier-base-camp'}">${escHtml(a.role || 'admin')}</span>
-            </div>
+            <div class="data-table-cell" style="width:120px">${CompaniesPage.staffRoleControl(a)}</div>
             <div class="data-table-cell" style="width:80px;text-align:right">
-              <button class="btn btn-ghost btn-sm" onclick="CompaniesPage.removeAdmin('${escHtml(a.adminRowId)}')">Remove</button>
+              <button class="btn btn-ghost btn-sm" onclick="CompaniesPage.removeAdmin('${escHtml(a.id)}', '${escHtml(a.name)}', event)">Remove</button>
             </div>
           </div>
         `).join('');
@@ -414,7 +412,7 @@ const CompaniesPage = {
 
         <div class="card">
           <div class="card-title">Admins</div>
-          <div class="t-muted t-detail" style="margin-bottom:16px">People who can manage this company in ArcAdmin.</div>
+          <div class="t-muted t-detail" style="margin-bottom:16px">People who can manage this company in ArcAdmin. Support staff only see Clients and Support.</div>
           <div class="flex flex-col gap-2">${adminsMarkup}</div>
         </div>
 
@@ -938,29 +936,33 @@ const CompaniesPage = {
           }, { upsert: true });
         } catch (_) {}
 
-        try {
-          await supaPost('company_admins', {
-            user_id: userId,
-            company_id: this.companyId,
-            role: role || 'admin',
+        if (role === 'support') {
+          // Support staff live in support_members, not company_admins.
+          await supaRpc('set_company_staff_role', {
+            p_user_id: userId, p_company_id: this.companyId, p_role: 'support',
           });
-        } catch (linkErr) {
-          if (!String(linkErr.message || linkErr).toLowerCase().includes('duplicate')) {
-            throw linkErr;
+        } else {
+          try {
+            await supaPost('company_admins', {
+              user_id: userId,
+              company_id: this.companyId,
+              role: role || 'admin',
+            });
+          } catch (linkErr) {
+            if (!String(linkErr.message || linkErr).toLowerCase().includes('duplicate')) {
+              throw linkErr;
+            }
           }
         }
 
         closeModals();
         document.getElementById('newAdminName').value = '';
         document.getElementById('newAdminEmail').value = '';
+        document.getElementById('newAdminRole').value = 'admin';
 
-        showToast(`Admin added — invite sent to ${email}`, 'success');
+        showToast(`${role === 'support' ? 'Support staff' : 'Admin'} added — invite sent to ${email}`, 'success');
 
-        if (Auth.isCompanyAdmin() && window.DashboardPage && window.location.pathname.includes('dashboard')) {
-          await DashboardPage.load();
-        } else {
-          await this.loadDetail({ companyId: this.companyId });
-        }
+        await this._reloadStaff();
       } catch (e) {
         console.error('[Companies] confirmAddAdmin failed:', e);
         errBox.textContent = e.message || 'Failed to add admin.';
@@ -969,13 +971,69 @@ const CompaniesPage = {
     });
   },
 
-  async removeAdmin(adminRowId) {
-    if (!confirm('Remove this admin from the company?')) return;
+  // Owners/admins (company_admins) and support staff (support_members) as one
+  // list, shaped like a company_admins row plus `kind`.
+  async fetchStaff(companyId) {
+    const [admins, support] = await Promise.all([
+      supa(`company_admins?company_id=eq.${companyId}&select=id,user_id,role,created_at`),
+      supa(`support_members?company_id=eq.${companyId}&select=id,user_id,created_at`).catch(() => []),
+    ]);
+    return [
+      ...admins.map((a) => ({ ...a, role: a.role || 'admin', kind: 'admin' })),
+      ...support.map((m) => ({ ...m, role: 'support', kind: 'support' })),
+    ];
+  },
+
+  // Role picker for a staff row (`a.id` = user id). Your own row is a badge:
+  // the RPC refuses self-changes so nobody locks themselves out.
+  staffRoleControl(a) {
+    const role = a.role || 'admin';
+    const me = parseJwtPayload(token)?.sub;
+    if (a.id === me) {
+      return `<span class="badge ${role === 'owner' ? 'badge--tier-explorer' : 'badge--tier-base-camp'}">${escHtml(role)}</span>`;
+    }
+    const opts = [['owner', 'Owner'], ['admin', 'Admin'], ['support', 'Support']]
+      .map(([v, l]) => `<option value="${v}"${v === role ? ' selected' : ''}>${l}</option>`).join('');
+    return `<select class="staff-role-select" aria-label="Role" data-prev="${escHtml(role)}"
+      onchange="CompaniesPage.setStaffRole('${escHtml(a.id)}', this.value, this)">${opts}</select>`;
+  },
+
+  async setStaffRole(userId, role, selectEl) {
+    if (selectEl) selectEl.disabled = true;
     try {
-      await supaDelete(`company_admins?id=eq.${adminRowId}`);
-      await this.loadDetail({ companyId: this.companyId });
+      await supaRpc('set_company_staff_role', {
+        p_user_id: userId, p_company_id: this.companyId, p_role: role,
+      });
+      showToast(role === 'support' ? 'Switched to Support (Clients and Support only)' : `Switched to ${role}`, 'success');
+      await this._reloadStaff();
     } catch (e) {
-      alert(`Failed to remove: ${e.message}`);
+      if (selectEl) { selectEl.value = selectEl.dataset.prev || 'admin'; selectEl.disabled = false; }
+      showToast(`Couldn't change role — ${String(e.message || e).slice(0, 200)}`, 'error');
+    }
+  },
+
+  async removeAdmin(userId, name, event) {
+    if (!confirm(`Remove ${name || 'this person'} from the company? They'll lose access to ArcAdmin for this company.`)) return;
+    await withBtnLoading(event, async () => {
+      try {
+        await supaRpc('set_company_staff_role', {
+          p_user_id: userId, p_company_id: this.companyId, p_role: null,
+        });
+        showToast(`${name || 'Admin'} removed`, 'success');
+        await this._reloadStaff();
+      } catch (e) {
+        showToast(`Failed to remove — ${String(e.message || e).slice(0, 200)}`, 'error');
+      }
+    });
+  },
+
+  // The admins list shows on the company page (Arc staff) and the builder
+  // dashboard (company admins).
+  async _reloadStaff() {
+    if (Auth.isCompanyAdmin() && window.DashboardPage && window.location.pathname.includes('dashboard')) {
+      await DashboardPage.load();
+    } else {
+      await this.loadDetail({ companyId: this.companyId });
     }
   },
 
