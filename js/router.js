@@ -140,7 +140,7 @@ const Router = {
       { id: 'support',       label: 'Support', icon: 'lifebuoy' },
       { id: 'support/hours', label: 'Hours',   icon: 'clock' },
     ],
-    // Builder support staff (company_admins.role = 'support')
+    // Builder support staff (support_members row)
     support_member: [
       { id: 'support', label: 'Support', icon: 'lifebuoy' },
     ],

@@ -197,14 +197,28 @@ const Auth = {
     if (ca.length > 0) {
       userRole = 'company_admin';
       userCompanyId = ca[0].company_id;
-      userCompanyRole = ca[0].role || 'admin';
 
       const companies = await supa(`companies?id=eq.${userCompanyId}&select=name`);
       userCompanyName = companies[0]?.name || 'Company';
       Router.registerSlug(userCompanyId, userCompanyName);
 
       this._startSessionTimers();
-      this._enterApp(this.isSupportMember() ? 'support_member' : 'company_admin');
+      this._enterApp('company_admin');
+      return;
+    }
+
+    // Builder support staff: Support tab only. Kept out of company_admins on
+    // purpose, since the existing builder policies grant any company_admins
+    // row full company access (see supabase/migration_support_members.sql).
+    const sm = await supa(`support_members?user_id=eq.${userId}&select=company_id`).catch(() => []);
+    if (sm.length > 0) {
+      userRole = 'support_member';
+      userCompanyId = sm[0].company_id;
+      const companies = await supa(`companies?id=eq.${userCompanyId}&select=name`);
+      userCompanyName = companies[0]?.name || 'Company';
+
+      this._startSessionTimers();
+      this._enterApp('support_member');
       return;
     }
 
@@ -370,7 +384,6 @@ const Auth = {
         userRole = null;
         userCompanyId = null;
         userCompanyName = null;
-        userCompanyRole = null;
 
         // Sign in with password grant to get a clean long-lived session.
         const signInRes = await fetch(`${SUPA_URL}/auth/v1/token?grant_type=password`, {
@@ -417,8 +430,8 @@ const Auth = {
 
   isSuper() { return userRole === 'super_admin'; },
   isCompanyAdmin() { return userRole === 'company_admin'; },
-  // Builder support staff (company_admins.role = 'support'): Support tab only.
-  isSupportMember() { return userRole === 'company_admin' && userCompanyRole === 'support'; },
+  // Builder support staff (support_members row): Support tab only.
+  isSupportMember() { return userRole === 'support_member'; },
 
   init() {
     this._onActivity = () => this._resetInactivityTimer();
