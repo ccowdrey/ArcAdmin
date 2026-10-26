@@ -72,15 +72,6 @@ const FLEET_CHECKS = [
       return null;
     },
   },
-  {
-    // Gaps describe the iPad's logging (it sleeps or leaves the van's Wi-Fi),
-    // not the van's health, so they don't count toward "Needs attention".
-    key: 'gaps', label: 'Data gaps', informational: true,
-    test: (r) => {
-      const g = fleetNum(r.day?.gaps) || 0;
-      return g >= 3 ? { text: `${g} gaps over 20 min in 24 h`, rank: -g } : null;
-    },
-  },
 ];
 
 const FLEET_STATUS = {
@@ -185,7 +176,7 @@ const FleetHealthPage = {
   _chips() {
     const online = this.rows.filter((r) => r.status === 'online');
     return [
-      { key: 'attention', label: 'Needs attention', rows: online.filter((r) => FLEET_CHECKS.some((chk) => !chk.informational && r.flags[chk.key])) },
+      { key: 'attention', label: 'Needs attention', rows: online.filter((r) => Object.keys(r.flags).length) },
       ...FLEET_CHECKS.map((chk) => ({ key: chk.key, label: chk.label, check: chk, rows: online.filter((r) => r.flags[chk.key]) })),
       { key: 'stale',   label: 'Stale',   rows: this.rows.filter((r) => r.status === 'stale') },
       { key: 'offline', label: 'Offline', rows: this.rows.filter((r) => r.status === 'offline') },
@@ -206,8 +197,7 @@ const FleetHealthPage = {
       .filter((r) => !q || r.displayName.toLowerCase().includes(q) ||
         (r.email || '').toLowerCase().includes(q) || r.vehicleLabel.toLowerCase().includes(q))
       .map((r) => {
-        const hits = chip.check ? [r.flags[chip.check.key]]
-          : FLEET_CHECKS.filter((chk) => !chk.informational && r.flags[chk.key]).map((chk) => r.flags[chk.key]);
+        const hits = chip.check ? [r.flags[chip.check.key]] : Object.values(r.flags);
         let findingText = hits.map((h) => h.text).join(' · ');
         if (!findingText) {
           findingText = r.status === 'online' ? 'No issues'
