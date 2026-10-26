@@ -51,9 +51,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const requireAuth = (handler) => (params) => {
     if (!token) { showLogin(); return; }
-    // Builder support staff only get Support and read-only Clients.
+    // Builder support staff only get Support, Fleet Health and read-only Clients.
     // Check both: popstate resolves without updating Router.currentPath.
-    const memberOk = (p) => ['/support', '/clients'].some((pre) => p === pre || p.startsWith(pre + '/'));
+    const memberOk = (p) => ['/support', '/clients', '/fleet'].some((pre) => p === pre || p.startsWith(pre + '/'));
     if (Auth.isSupportMember() &&
         ![Router.currentPath, window.location.pathname].every((p) => memberOk(p || ''))) {
       Router.navigate('support');
@@ -75,6 +75,13 @@ document.addEventListener('DOMContentLoaded', () => {
   Router.on('/clients', requireAuth(() => {
     Router.showPage('pageClients');
     if (window.ClientsPage) ClientsPage.load();
+  }));
+
+  // Fleet Health: everyone with Clients access. Scope comes from the same
+  // client list as the Clients page plus RLS on system_logs.
+  Router.on('/fleet', requireAuth(() => {
+    Router.showPage('pageFleet');
+    if (window.FleetHealthPage) FleetHealthPage.load();
   }));
 
   Router.on('/clients/:userId', requireAuth((params) => {
