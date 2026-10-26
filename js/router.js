@@ -130,11 +130,19 @@ const Router = {
       { id: 'companies', label: 'Companies', icon: 'luggage' },
       { id: 'trips',     label: 'Trips',     icon: 'map' },
       { id: 'firmware',  label: 'Firmware',  icon: 'code' },
+      { id: 'support',       label: 'Support', icon: 'lifebuoy' },
+      { id: 'support/hours', label: 'Hours',   icon: 'clock' },
     ],
     company_admin: [
       { id: 'dashboard', label: 'Dashboard', icon: 'home' },
       { id: 'clients',   label: 'Clients',   icon: 'users' },
       { id: 'models',    label: 'Models',    icon: 'luggage' },
+      { id: 'support',       label: 'Support', icon: 'lifebuoy' },
+      { id: 'support/hours', label: 'Hours',   icon: 'clock' },
+    ],
+    // Builder support staff (company_admins.role = 'support')
+    support_member: [
+      { id: 'support', label: 'Support', icon: 'lifebuoy' },
     ],
   },
 
@@ -166,12 +174,18 @@ const Router = {
   },
 
   _updateActiveNav() {
-    // First path segment determines the active nav item.
-    // e.g. /companies/abc → companies is active.
-    const firstSeg = (this.currentPath.split('/')[1] || '').toLowerCase();
+    // The nav item whose path is the longest prefix of the current path is
+    // active. e.g. /companies/abc → companies; /support/hours → support/hours
+    // (not support); /support/kb/x → support.
+    const path = (this.currentPath || '').toLowerCase();
+    const matches = (id) => path === `/${id}` || path.startsWith(`/${id}/`);
+    let best = '';
     document.querySelectorAll('.sidebar-item[data-nav]').forEach(item => {
-      const isActive = item.getAttribute('data-nav') === firstSeg;
-      item.classList.toggle('sidebar-item--active', isActive);
+      const id = item.getAttribute('data-nav');
+      if (matches(id) && id.length > best.length) best = id;
+    });
+    document.querySelectorAll('.sidebar-item[data-nav]').forEach(item => {
+      item.classList.toggle('sidebar-item--active', item.getAttribute('data-nav') === best);
     });
   },
 
@@ -184,6 +198,8 @@ const Router = {
       luggage: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="6" width="14" height="16" rx="2"/><path d="M8 6V3h8v3"/><line x1="9" y1="10" x2="9" y2="18"/><line x1="15" y1="10" x2="15" y2="18"/></svg>`,
       map: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>`,
       code: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>`,
+      lifebuoy: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><line x1="4.93" y1="4.93" x2="9.17" y2="9.17"/><line x1="14.83" y1="14.83" x2="19.07" y2="19.07"/><line x1="14.83" y1="9.17" x2="19.07" y2="4.93"/><line x1="4.93" y1="19.07" x2="9.17" y2="14.83"/></svg>`,
+      clock: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
       logout: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>`,
     };
     return icons[name] || '';

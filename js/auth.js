@@ -197,13 +197,14 @@ const Auth = {
     if (ca.length > 0) {
       userRole = 'company_admin';
       userCompanyId = ca[0].company_id;
+      userCompanyRole = ca[0].role || 'admin';
 
       const companies = await supa(`companies?id=eq.${userCompanyId}&select=name`);
       userCompanyName = companies[0]?.name || 'Company';
       Router.registerSlug(userCompanyId, userCompanyName);
 
       this._startSessionTimers();
-      this._enterApp('company_admin');
+      this._enterApp(this.isSupportMember() ? 'support_member' : 'company_admin');
       return;
     }
 
@@ -229,7 +230,9 @@ const Auth = {
     if (typeof startBackgroundRefresh === 'function') startBackgroundRefresh();
 
     // Initial route
-    if (role === 'company_admin') {
+    if (role === 'support_member') {
+      Router.navigate('support');
+    } else if (role === 'company_admin') {
       Router.navigate('dashboard');
     } else {
       Router.navigate('dashboard');
@@ -367,6 +370,7 @@ const Auth = {
         userRole = null;
         userCompanyId = null;
         userCompanyName = null;
+        userCompanyRole = null;
 
         // Sign in with password grant to get a clean long-lived session.
         const signInRes = await fetch(`${SUPA_URL}/auth/v1/token?grant_type=password`, {
@@ -413,6 +417,8 @@ const Auth = {
 
   isSuper() { return userRole === 'super_admin'; },
   isCompanyAdmin() { return userRole === 'company_admin'; },
+  // Builder support staff (company_admins.role = 'support'): Support tab only.
+  isSupportMember() { return userRole === 'company_admin' && userCompanyRole === 'support'; },
 
   init() {
     this._onActivity = () => this._resetInactivityTimer();
