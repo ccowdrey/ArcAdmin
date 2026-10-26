@@ -1650,7 +1650,11 @@ body.nav-open { overflow: hidden; }
 
 /* Insights + hours */
 .support-tile { padding: var(--space-6); min-width: 160px; gap: var(--space-1); }
-.support-tile .stat-tile-value { font-size: 26px; }
+/* Metric on top, label under it, sub-text last (not the side-by-side dashboard tile). */
+.support-tile { justify-content: flex-start; }
+.support-tile .stat-tile-top { flex-direction: column; align-items: flex-start; gap: 2px; }
+.support-tile .stat-tile-value { flex: none; font-size: 26px; line-height: 32px; white-space: nowrap; }
+.support-tile .stat-tile-label { text-align: left; white-space: normal; color: var(--text-secondary); }
 .support-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-5); width: 100%; }
 .support-bars { display: flex; flex-direction: column; gap: var(--space-2); }
 .support-bar { display: grid; grid-template-columns: minmax(0, 160px) 1fr 64px; gap: var(--space-3); align-items: center; font-size: var(--fs-label); }
