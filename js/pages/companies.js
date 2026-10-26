@@ -936,24 +936,12 @@ const CompaniesPage = {
           }, { upsert: true });
         } catch (_) {}
 
-        if (role === 'support') {
-          // Support staff live in support_members, not company_admins.
-          await supaRpc('set_company_staff_role', {
-            p_user_id: userId, p_company_id: this.companyId, p_role: 'support',
-          });
-        } else {
-          try {
-            await supaPost('company_admins', {
-              user_id: userId,
-              company_id: this.companyId,
-              role: role || 'admin',
-            });
-          } catch (linkErr) {
-            if (!String(linkErr.message || linkErr).toLowerCase().includes('duplicate')) {
-              throw linkErr;
-            }
-          }
-        }
+        // Through the RPC, not a direct company_admins insert: the table's
+        // write policies recurse (42P17) and the RPC runs as definer. It also
+        // upserts, so re-adding someone is not an error.
+        await supaRpc('set_company_staff_role', {
+          p_user_id: userId, p_company_id: this.companyId, p_role: role || 'admin',
+        });
 
         closeModals();
         document.getElementById('newAdminName').value = '';
@@ -1228,10 +1216,8 @@ const CompaniesPage = {
           await supaInvite(adminEmail, { first_name: firstName || '', last_name: rest.join(' ') });
           const profiles = await supa(`profiles?email=eq.${encodeURIComponent(adminEmail)}&select=id`);
           if (profiles[0]) {
-            await supaPost('company_admins', {
-              user_id: profiles[0].id,
-              company_id: newCompany.id,
-              role: 'owner',
+            await supaRpc('set_company_staff_role', {
+              p_user_id: profiles[0].id, p_company_id: newCompany.id, p_role: 'owner',
             });
           }
         } catch (inviteErr) {
