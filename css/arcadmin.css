@@ -633,6 +633,13 @@ a { color: inherit; text-decoration: none; }
 .logs-filter-row .field input[type="date"],
 .logs-filter-row .field select { min-width: 150px; }
 
+/* Owner / Admin / Support picker in company admin lists */
+.staff-role-select {
+  width: 100%; padding: 4px 8px; border: 1px solid var(--border-default); border-radius: var(--radius-md);
+  font: inherit; font-size: var(--fs-detail); background: var(--bg-surface); color: inherit;
+}
+.staff-role-select:disabled { opacity: 0.6; }
+
 
 /* ═══════════════════════════════════════════════════════════════════════════
    9. DATA TABLES (card-row style)

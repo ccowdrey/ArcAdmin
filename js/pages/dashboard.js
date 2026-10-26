@@ -352,7 +352,7 @@ const DashboardPage = {
 
       const [buildLines, companyAdmins, codes] = await Promise.all([
         supa(`build_lines?company_id=eq.${userCompanyId}&is_active=eq.true&select=id`),
-        supa(`company_admins?company_id=eq.${userCompanyId}&select=id,user_id,role,created_at`),
+        CompaniesPage.fetchStaff(userCompanyId),
         supa(`company_codes?company_id=eq.${userCompanyId}&select=*&order=created_at.desc`),
       ]);
 
@@ -441,11 +441,9 @@ const DashboardPage = {
             <div class="data-table-row data-table-row--static" style="padding:12px 14px">
               <div class="data-table-cell data-table-cell--bold" style="flex:1 1 200px;min-width:150px">${escHtml(a.name)}</div>
               <div class="data-table-cell t-muted" style="flex:1 1 220px;min-width:150px">${escHtml(a.email)}</div>
-              <div class="data-table-cell" style="width:100px">
-                <span class="badge ${a.role === 'owner' ? 'badge--tier-explorer' : 'badge--tier-base-camp'}">${escHtml(a.role)}</span>
-              </div>
+              <div class="data-table-cell" style="width:120px">${CompaniesPage.staffRoleControl(a)}</div>
               <div class="data-table-cell" style="width:100px;text-align:right">
-                <button class="btn btn-ghost btn-sm t-danger" onclick="DashboardPage.removeAdmin('${escHtml(a.adminRowId)}', '${escHtml(a.name)}', event)">Remove</button>
+                <button class="btn btn-ghost btn-sm t-danger" onclick="CompaniesPage.removeAdmin('${escHtml(a.id)}', '${escHtml(a.name)}', event)">Remove</button>
               </div>
             </div>
           `).join('');
@@ -495,27 +493,6 @@ const DashboardPage = {
       const codesEl = document.getElementById('dashCodesList');
       if (codesEl) codesEl.innerHTML = `<div class="t-danger t-detail">Failed to load — ${escHtml(e.message || '')}</div>`;
     }
-  },
-
-  // Remove a company admin from the current company
-  async removeAdmin(adminRowId, name, event) {
-    if (!confirm(`Remove ${name || 'this admin'} from the company? They'll lose access to ArcAdmin for this company.`)) return;
-    await withBtnLoading(event, async () => {
-      try {
-        const res = await supaDelete(`company_admins?id=eq.${adminRowId}`);
-        if (!res.ok) {
-          const body = await res.text().catch(() => '');
-          const msg = body ? ` — ${body.slice(0, 200)}` : '';
-          showToast(`Failed to remove admin (HTTP ${res.status})${msg}`, 'error');
-          return;
-        }
-        showToast(`${name || 'Admin'} removed`, 'success');
-        await this.load();
-      } catch (e) {
-        console.error('[Dashboard] removeAdmin failed:', e);
-        showToast(`Failed to remove admin: ${e.message || e}`, 'error');
-      }
-    });
   },
 };
 
