@@ -9,7 +9,9 @@
 --   Builder admin   company_admins.role in owner/admin  (company admin)
 --   Builder member  support_members row                 (Support tab only)
 --                   added by migration_support_members.sql, which also
---                   redefines the helpers below; re-run it after this file.
+--                   redefines the helpers below. Once that table exists,
+--                   this file leaves those helpers and the two-factor
+--                   policies alone, so re-running it is safe.
 -- A user's company comes from company_admins, same as the portal's login.
 -- iPad / ArcRemote customers (no company_admins row) can't read anything here.
 --
@@ -69,6 +71,17 @@ returns boolean language sql stable security definer set search_path = public as
                  where id = auth.uid() and is_admin is true);
 $$;
 
+-- The three below are redefined by migration_support_members.sql to count
+-- support staff. Only create them here on a first install, so a re-run
+-- doesn't lock support staff out of the Support tab.
+do $outer$
+begin
+  if to_regclass('public.support_members') is not null then
+    raise notice 'support_members exists, keeping its support helpers';
+    return;
+  end if;
+
+  execute $f$
 create or replace function public.support_my_company()
 returns uuid language sql stable security definer set search_path = public as $$
   select company_id from public.company_admins
@@ -76,9 +89,11 @@ returns uuid language sql stable security definer set search_path = public as $$
   order by created_at nulls last
   limit 1;
 $$;
+  $f$;
 
--- Arc staff or a builder owner/admin. Rows saved before roles existed have a
--- null role and are treated as admin, matching the portal's default.
+  -- Arc staff or a builder owner/admin. Rows saved before roles existed have a
+  -- null role and are treated as admin, matching the portal's default.
+  execute $f$
 create or replace function public.support_is_builder_admin()
 returns boolean language sql stable security definer set search_path = public as $$
   select public.support_is_arc_staff()
@@ -86,13 +101,17 @@ returns boolean language sql stable security definer set search_path = public as
                  where user_id = auth.uid()
                    and coalesce(role, 'admin') in ('owner', 'admin'));
 $$;
+  $f$;
 
--- Anyone who can sign in to the portal: Arc staff or any company_admins row.
+  -- Anyone who can sign in to the portal: Arc staff or any company_admins row.
+  execute $f$
 create or replace function public.support_is_portal_user()
 returns boolean language sql stable security definer set search_path = public as $$
   select public.support_is_arc_staff()
       or exists (select 1 from public.company_admins where user_id = auth.uid());
 $$;
+  $f$;
+end $outer$;
 
 revoke all on function public.support_is_arc_staff(), public.support_my_company(),
                        public.support_is_builder_admin(), public.support_is_portal_user()
@@ -352,15 +371,20 @@ create policy misses_read on public.kb_search_misses for select to authenticated
 
 -- Two-factor, same rule as migration_admin_mfa.sql. Everyone who can reach
 -- these tables is a portal admin, so there are no "own rows" exemptions.
+-- Once migration_support_members.sql has run, use its support_mfa_satisfied(),
+-- which also covers support staff.
 do $$
-declare t text;
+declare
+  t text;
+  fn text := case when to_regprocedure('public.support_mfa_satisfied()') is not null
+                  then 'support_mfa_satisfied' else 'admin_mfa_satisfied' end;
 begin
   foreach t in array array['kb_articles','kb_article_revisions','support_calls','kb_search_misses'] loop
     execute format('drop policy if exists admin_requires_mfa on public.%I', t);
     execute format(
       'create policy admin_requires_mfa on public.%I as restrictive for all to authenticated '
-      'using ((select public.admin_mfa_satisfied())) '
-      'with check ((select public.admin_mfa_satisfied()))', t);
+      'using ((select public.%I())) '
+      'with check ((select public.%I()))', t, fn, fn);
   end loop;
 end $$;
 

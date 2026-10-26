@@ -91,6 +91,7 @@ const SupportPage = {
   companies: [],          // Arc staff: every company. Others: their own.
   companyName: {},
   vehicleCache: {},       // company_id → [{id,label}]
+  vehicleName: {},        // vehicle_id → label, for logged calls
   people: {},             // user_id → display name
   calls: [],
   misses: [],
@@ -168,6 +169,8 @@ const SupportPage = {
     } catch (e) { /* names are cosmetic */ }
   },
   personName(id) { return (id && this.people[id]) || 'Someone'; },
+  // The vehicle picked on a call, plus the free-text reference when both are set.
+  callVehicle(c) { return [this.vehicleName[c.vehicle_id], c.vehicle_ref].filter(Boolean).join(' · '); },
 
   categories() {
     const extra = this.articles.map((a) => a.category).filter((c) => c && !SUPPORT_CATEGORIES.includes(c));
@@ -496,25 +499,44 @@ const SupportPage = {
       const ids = (lines || []).map((l) => l.id);
       if (ids.length) {
         const vs = await supa(`vehicles?build_line_id=in.(${ids.join(',')})&select=id,user_id,nickname,make,model,year`) || [];
-        // Vehicle names repeat across a builder's fleet, so label by owner:
-        // "First · email", plus the vehicle name only when one owner has several.
-        const userIds = [...new Set(vs.map((v) => v.user_id).filter(Boolean))];
-        const owners = {};
-        for (let i = 0; i < userIds.length; i += 100) {
-          const rows = await supa(`profiles?id=in.(${userIds.slice(i, i + 100).join(',')})&select=id,first_name,email`).catch(() => []);
-          for (const r of rows || []) owners[r.id] = r;
-        }
-        const perOwner = vs.reduce((m, v) => { m[v.user_id] = (m[v.user_id] || 0) + 1; return m; }, {});
-        list = vs.map((v) => {
-          const vehicle = v.nickname || [v.year, v.make, v.model].filter(Boolean).join(' ') || 'Vehicle';
-          const o = owners[v.user_id];
-          const owner = o ? [o.first_name, o.email].filter(Boolean).join(' · ') : '';
-          return { id: v.id, label: owner ? (perOwner[v.user_id] > 1 ? `${owner} (${vehicle})` : owner) : vehicle };
-        }).sort((a, b) => a.label.localeCompare(b.label));
+        list = (await this._labelVehicles(vs)).sort((a, b) => a.label.localeCompare(b.label));
       }
     } catch (e) { /* free-text fallback still works */ }
     this.vehicleCache[companyId] = list;
     return list;
+  },
+
+  // Vehicle names repeat across a builder's fleet, so label by owner:
+  // "First · email", plus the vehicle name when one owner has several
+  // (or always, with withVehicle).
+  async _labelVehicles(vs, withVehicle = false) {
+    const userIds = [...new Set(vs.map((v) => v.user_id).filter(Boolean))];
+    const owners = {};
+    for (let i = 0; i < userIds.length; i += 100) {
+      const rows = await supa(`profiles?id=in.(${userIds.slice(i, i + 100).join(',')})&select=id,first_name,email`).catch(() => []);
+      for (const r of rows || []) owners[r.id] = r;
+    }
+    const perOwner = vs.reduce((m, v) => { m[v.user_id] = (m[v.user_id] || 0) + 1; return m; }, {});
+    return vs.map((v) => {
+      const vehicle = v.nickname || [v.year, v.make, v.model].filter(Boolean).join(' ') || 'Vehicle';
+      const o = owners[v.user_id];
+      const owner = o ? [o.first_name, o.email].filter(Boolean).join(' · ') : '';
+      return { id: v.id, label: owner ? (withVehicle || perOwner[v.user_id] > 1 ? `${owner} (${vehicle})` : owner) : vehicle };
+    });
+  },
+
+  // Labels for the vehicles picked on logged calls, for Recent calls and the CSV.
+  async _loadCallVehicles() {
+    const ids = [...new Set(this.calls.map((c) => c.vehicle_id).filter((id) => id && !(id in this.vehicleName)))];
+    for (let i = 0; i < ids.length; i += 100) {
+      const chunk = ids.slice(i, i + 100);
+      try {
+        const vs = await supa(`vehicles?id=in.(${chunk.join(',')})&select=id,user_id,nickname,make,model,year`) || [];
+        for (const v of await this._labelVehicles(vs, true)) this.vehicleName[v.id] = v.label;
+      } catch (e) { /* show the free-text reference only */ }
+      // Deleted or unreadable vehicles: don't ask again this session.
+      for (const id of chunk) if (!(id in this.vehicleName)) this.vehicleName[id] = '';
+    }
   },
 
   _lastCompany() {
@@ -657,6 +679,7 @@ const SupportPage = {
     ]);
     this.calls = calls || [];
     this.misses = misses || [];
+    await this._loadCallVehicles();
   },
 
   async renderCalls() {
@@ -745,7 +768,7 @@ const SupportPage = {
               <td class="support-nowrap">${escHtml(fmtWhen(c.called_at))}</td>
               <td class="support-nowrap">${supportFmtDur(c.minutes)}</td>
               <td class="support-q">${escHtml(c.question)}${c.notes ? `<div class="t-muted t-detail">${escHtml(c.notes)}</div>` : ''}</td>
-              <td>${escHtml(this.companyName[c.company_id] || (c.company_id ? 'Builder' : '—'))}${c.vehicle_ref ? `<div class="t-muted t-detail">${escHtml(c.vehicle_ref)}</div>` : ''}</td>
+              <td>${escHtml(this.companyName[c.company_id] || (c.company_id ? 'Builder' : '—'))}${this.callVehicle(c) ? `<div class="t-muted t-detail">${escHtml(this.callVehicle(c))}</div>` : ''}</td>
               <td>${art ? `<a href="/support/kb/${art.slug}" data-kb="${art.slug}">${escHtml(art.title)}</a>` : '<span class="t-muted">None</span>'}</td>
               <td><span class="badge ${c.outcome === 'resolved' ? 'badge--success' : c.outcome === 'open' ? 'badge--tier-base' : 'badge--warning'}">${escHtml(SUPPORT_OUTCOMES[c.outcome] || c.outcome)}</span></td>
               <td>${escHtml(this.personName(c.logged_by))}</td>
@@ -822,7 +845,7 @@ const SupportPage = {
       .sort((a, b) => new Date(a.called_at) - new Date(b.called_at));
     const fin = (m) => Number.isFinite(m);
     this._hoursCsv = ['Date,Logged by,Builder,Vehicle,System,Minutes,Hours,Outcome,Caller asked', ...csvCalls.map((c) => [
-      new Date(c.called_at).toLocaleString(), nm(c.logged_by), coName(c.company_id), c.vehicle_ref, c.category,
+      new Date(c.called_at).toLocaleString(), nm(c.logged_by), coName(c.company_id), this.callVehicle(c), c.category,
       fin(c.minutes) ? c.minutes : '', fin(c.minutes) ? supportHrs(c.minutes) : '', SUPPORT_OUTCOMES[c.outcome] || c.outcome, c.question,
     ].map(supportCsvCell).join(','))].join('\n');
     this._hoursCsvName = `arcnode-support-hours-${month}${company ? `-${slugify(coName(company))}` : ''}.csv`;
