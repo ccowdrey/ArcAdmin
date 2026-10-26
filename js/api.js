@@ -15,6 +15,7 @@ let refreshToken = null;
 let userRole = null;         // 'super_admin' | 'company_admin'
 let userCompanyId = null;
 let userCompanyName = null;
+let userCompanyRole = null;  // company_admins.role: 'owner' | 'admin' | 'support'
 
 // Prevents concurrent refresh storms: if 10 parallel requests all see a 401,
 // they should share a single refresh call. This holds the in-flight refresh
@@ -57,6 +58,7 @@ function clearSession() {
   userRole = null;
   userCompanyId = null;
   userCompanyName = null;
+  userCompanyRole = null;
   try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
 }
 
@@ -176,6 +178,22 @@ async function supaPost(table, data, options = {}) {
     throw new Error(text);
   }
   return res;
+}
+
+// Call a Postgres function: POST /rest/v1/rpc/<fn>. Returns the parsed JSON
+// result (rows for set-returning functions).
+async function supaRpc(fn, args = {}) {
+  const res = await withAuthRetry(() => fetch(`${SUPA_URL}/rest/v1/rpc/${fn}`, {
+    method: 'POST',
+    headers: {
+      apikey: SUPA_KEY,
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(args),
+  }));
+  if (!res.ok) throw new Error(`API error: ${res.status} ${await res.text()}`);
+  return res.json();
 }
 
 async function supaPatch(path, data) {
@@ -353,6 +371,7 @@ window.SUPA_KEY = SUPA_KEY;
 window.supa = supa;
 window.supaPost = supaPost;
 window.supaPatch = supaPatch;
+window.supaRpc = supaRpc;
 window.supaDelete = supaDelete;
 window.supaLogin = supaLogin;
 window.supaSignup = supaSignup;

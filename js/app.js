@@ -51,6 +51,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const requireAuth = (handler) => (params) => {
     if (!token) { showLogin(); return; }
+    // Builder support staff only get the Support tab.
+    // Check both: popstate resolves without updating Router.currentPath.
+    if (Auth.isSupportMember() &&
+        ![Router.currentPath, window.location.pathname].every((p) => (p || '').startsWith('/support'))) {
+      Router.navigate('support');
+      return;
+    }
     handler(params);
   };
 
@@ -144,6 +151,21 @@ document.addEventListener('DOMContentLoaded', () => {
     if (window.FirmwarePage) FirmwarePage.load();
   }));
 
+  // Support Desk: troubleshoot, call log, hours report, KB editor.
+  // Access is enforced by RLS (supabase/migration_support_desk.sql); these
+  // guards only keep people off screens that would be empty for them.
+  const supportRoute = (view, guard) => requireAuth((params) => {
+    if (guard && !guard()) { Router.navigate('support'); return; }
+    Router.showPage('pageSupport');
+    if (window.SupportPage) SupportPage.load({ view, ...(params || {}) });
+  });
+  Router.on('/support', supportRoute('desk'));
+  Router.on('/support/kb/:slug', supportRoute('desk'));
+  Router.on('/support/kb/:slug/edit', supportRoute('edit', () => Auth.isSuper()));
+  Router.on('/support/new', supportRoute('edit', () => Auth.isSuper()));
+  Router.on('/support/calls', supportRoute('calls'));
+  Router.on('/support/hours', supportRoute('hours', () => !Auth.isSupportMember()));
+
   Router.on('/', () => {
     if (!token) { showLogin(); return; }
     Router.navigate('dashboard', false);
@@ -202,6 +224,7 @@ async function bootstrapFromStoredSession() {
       if (ca.length > 0) {
         userRole = 'company_admin';
         userCompanyId = ca[0].company_id;
+        userCompanyRole = ca[0].role || 'admin';
         const companies = await supa(`companies?id=eq.${userCompanyId}&select=name`);
         userCompanyName = companies[0]?.name || 'Company';
         Router.registerSlug(userCompanyId, userCompanyName);
@@ -214,7 +237,7 @@ async function bootstrapFromStoredSession() {
 
     Auth._startSessionTimers();
     if (typeof startBackgroundRefresh === 'function') startBackgroundRefresh();
-    Router.renderSidebar(userRole, { name: Auth._userName, email: Auth._userEmail });
+    Router.renderSidebar(Auth.isSupportMember() ? 'support_member' : userRole, { name: Auth._userName, email: Auth._userEmail });
 
     document.getElementById('loginPage').classList.add('hidden');
     document.getElementById('appShell').classList.remove('hidden');
