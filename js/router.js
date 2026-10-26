@@ -140,8 +140,9 @@ const Router = {
       { id: 'support',       label: 'Support', icon: 'lifebuoy' },
       { id: 'support/hours', label: 'Hours',   icon: 'clock' },
     ],
-    // Builder support staff (support_members row)
+    // Builder support staff (support_members row): read-only Clients
     support_member: [
+      { id: 'clients', label: 'Clients', icon: 'users' },
       { id: 'support', label: 'Support', icon: 'lifebuoy' },
     ],
   },

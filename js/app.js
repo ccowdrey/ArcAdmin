@@ -51,10 +51,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const requireAuth = (handler) => (params) => {
     if (!token) { showLogin(); return; }
-    // Builder support staff only get the Support tab.
+    // Builder support staff only get Support and read-only Clients.
     // Check both: popstate resolves without updating Router.currentPath.
+    const memberOk = (p) => ['/support', '/clients'].some((pre) => p === pre || p.startsWith(pre + '/'));
     if (Auth.isSupportMember() &&
-        ![Router.currentPath, window.location.pathname].every((p) => (p || '').startsWith('/support'))) {
+        ![Router.currentPath, window.location.pathname].every((p) => memberOk(p || ''))) {
       Router.navigate('support');
       return;
     }

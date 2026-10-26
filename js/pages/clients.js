@@ -36,11 +36,11 @@ const ClientsPage = {
       const adminUserIds = new Set(companyAdmins.map((a) => a.user_id));
       const vehicleUserIds = new Set(vehicles.map((v) => v.user_id));
 
-      // Company-scope filter for company admins: must match either
+      // Company-scope filter for company admins and support staff: must match either
       //   (a) profiles.company_id === userCompanyId, OR
       //   (b) user owns a vehicle whose build_line belongs to this company
       let companyClientIds = null;
-      if (Auth.isCompanyAdmin() && userCompanyId) {
+      if ((Auth.isCompanyAdmin() || Auth.isSupportMember()) && userCompanyId) {
         const buildLines = await supa(
           `build_lines?company_id=eq.${userCompanyId}&is_active=eq.true&select=id`
         );
