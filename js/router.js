@@ -129,8 +129,6 @@ const Router = {
       { id: 'clients',   label: 'Clients',   icon: 'users' },
       { id: 'fleet',     label: 'Fleet Health', icon: 'activity' },
       { id: 'companies', label: 'Companies', icon: 'luggage' },
-      { id: 'trips',     label: 'Trips',     icon: 'map' },
-      { id: 'firmware',  label: 'Firmware',  icon: 'code' },
       { id: 'support',       label: 'Support', icon: 'lifebuoy' },
       { id: 'support/hours', label: 'Hours',   icon: 'clock' },
     ],
