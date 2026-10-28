@@ -1030,7 +1030,7 @@ const CompaniesPage = {
         <div class="t-body" style="font-weight:500">Brand colour</div>
         <div class="t-muted t-detail" style="margin-bottom:16px">Replaces ArcNode purple (buttons, highlights, selected tabs) in the iPad app for every client under this company. iPads pick it up on their next online launch. ArcRemote stays ArcNode purple.</div>
         <div style="display:flex;gap:16px;flex-wrap:wrap">
-          ${field('brandPrimary', 'Primary', primary, '#767DFB', 'Required. Blank = ArcNode purple.')}
+          ${field('brandPrimary', 'Primary', primary, '#767DFB', 'Blank = ArcNode purple.')}
           ${field('brandLight', 'Light (optional)', b.primary_light_hex || '', 'auto', 'Gradients and accents. Blank = derived.')}
           ${field('brandText', 'Text (optional)', b.primary_text_hex || '', 'auto', 'Coloured text in light mode. Blank = derived.')}
         </div>
@@ -1135,12 +1135,32 @@ const CompaniesPage = {
 
   async saveBrandColors() {
     if (!this.companyId || !Auth.isSuper()) return;
-    const raw = (id) => (document.getElementById(id)?.value || '').trim();
+    // Blank or "auto" (the Light/Text placeholder) both mean "not set".
+    const raw = (id) => {
+      const v = (document.getElementById(id)?.value || '').trim();
+      return v.toLowerCase() === 'auto' ? '' : v;
+    };
     const primary = this._brandNormHex(raw('brandPrimaryHex'));
     const light = raw('brandLightHex') ? this._brandNormHex(raw('brandLightHex')) : null;
     const text = raw('brandTextHex') ? this._brandNormHex(raw('brandTextHex')) : null;
 
-    if (!primary) { alert('Enter a primary colour as a 6-digit hex, e.g. #FF7A1A.'); return; }
+    // Blank primary = ArcNode purple. Light/Text only shade a builder colour,
+    // so they are cleared with it (the iPad would otherwise mix them with purple).
+    if (!raw('brandPrimaryHex')) {
+      try {
+        if (this.branding) {
+          await supaPatch(`company_branding?company_id=eq.${this.companyId}`,
+            { primary_hex: null, primary_light_hex: null, primary_text_hex: null });
+          Object.assign(this.branding, { primary_hex: null, primary_light_hex: null, primary_text_hex: null });
+        }
+        this._renderTab();
+        if (typeof showToast === 'function') showToast('Saved — ArcNode purple. iPads update on next online launch', 'success');
+      } catch (e) {
+        alert(`Save failed: ${e.message}`);
+      }
+      return;
+    }
+    if (!primary) { alert('Primary must be a 6-digit hex like #FF7A1A, or blank for ArcNode purple.'); return; }
     if (raw('brandLightHex') && !light) { alert('Light colour must be a 6-digit hex, or blank.'); return; }
     if (raw('brandTextHex') && !text) { alert('Text colour must be a 6-digit hex, or blank.'); return; }
 
