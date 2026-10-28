@@ -308,6 +308,7 @@ const CompaniesPage = {
 
     if (this.activeTab === 'overview') {
       contentEl.innerHTML = this._renderOverview();
+      if (Auth.isSuper()) this._updateColorPreview();
       this.loadCodes();
     } else if (this.activeTab === 'build-lines') {
       contentEl.innerHTML = '<div class="data-empty">Loading build lines...</div>';
@@ -460,6 +461,7 @@ const CompaniesPage = {
           <div class="t-muted t-detail" style="margin-bottom:16px">Custom logo shown in the ArcNode iPad app header for clients of this company.</div>
           ${logoMarkup}
           ${backgroundMarkup}
+          ${Auth.isSuper() ? this._brandColorMarkup() : ''}
         </div>
 
         <div class="card">
@@ -987,6 +989,189 @@ const CompaniesPage = {
       this._renderTab();
     } catch (e) {
       alert(`Remove failed: ${e.message}`);
+    }
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // BRAND / COLOUR (super admins only)
+  // ═══════════════════════════════════════════════════════════════════════
+  //
+  // company_branding.primary_hex replaces ArcNode purple in the iPad app.
+  // primary_light_hex / primary_text_hex are optional; when blank the iPad
+  // derives them exactly as _brandDerive() does here (30% toward white /
+  // 20% toward black), so the preview matches the device.
+  //
+  // Contrast targets are the ones ArcNode purple itself meets (ArcDS):
+  //   buttons / highlights (UI, bold labels)  >= 3:1   (WCAG 1.4.11)
+  //   coloured text in light mode             >= 4.5:1 (WCAG 1.4.3)
+  // They are shown as guidance; saving a failing colour asks to confirm.
+
+  _brandDefaults: { primary: '#767DFB', light: '#9B9FFC', text: '#5B63E0' },
+
+  _brandColorMarkup() {
+    const b = this.branding || {};
+    const primary = b.primary_hex || '';
+    const field = (id, label, value, placeholder, hint) => `
+      <div style="display:flex;flex-direction:column;gap:6px;min-width:180px;flex:1">
+        <label class="t-detail" for="${id}Hex" style="font-weight:500">${label}</label>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input type="color" id="${id}Picker" value="${escHtml(this._brandNormHex(value) || this._brandNormHex(placeholder) || '#767DFB')}"
+                 style="width:40px;height:36px;padding:0;border:1px solid var(--border-default);border-radius:8px;background:none;cursor:pointer"
+                 oninput="document.getElementById('${id}Hex').value=this.value.toUpperCase();CompaniesPage._updateColorPreview()">
+          <input type="text" id="${id}Hex" value="${escHtml(value)}" placeholder="${escHtml(placeholder)}" maxlength="7"
+                 style="flex:1;font-family:monospace"
+                 oninput="const h=CompaniesPage._brandNormHex(this.value);if(h)document.getElementById('${id}Picker').value=h;CompaniesPage._updateColorPreview()">
+        </div>
+        <div class="t-muted t-detail">${hint}</div>
+      </div>`;
+
+    return `
+      <div style="margin-top:32px;padding-top:24px;border-top:1px solid var(--border-default)">
+        <div class="t-body" style="font-weight:500">Brand colour</div>
+        <div class="t-muted t-detail" style="margin-bottom:16px">Replaces ArcNode purple (buttons, highlights, selected tabs) in the iPad app for every client under this company. iPads pick it up on their next online launch. ArcRemote stays ArcNode purple.</div>
+        <div style="display:flex;gap:16px;flex-wrap:wrap">
+          ${field('brandPrimary', 'Primary', primary, '#767DFB', 'Required. Blank = ArcNode purple.')}
+          ${field('brandLight', 'Light (optional)', b.primary_light_hex || '', 'auto', 'Gradients and accents. Blank = derived.')}
+          ${field('brandText', 'Text (optional)', b.primary_text_hex || '', 'auto', 'Coloured text in light mode. Blank = derived.')}
+        </div>
+
+        <div id="brandColorPreview" style="display:flex;gap:16px;flex-wrap:wrap;margin-top:20px"></div>
+        <div id="brandColorChecks" style="margin-top:16px"></div>
+
+        <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-primary btn-sm" onclick="CompaniesPage.saveBrandColors()">Save colour</button>
+          ${primary ? '<button class="btn btn-ghost btn-sm t-danger" onclick="CompaniesPage.resetBrandColors()">Reset to ArcNode purple</button>' : ''}
+        </div>
+      </div>
+    `;
+  },
+
+  /** '#abc123' / 'abc123' → '#ABC123'; anything else → null. */
+  _brandNormHex(v) {
+    const m = String(v || '').trim().match(/^#?([0-9a-fA-F]{6})$/);
+    return m ? `#${m[1].toUpperCase()}` : null;
+  },
+
+  _brandRgb(hex) {
+    const n = parseInt(hex.slice(1), 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  },
+
+  /** Same blend the iPad uses (BrandingManager.mix). */
+  _brandMix(hex, toward, t) {
+    const a = this._brandRgb(hex);
+    const b = this._brandRgb(toward);
+    const c = a.map((v, i) => Math.round(v + (b[i] - v) * t));
+    return '#' + c.map((v) => v.toString(16).padStart(2, '0')).join('').toUpperCase();
+  },
+
+  _brandContrast(hexA, hexB) {
+    const lum = (hex) => {
+      const [r, g, b] = this._brandRgb(hex).map((v) => {
+        const s = v / 255;
+        return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+      });
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    const [l1, l2] = [lum(hexA), lum(hexB)].sort((x, y) => y - x);
+    return (l1 + 0.05) / (l2 + 0.05);
+  },
+
+  /** Colours as the iPad will resolve them from the current form values. */
+  _brandResolved() {
+    const val = (id) => document.getElementById(id)?.value || '';
+    const primary = this._brandNormHex(val('brandPrimaryHex'));
+    if (!primary) return { primary: null, ...this._brandDefaults };
+    return {
+      primary,
+      light: this._brandNormHex(val('brandLightHex')) || this._brandMix(primary, '#FFFFFF', 0.3),
+      text: this._brandNormHex(val('brandTextHex')) || this._brandMix(primary, '#000000', 0.2),
+    };
+  },
+
+  /** The contrast rows, each { label, ratio, min }. */
+  _brandChecks(c) {
+    const primary = c.primary || this._brandDefaults.primary;
+    return [
+      { label: 'Light-mode button: white label on primary', ratio: this._brandContrast('#FFFFFF', primary), min: 3 },
+      { label: 'Dark-mode button: dark label (#242526) on primary', ratio: this._brandContrast('#242526', primary), min: 3 },
+      { label: 'Dark-mode highlight: primary on dark background (#242526)', ratio: this._brandContrast(primary, '#242526'), min: 3 },
+      { label: 'Light-mode coloured text: text colour on white', ratio: this._brandContrast(c.text, '#FFFFFF'), min: 4.5 },
+    ];
+  },
+
+  _updateColorPreview() {
+    const previewEl = document.getElementById('brandColorPreview');
+    const checksEl = document.getElementById('brandColorChecks');
+    if (!previewEl || !checksEl) return;
+    const c = this._brandResolved();
+    const primary = c.primary || this._brandDefaults.primary;
+
+    const card = (bg, label, labelColor, textColor, title) => `
+      <div style="flex:1;min-width:220px;border-radius:12px;padding:16px;background:${bg};border:1px solid var(--border-default)">
+        <div style="font-size:12px;color:${textColor};opacity:.7;margin-bottom:10px">${title}</div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <span style="background:${primary};color:${labelColor};font-weight:600;padding:8px 16px;border-radius:10px">${label}</span>
+          <span style="width:36px;height:20px;border-radius:10px;background:${primary};display:inline-block"></span>
+          <span style="background:linear-gradient(90deg,${primary},${c.light});width:56px;height:20px;border-radius:6px;display:inline-block"></span>
+        </div>
+        <div style="margin-top:10px;font-weight:600;color:${bg === '#FFFFFF' ? c.text : '#FFFFFF'}">Selected tab · Coloured text</div>
+      </div>`;
+    previewEl.innerHTML =
+      card('#FFFFFF', 'Continue', '#FFFFFF', '#1A1A1A', 'Light mode') +
+      card('#242526', 'Continue', '#242526', '#F5F1EB', 'Dark mode');
+
+    checksEl.innerHTML = this._brandChecks(c).map((r) => {
+      const ok = r.ratio >= r.min;
+      return `
+        <div style="display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid var(--border-default)">
+          <span class="t-detail">${r.label}</span>
+          <span class="t-detail" style="white-space:nowrap;font-weight:600;color:${ok ? 'var(--success, #1E8E3E)' : 'var(--danger, #D93025)'}">
+            ${r.ratio.toFixed(2)}:1 ${ok ? '✓' : `✗ needs ${r.min}:1`}
+          </span>
+        </div>`;
+    }).join('');
+  },
+
+  async saveBrandColors() {
+    if (!this.companyId || !Auth.isSuper()) return;
+    const raw = (id) => (document.getElementById(id)?.value || '').trim();
+    const primary = this._brandNormHex(raw('brandPrimaryHex'));
+    const light = raw('brandLightHex') ? this._brandNormHex(raw('brandLightHex')) : null;
+    const text = raw('brandTextHex') ? this._brandNormHex(raw('brandTextHex')) : null;
+
+    if (!primary) { alert('Enter a primary colour as a 6-digit hex, e.g. #FF7A1A.'); return; }
+    if (raw('brandLightHex') && !light) { alert('Light colour must be a 6-digit hex, or blank.'); return; }
+    if (raw('brandTextHex') && !text) { alert('Text colour must be a 6-digit hex, or blank.'); return; }
+
+    const failing = this._brandChecks(this._brandResolved()).filter((r) => r.ratio < r.min);
+    if (failing.length && !confirm(
+      `This colour fails ${failing.length} contrast check${failing.length > 1 ? 's' : ''}:\n\n` +
+      failing.map((r) => `• ${r.label}: ${r.ratio.toFixed(2)}:1 (needs ${r.min}:1)`).join('\n') +
+      '\n\nSave anyway?'
+    )) return;
+
+    try {
+      const row = { company_id: this.companyId, primary_hex: primary, primary_light_hex: light, primary_text_hex: text };
+      await supaPost('company_branding', row, { upsert: true });
+      this.branding = { ...(this.branding || {}), ...row };
+      this._renderTab();
+      if (typeof showToast === 'function') showToast('Brand colour saved — iPads update on next online launch', 'success');
+    } catch (e) {
+      alert(`Save failed: ${e.message}`);
+    }
+  },
+
+  async resetBrandColors() {
+    if (!this.companyId || !Auth.isSuper()) return;
+    if (!confirm('Reset to ArcNode purple? Clients will see ArcNode purple again on their next online launch.')) return;
+    try {
+      await supaPatch(`company_branding?company_id=eq.${this.companyId}`,
+        { primary_hex: null, primary_light_hex: null, primary_text_hex: null });
+      if (this.branding) Object.assign(this.branding, { primary_hex: null, primary_light_hex: null, primary_text_hex: null });
+      this._renderTab();
+    } catch (e) {
+      alert(`Reset failed: ${e.message}`);
     }
   },
 
