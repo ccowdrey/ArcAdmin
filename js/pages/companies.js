@@ -194,6 +194,19 @@ const CompaniesPage = {
 
       this.company = companyArr[0];
 
+      // Builder branding (dashboard background). Super admins only — the
+      // company_branding table is admin-only under RLS, and ArcNode approves
+      // branding rather than builders. A failed read never blocks the page.
+      this.branding = null;
+      if (Auth.isSuper()) {
+        try {
+          const brandingArr = await supa(`company_branding?company_id=eq.${companyId}&select=*`);
+          this.branding = brandingArr[0] || null;
+        } catch (e) {
+          console.warn('company_branding load failed:', e.message);
+        }
+      }
+
       // Second-path: pull vehicles whose build_line belongs to this company,
       // then fetch the owning profile for each. We need this because some
       // users may have vehicle.build_line_id set but profile.company_id NULL
@@ -373,6 +386,44 @@ const CompaniesPage = {
         </label>
       `;
 
+    // Dashboard background (super admins only). The iPad downloads it once and
+    // keeps it on the device, so it also shows offline. Preview is 4:3 like
+    // the iPad screen, object-fit:cover like the app.
+    const backgroundUrl = this.branding?.background_url;
+    const backgroundMarkup = !Auth.isSuper() ? '' : backgroundUrl
+      ? `
+        <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap;margin-top:24px">
+          <div style="width:240px;aspect-ratio:4/3;border-radius:12px;border:1px solid var(--border-default);background:var(--bg-muted);overflow:hidden;flex-shrink:0">
+            <img src="${escHtml(backgroundUrl)}" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display='none'">
+          </div>
+          <div style="flex:1;min-width:200px">
+            <div class="t-body" style="font-weight:500">Dashboard background uploaded</div>
+            <div class="t-muted t-detail">Replaces the time-of-day backgrounds on the ArcNode iPad dashboard for every client under this company. iPads pick it up on their next online launch.</div>
+            <div style="margin-top:12px;display:flex;gap:8px">
+              <label class="btn btn-secondary btn-sm" style="cursor:pointer;margin:0">
+                Replace
+                <input type="file" accept="image/jpeg,image/png,image/webp" style="display:none" onchange="CompaniesPage.uploadBackground(this.files[0])">
+              </label>
+              <button class="btn btn-ghost btn-sm t-danger" onclick="CompaniesPage.removeBackground()">Remove</button>
+            </div>
+          </div>
+        </div>
+      `
+      : `
+        <label style="display:flex;flex-direction:column;align-items:center;gap:12px;padding:32px;border:2px dashed var(--border-default);border-radius:8px;cursor:pointer;background:var(--bg-muted);margin-top:24px"
+               onmouseover="this.style.borderColor='var(--brand-primary)'"
+               onmouseout="this.style.borderColor='var(--border-default)'">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--text-secondary)">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/>
+            <line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+          <div class="t-body">Upload dashboard background</div>
+          <div class="t-muted t-detail">JPG, PNG, or WebP, under 10 MB. Replaces the time-of-day backgrounds on the ArcNode iPad dashboard for every client under this company. Recommended: landscape photo, 2732×2048 px, JPG. The app adds a light/dark overlay so cards stay readable.</div>
+          <input type="file" accept="image/jpeg,image/png,image/webp" style="display:none" onchange="CompaniesPage.uploadBackground(this.files[0])">
+        </label>
+      `;
+
     return `
       <div class="w-full flex flex-col gap-8">
 
@@ -408,6 +459,7 @@ const CompaniesPage = {
           <div class="card-title">Brand</div>
           <div class="t-muted t-detail" style="margin-bottom:16px">Custom logo shown in the ArcNode iPad app header for clients of this company.</div>
           ${logoMarkup}
+          ${backgroundMarkup}
         </div>
 
         <div class="card">
@@ -876,6 +928,62 @@ const CompaniesPage = {
     try {
       await supaPatch(`companies?id=eq.${this.companyId}`, { logo_url: null });
       this.company.logo_url = null;
+      this._renderTab();
+    } catch (e) {
+      alert(`Remove failed: ${e.message}`);
+    }
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // BRAND / DASHBOARD BACKGROUND (super admins only)
+  // ═══════════════════════════════════════════════════════════════════════
+  //
+  // Saved on company_branding.background_url. Any write bumps the row's
+  // updated_at, which is what tells iPads to re-download on next launch.
+
+  async uploadBackground(file) {
+    if (!file) return;
+    if (!this.companyId || !Auth.isSuper()) return;
+    // iPads give up on a download after 30s; keep files small enough to land
+    // on van wifi.
+    if (file.size > 10 * 1024 * 1024) {
+      alert('Background must be under 10 MB. Save it as a JPG at 2732×2048 px.');
+      return;
+    }
+    try {
+      const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+      // Timestamped path for the same CDN cache reason as the logo.
+      const path = `company-backgrounds/${this.companyId}-${Date.now()}.${ext}`;
+
+      const uploadRes = await fetch(`${SUPA_URL}/storage/v1/object/van-manuals/${path}`, {
+        method: 'POST',
+        headers: {
+          apikey: SUPA_KEY,
+          Authorization: `Bearer ${token}`,
+          'Content-Type': file.type || 'image/jpeg',
+          'x-upsert': 'true',
+        },
+        body: file,
+      });
+      if (!uploadRes.ok) throw new Error(await uploadRes.text());
+
+      const publicUrl = `${SUPA_URL}/storage/v1/object/public/van-manuals/${path}`;
+      // Upsert only background_url so an existing colour is left as is.
+      await supaPost('company_branding', { company_id: this.companyId, background_url: publicUrl }, { upsert: true });
+
+      this.branding = { ...(this.branding || {}), company_id: this.companyId, background_url: publicUrl };
+      this._renderTab();
+    } catch (e) {
+      alert(`Background upload failed: ${e.message}`);
+    }
+  },
+
+  async removeBackground() {
+    if (!this.companyId || !Auth.isSuper()) return;
+    if (!confirm('Remove the dashboard background? Clients will see the standard ArcNode backgrounds again on their next online launch.')) return;
+    try {
+      await supaPatch(`company_branding?company_id=eq.${this.companyId}`, { background_url: null });
+      if (this.branding) this.branding.background_url = null;
       this._renderTab();
     } catch (e) {
       alert(`Remove failed: ${e.message}`);
