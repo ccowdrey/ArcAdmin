@@ -20,6 +20,7 @@ const Auth = {
   _userName: null,
   _mfaFactorId: null,
   _mfaFailures: 0,
+  _pendingLink: null, // { tokenHash, type } from an /accept-invite email link
 
   // ── Entry point from the login button ──
   async login() {
@@ -334,7 +335,7 @@ const Auth = {
     const errBox = document.getElementById('setPasswordError');
     const pw1 = document.getElementById('setPasswordNew').value;
     const pw2 = document.getElementById('setPasswordConfirm').value;
-    const email = document.getElementById('setPasswordEmail').value;
+    let email = document.getElementById('setPasswordEmail').value;
 
     if (errBox) errBox.classList.add('hidden');
 
@@ -355,7 +356,27 @@ const Auth = {
 
     await withBtnLoading(event, async () => {
       try {
-        // The invite token is already in `token` (stashed by app.js bootstrap).
+        // Link from the email template (/accept-invite?token_hash=…): spend
+        // the one-time token now, on a real click, to get the invite session.
+        if (this._pendingLink) {
+          const vRes = await fetch(`${SUPA_URL}/auth/v1/verify`, {
+            method: 'POST',
+            headers: { apikey: SUPA_KEY, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type: this._pendingLink.type, token_hash: this._pendingLink.tokenHash }),
+          });
+          const v = await vRes.json().catch(() => ({}));
+          if (!vRes.ok || !v.access_token) {
+            throw new Error(
+              'This invite link has expired or was already used. Ask your admin to send a new invite.'
+            );
+          }
+          this._pendingLink = null;
+          token = v.access_token;
+          if (v.user && v.user.email) email = v.user.email;
+        }
+
+        // The invite token is in `token` (verified above, or stashed by the
+        // app.js bootstrap from an older #access_token link).
         // Call Supabase's user-update endpoint to set the password.
         const res = await fetch(`${SUPA_URL}/auth/v1/user`, {
           method: 'PUT',

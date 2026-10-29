@@ -6,7 +6,26 @@
 
 document.addEventListener('DOMContentLoaded', () => {
 
+  // ── Invite / recovery link from the email template ──
+  // The email links to /accept-invite?token_hash=…&type=invite. We do NOT
+  // verify on page load: email security scanners open links before the
+  // recipient does, and a one-time token spent by a scanner sent invitees
+  // to the sign-in page. The token is only exchanged when the person
+  // submits the create-account form (Auth.completeSetPassword).
+  const query = new URLSearchParams(window.location.search);
+  const tokenHash = query.get('token_hash');
+  const linkType = query.get('type');
+  if (tokenHash && (linkType === 'invite' || linkType === 'recovery')) {
+    Auth._pendingLink = { tokenHash, type: linkType };
+    clearSession();
+    showSetPassword(linkType, query.get('email') || '');
+    history.replaceState(null, '', '/');
+    return;
+  }
+
   // ── Check for invite / password-recovery tokens in the URL hash ──
+  // Older invite emails link through Supabase's /verify, which lands here
+  // with #access_token=…&type=invite (or #error=… if the link was spent).
   const hash = window.location.hash.substring(1);
   if (hash) {
     const params = new URLSearchParams(hash);
@@ -18,9 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
       token = accessToken;
       saveSession();
 
-      document.getElementById('loginPage').classList.add('hidden');
-      document.getElementById('appShell').classList.add('hidden');
-      document.getElementById('setPasswordPage').classList.remove('hidden');
+      showSetPassword(type, '');
 
       // Fetch the user's email using the invite/recovery token and populate
       // the read-only email field. This gives the user confidence they're
@@ -36,12 +53,22 @@ document.addEventListener('DOMContentLoaded', () => {
           if (user && user.email) {
             const emailEl = document.getElementById('setPasswordEmail');
             if (emailEl) emailEl.value = user.email;
+            document.getElementById('setPasswordEmailField').classList.remove('hidden');
           }
         })
         .catch(() => {/* non-fatal */});
 
       // Clear the hash from the address bar
       history.replaceState(null, '', window.location.pathname);
+      return;
+    }
+
+    // Spent or expired link: say so instead of dropping them on a bare
+    // sign-in form with no explanation.
+    if (params.get('error') || params.get('error_code')) {
+      history.replaceState(null, '', '/');
+      showLogin();
+      showLinkError(params.get('error_code'));
       return;
     }
   }
@@ -195,6 +222,30 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ── Helpers ──
+
+// Invite → "Create your account"; recovery → "Set a new password".
+function showSetPassword(type, email) {
+  const isInvite = type === 'invite';
+  document.getElementById('loginPage').classList.add('hidden');
+  document.getElementById('appShell').classList.add('hidden');
+  document.getElementById('setPasswordSub').textContent =
+    isInvite ? 'Create your ArcNode account' : 'Set a new password';
+  document.getElementById('setPasswordBtn').textContent =
+    isInvite ? 'Create account & continue' : 'Set password & continue';
+  const emailEl = document.getElementById('setPasswordEmail');
+  emailEl.value = email;
+  document.getElementById('setPasswordEmailField').classList.toggle('hidden', !email);
+  document.getElementById('setPasswordPage').classList.remove('hidden');
+}
+
+function showLinkError(code) {
+  const errBox = document.getElementById('loginError');
+  if (!errBox) return;
+  errBox.textContent = code === 'otp_expired'
+    ? 'This invite link has expired or was already used. Ask your admin to send a new invite.'
+    : 'This link is no longer valid. Ask your admin to send a new invite.';
+  errBox.classList.remove('hidden');
+}
 
 function showLogin() {
   document.getElementById('appShell').classList.add('hidden');
