@@ -53,10 +53,10 @@
   <div class="login-box">
     <div class="login-title">
       <img src="/assets/logo.svg" alt="ArcAdmin" class="login-logo">
-      <div class="sub">Set your password to continue</div>
+      <div class="sub" id="setPasswordSub">Set your password to continue</div>
     </div>
     <div class="error-box hidden" id="setPasswordError"></div>
-    <div class="field">
+    <div class="field" id="setPasswordEmailField">
       <label>Email</label>
       <input type="email" id="setPasswordEmail" readonly>
     </div>
@@ -68,7 +68,7 @@
       <label>Confirm password</label>
       <input type="password" id="setPasswordConfirm" placeholder="Re-enter password" autocomplete="new-password">
     </div>
-    <button class="btn btn-primary" style="width:100%" onclick="Auth.completeSetPassword(event)">Set Password &amp; Continue</button>
+    <button class="btn btn-primary" style="width:100%" id="setPasswordBtn" onclick="Auth.completeSetPassword(event)">Set Password &amp; Continue</button>
   </div>
 </div>
 

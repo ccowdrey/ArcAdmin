@@ -118,6 +118,31 @@ serve(async (req) => {
       redirectTo: "https://admin.arcnode.app",
     });
 
+    // Re-inviting someone whose invite link was already opened (often by an
+    // email security scanner) fails with "already registered", because
+    // opening the link confirms the account even though no password was set.
+    // For invited users, send a set-password email instead so they can finish.
+    if (error && /already (been )?registered|email_exists/i.test(`${error.message} ${(error as any).code ?? ""}`)) {
+      const { data: prof } = await supabaseAdmin
+        .from("profiles").select("id").ilike("email", email).limit(1);
+      const existingId = prof?.[0]?.id;
+      const { data: existing } = existingId
+        ? await supabaseAdmin.auth.admin.getUserById(existingId)
+        : { data: null };
+      if (existing?.user?.invited_at) {
+        const { error: resetError } = await supabaseAdmin.auth.resetPasswordForEmail(email, {
+          redirectTo: "https://admin.arcnode.app",
+        });
+        if (!resetError) {
+          return new Response(
+            JSON.stringify({ user_id: existing.user.id, email: existing.user.email, resent: "set_password" }),
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        console.error("Re-invite (recovery) error:", resetError);
+      }
+    }
+
     if (error) {
       console.error("Invite error:", error);
       return new Response(

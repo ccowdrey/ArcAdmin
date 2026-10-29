@@ -1,0 +1,19 @@
+<!--
+  ArcAdmin admin invite email. Paste into Supabase → Authentication → Emails →
+  "Invite user" (subject: "You're invited to ArcAdmin").
+
+  The button opens ArcAdmin's create-account page directly instead of
+  Supabase's /verify link. That page only spends the one-time token when the
+  invitee submits the form, so email security scanners that pre-open links
+  can't use it up first (which was sending invitees to the sign-in page).
+-->
+<h2>You're invited to ArcAdmin</h2>
+<p>You've been added as an admin on ArcAdmin, the ArcNode builder portal.</p>
+<p>Create your account to get started. You'll set a password, then set up two-factor sign-in with an authenticator app.</p>
+<p>
+  <a href="https://admin.arcnode.app/accept-invite?token_hash={{ .TokenHash }}&type=invite&email={{ .Email }}"
+     style="display:inline-block;padding:12px 20px;background:#7B61FF;color:#ffffff;border-radius:8px;text-decoration:none;font-weight:600">
+    Create your account
+  </a>
+</p>
+<p style="color:#666;font-size:13px">This link works once and expires. If it has expired, ask your admin to send a new invite.</p>
