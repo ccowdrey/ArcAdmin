@@ -124,6 +124,19 @@ const UserDetailPage = {
         } catch (_) {}
       }
 
+      // This van's own dashboard background (super admins only — the
+      // vehicle_branding table is admin-only under RLS). A failed read never
+      // blocks the page.
+      this._vehicleBranding = null;
+      if (v && Auth.isSuper()) {
+        try {
+          const vbs = await supa(`vehicle_branding?vehicle_id=eq.${v.id}&select=*`);
+          this._vehicleBranding = vbs[0] || null;
+        } catch (e) {
+          console.warn('vehicle_branding load failed:', e.message);
+        }
+      }
+
       this._render({ profile: p, sub, vehicle: v, lastActiveAt, buildLineLabel, buildLineBatteryAh, buildLineWheelbase, buildLineTrack, companyLabel });
 
       if (v) {
@@ -202,6 +215,7 @@ const UserDetailPage = {
         </div>
       </div>`}
 
+      ${vehicle && Auth.isSuper() ? `<div id="vanBackgroundCard">${this._renderVanBackgroundCard()}</div>` : ''}
       ${vehicle ? this._renderTripsCard() : ''}
       ${vehicle ? this._renderDrivingEventsCard() : ''}
       ${vehicle ? this._renderDeviceControlLogsCard() : ''}
@@ -539,6 +553,112 @@ const UserDetailPage = {
   // route on a Leaflet map. Reads the `trips` / `trip_points` tables the iPad
   // recorder writes. Trips are user_id-scoped today (no vehicle_id column yet),
   // so this keys on the customer's user_id like the other activity sections.
+  // ═══════════════════════════════════════════════════════════════════════
+  // VAN BACKGROUND (super admins only)
+  // ═══════════════════════════════════════════════════════════════════════
+  //
+  // A photo of this client's van, shown as their iPad dashboard background.
+  // Saved on vehicle_branding.background_url (keyed by vehicle, so it survives
+  // a dealer handoff) and takes priority over the company background. Any
+  // write bumps updated_at, which tells the iPad to re-download on its next
+  // online launch; it then keeps the photo on the device for offline use.
+
+  _renderVanBackgroundCard() {
+    const url = this._vehicleBranding?.background_url;
+    const body = url
+      ? `
+        <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+          <div style="width:240px;aspect-ratio:4/3;border-radius:12px;border:1px solid var(--border-default);background:var(--bg-muted);overflow:hidden;flex-shrink:0">
+            <img src="${escHtml(url)}" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display='none'">
+          </div>
+          <div style="flex:1;min-width:200px">
+            <div class="t-body" style="font-weight:500">Van photo uploaded</div>
+            <div class="t-muted t-detail">Shown as this client's iPad dashboard background, in place of the company background. The iPad picks it up on its next online launch.</div>
+            <div style="margin-top:12px;display:flex;gap:8px">
+              <label class="btn btn-secondary btn-sm" style="cursor:pointer;margin:0">
+                Replace
+                <input type="file" accept="image/jpeg,image/png,image/webp" style="display:none" onchange="UserDetailPage.uploadVanBackground(this.files[0])">
+              </label>
+              <button class="btn btn-ghost btn-sm t-danger" onclick="UserDetailPage.removeVanBackground()">Remove</button>
+            </div>
+          </div>
+        </div>`
+      : `
+        <label style="display:flex;flex-direction:column;align-items:center;gap:12px;padding:32px;border:2px dashed var(--border-default);border-radius:8px;cursor:pointer;background:var(--bg-muted)"
+               onmouseover="this.style.borderColor='var(--brand-primary)'"
+               onmouseout="this.style.borderColor='var(--border-default)'">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--text-secondary)">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/>
+            <line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+          <div class="t-body">Upload a photo of this van</div>
+          <div class="t-muted t-detail">JPG, PNG, or WebP, under 10 MB. Becomes this client's iPad dashboard background, in place of the company background. Recommended: landscape, 2732×2048 px, JPG. Until one is uploaded, the company background (or ArcNode's standard backgrounds) shows.</div>
+          <input type="file" accept="image/jpeg,image/png,image/webp" style="display:none" onchange="UserDetailPage.uploadVanBackground(this.files[0])">
+        </label>`;
+
+    return `
+      <div class="card">
+        <div class="card-title">Dashboard background</div>
+        <div class="t-muted t-detail" style="margin-bottom:16px">A photo of this client's own van for their ArcNode iPad dashboard.</div>
+        ${body}
+      </div>`;
+  },
+
+  async uploadVanBackground(file) {
+    if (!file) return;
+    if (!this.vehicleId || !Auth.isSuper()) return;
+    // iPads give up on a download after 30s; keep files small enough to land
+    // on van wifi.
+    if (file.size > 10 * 1024 * 1024) {
+      alert('Photo must be under 10 MB. Save it as a JPG at 2732×2048 px.');
+      return;
+    }
+    try {
+      const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+      // Timestamped path so the CDN never serves a stale copy.
+      const path = `vehicle-backgrounds/${this.vehicleId}-${Date.now()}.${ext}`;
+
+      const uploadRes = await fetch(`${SUPA_URL}/storage/v1/object/van-manuals/${path}`, {
+        method: 'POST',
+        headers: {
+          apikey: SUPA_KEY,
+          Authorization: `Bearer ${token}`,
+          'Content-Type': file.type || 'image/jpeg',
+          'x-upsert': 'true',
+        },
+        body: file,
+      });
+      if (!uploadRes.ok) throw new Error(await uploadRes.text());
+
+      const publicUrl = `${SUPA_URL}/storage/v1/object/public/van-manuals/${path}`;
+      await supaPost('vehicle_branding', { vehicle_id: this.vehicleId, background_url: publicUrl }, { upsert: true });
+
+      this._vehicleBranding = { vehicle_id: this.vehicleId, background_url: publicUrl };
+      this._refreshVanBackgroundCard();
+    } catch (e) {
+      alert(`Photo upload failed: ${e.message}`);
+    }
+  },
+
+  async removeVanBackground() {
+    if (!this.vehicleId || !Auth.isSuper()) return;
+    if (!confirm('Remove this van photo? The client will see the company background (or ArcNode\'s standard backgrounds) again on their next online launch.')) return;
+    try {
+      await supaPatch(`vehicle_branding?vehicle_id=eq.${this.vehicleId}`, { background_url: null });
+      if (this._vehicleBranding) this._vehicleBranding.background_url = null;
+      this._refreshVanBackgroundCard();
+    } catch (e) {
+      alert(`Remove failed: ${e.message}`);
+    }
+  },
+
+  /** Swap just the background card so the logs/trips sections keep their state. */
+  _refreshVanBackgroundCard() {
+    const el = document.getElementById('vanBackgroundCard');
+    if (el) el.innerHTML = this._renderVanBackgroundCard();
+  },
+
   _renderTripsCard() {
     return `
       <div class="card">
